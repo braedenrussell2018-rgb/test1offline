@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, FileText, DollarSign, TrendingUp } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
+import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
 
 const Index = () => {
@@ -88,6 +89,7 @@ const Index = () => {
         {/* Actions */}
         <div className="flex gap-4 mb-6">
           <AddItemDialog onItemAdded={handleRefresh} />
+          <BulkUploadDialog onItemsAdded={handleRefresh} />
           <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
         </div>
 
