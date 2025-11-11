@@ -15,9 +15,16 @@ interface BulkUploadDialogProps {
 }
 
 interface ParsedItem {
-  serialNumber: string;
+  partNumber: string;
+  serialNumber?: string;
   description: string;
+  salePrice: number;
   cost: number;
+  weight?: number;
+  volume?: number;
+  warranty?: string;
+  minReorderLevel?: number;
+  maxReorderLevel?: number;
   valid: boolean;
   errors: string[];
 }
@@ -30,9 +37,30 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
 
   const downloadTemplate = () => {
     const template = [
-      { SerialNumber: "SN-001", Description: "Sample Item 1", Cost: 99.99 },
-      { SerialNumber: "SN-002", Description: "Sample Item 2", Cost: 149.50 },
-      { SerialNumber: "SN-003", Description: "Sample Item 3", Cost: 75.00 },
+      {
+        PartNumber: "PN-001",
+        SerialNumber: "SN-001",
+        Description: "Sample Item 1",
+        SalePrice: 149.99,
+        Cost: 99.99,
+        Weight: 5.5,
+        Volume: 2.3,
+        Warranty: "1 year",
+        MinReorderLevel: 10,
+        MaxReorderLevel: 100,
+      },
+      {
+        PartNumber: "PN-002",
+        SerialNumber: "SN-002",
+        Description: "Sample Item 2",
+        SalePrice: 199.99,
+        Cost: 149.50,
+        Weight: 3.2,
+        Volume: 1.5,
+        Warranty: "90 days",
+        MinReorderLevel: 5,
+        MaxReorderLevel: 50,
+      },
     ];
 
     const ws = XLSX.utils.json_to_sheet(template);
@@ -46,33 +74,66 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
     });
   };
 
-  const validateItem = (item: any, index: number): ParsedItem => {
+  const validateItem = (item: any): ParsedItem => {
     const errors: string[] = [];
     
+    const partNumber = String(item.PartNumber || item.partNumber || item["Part Number"] || "").trim();
     const serialNumber = String(item.SerialNumber || item.serialNumber || item["Serial Number"] || "").trim();
     const description = String(item.Description || item.description || "").trim();
+    const salePrice = parseFloat(String(item.SalePrice || item.salePrice || item["Sale Price"] || "0"));
     const cost = parseFloat(String(item.Cost || item.cost || "0"));
+    const weight = item.Weight || item.weight ? parseFloat(String(item.Weight || item.weight)) : undefined;
+    const volume = item.Volume || item.volume ? parseFloat(String(item.Volume || item.volume)) : undefined;
+    const warranty = String(item.Warranty || item.warranty || "").trim();
+    const minReorderLevel = item.MinReorderLevel || item.minReorderLevel || item["Min Reorder Level"] 
+      ? parseInt(String(item.MinReorderLevel || item.minReorderLevel || item["Min Reorder Level"])) 
+      : undefined;
+    const maxReorderLevel = item.MaxReorderLevel || item.maxReorderLevel || item["Max Reorder Level"]
+      ? parseInt(String(item.MaxReorderLevel || item.maxReorderLevel || item["Max Reorder Level"]))
+      : undefined;
 
-    if (!serialNumber) {
-      errors.push("Missing serial number");
+    if (!partNumber) {
+      errors.push("Missing part number");
     }
     if (!description) {
       errors.push("Missing description");
     }
+    if (isNaN(salePrice) || salePrice < 0) {
+      errors.push("Invalid sale price");
+    }
     if (isNaN(cost) || cost < 0) {
       errors.push("Invalid cost");
     }
+    if (weight !== undefined && (isNaN(weight) || weight < 0)) {
+      errors.push("Invalid weight");
+    }
+    if (volume !== undefined && (isNaN(volume) || volume < 0)) {
+      errors.push("Invalid volume");
+    }
+    if (minReorderLevel !== undefined && (isNaN(minReorderLevel) || minReorderLevel < 0)) {
+      errors.push("Invalid min reorder level");
+    }
+    if (maxReorderLevel !== undefined && (isNaN(maxReorderLevel) || maxReorderLevel < 0)) {
+      errors.push("Invalid max reorder level");
+    }
 
-    // Check for duplicate serial numbers in existing inventory
+    // Check for duplicate part numbers in existing inventory
     const existingItems = inventoryStorage.getItems();
-    if (serialNumber && existingItems.some(i => i.serialNumber === serialNumber)) {
-      errors.push("Serial number already exists");
+    if (partNumber && existingItems.some(i => i.partNumber === partNumber)) {
+      errors.push("Part number already exists");
     }
 
     return {
-      serialNumber,
+      partNumber,
+      serialNumber: serialNumber || undefined,
       description,
+      salePrice,
       cost,
+      weight,
+      volume,
+      warranty: warranty || undefined,
+      minReorderLevel,
+      maxReorderLevel,
       valid: errors.length === 0,
       errors,
     };
@@ -101,7 +162,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         return;
       }
 
-      const validated = jsonData.map((item, index) => validateItem(item, index));
+      const validated = jsonData.map((item) => validateItem(item));
       setParsedItems(validated);
 
       const validCount = validated.filter(item => item.valid).length;
@@ -128,7 +189,6 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       });
     } finally {
       setIsProcessing(false);
-      // Reset file input
       e.target.value = "";
     }
   };
@@ -147,9 +207,16 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
 
     validItems.forEach(item => {
       inventoryStorage.addItem({
+        partNumber: item.partNumber,
         serialNumber: item.serialNumber,
         description: item.description,
+        salePrice: item.salePrice,
         cost: item.cost,
+        weight: item.weight,
+        volume: item.volume,
+        warranty: item.warranty,
+        minReorderLevel: item.minReorderLevel,
+        maxReorderLevel: item.maxReorderLevel,
         status: 'available',
       });
     });
@@ -187,7 +254,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Upload an Excel file with columns: <strong>SerialNumber</strong>, <strong>Description</strong>, and <strong>Cost</strong>
+              Upload Excel with columns: <strong>PartNumber</strong>, <strong>Description</strong>, <strong>SalePrice</strong>, <strong>Cost</strong> (required) + SerialNumber, Weight, Volume, Warranty, MinReorderLevel, MaxReorderLevel (optional)
             </AlertDescription>
           </Alert>
 
@@ -247,7 +314,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{item.serialNumber || "(missing)"}</span>
+                            <span className="font-medium">{item.partNumber || "(missing)"}</span>
                             <Badge variant={item.valid ? "default" : "destructive"}>
                               {item.valid ? "Valid" : "Invalid"}
                             </Badge>
@@ -255,9 +322,10 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                           <p className="text-sm text-muted-foreground truncate">
                             {item.description || "(missing)"}
                           </p>
-                          <p className="text-sm mt-1">
-                            Cost: ${item.cost ? item.cost.toFixed(2) : "0.00"}
-                          </p>
+                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                            <span>Sale: ${item.salePrice ? item.salePrice.toFixed(2) : "0.00"}</span>
+                            <span>Cost: ${item.cost ? item.cost.toFixed(2) : "0.00"}</span>
+                          </div>
                           {item.errors.length > 0 && (
                             <div className="mt-2 space-y-1">
                               {item.errors.map((error, errorIndex) => (
@@ -279,9 +347,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setParsedItems([]);
-                  }}
+                  onClick={() => setParsedItems([])}
                 >
                   Clear
                 </Button>

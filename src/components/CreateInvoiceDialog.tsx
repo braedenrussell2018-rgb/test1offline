@@ -48,6 +48,19 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     }
   };
 
+  const handleToggleItemWithSalePrice = (itemId: string, checked: boolean) => {
+    const newSelected = new Map(selectedItems);
+    if (checked) {
+      const item = availableItems.find(i => i.id === itemId);
+      if (item) {
+        newSelected.set(itemId, item.salePrice);
+      }
+    } else {
+      newSelected.delete(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
   const handleCreateInvoice = () => {
     if (selectedItems.size === 0) {
       toast({
@@ -62,6 +75,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       const item = availableItems.find(i => i.id === itemId)!;
       return {
         itemId,
+        partNumber: item.partNumber,
         serialNumber: item.serialNumber,
         description: item.description,
         price,
@@ -121,16 +135,19 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                     >
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={(checked) => handleToggleItem(item.id, checked as boolean)}
+                        onCheckedChange={(checked) => handleToggleItemWithSalePrice(item.id, checked as boolean)}
                         className="mt-1"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium">{item.serialNumber}</div>
+                        <div className="font-medium">{item.partNumber}</div>
+                        {item.serialNumber && (
+                          <div className="text-xs text-muted-foreground">SN: {item.serialNumber}</div>
+                        )}
                         <div className="text-sm text-muted-foreground truncate">
                           {item.description}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
-                          Cost: ${item.cost.toFixed(2)}
+                          Cost: ${item.cost.toFixed(2)} | Sale: ${item.salePrice.toFixed(2)}
                         </div>
                       </div>
                       {isSelected && (

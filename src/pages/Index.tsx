@@ -120,20 +120,48 @@ const Index = () => {
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold">{item.serialNumber}</span>
+                            <span className="font-semibold">{item.partNumber}</span>
+                            {item.serialNumber && (
+                              <span className="text-sm text-muted-foreground">SN: {item.serialNumber}</span>
+                            )}
                             <Badge
                               variant={item.status === 'available' ? 'default' : 'secondary'}
                             >
                               {item.status}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">{item.description}</p>
-                          <div className="flex gap-4 mt-2 text-sm">
+                          <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <span className="text-muted-foreground">
+                              Sale: <span className="font-medium text-foreground">${item.salePrice.toFixed(2)}</span>
+                            </span>
                             <span className="text-muted-foreground">
                               Cost: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
                             </span>
-                            {item.soldDate && (
+                            {item.weight && (
                               <span className="text-muted-foreground">
+                                Weight: <span className="font-medium text-foreground">{item.weight} lbs</span>
+                              </span>
+                            )}
+                            {item.volume && (
+                              <span className="text-muted-foreground">
+                                Volume: <span className="font-medium text-foreground">{item.volume} cu ft</span>
+                              </span>
+                            )}
+                            {item.warranty && (
+                              <span className="text-muted-foreground">
+                                Warranty: <span className="font-medium text-foreground">{item.warranty}</span>
+                              </span>
+                            )}
+                            {(item.minReorderLevel !== undefined || item.maxReorderLevel !== undefined) && (
+                              <span className="text-muted-foreground">
+                                Reorder: <span className="font-medium text-foreground">
+                                  {item.minReorderLevel ?? '-'} - {item.maxReorderLevel ?? '-'}
+                                </span>
+                              </span>
+                            )}
+                            {item.soldDate && (
+                              <span className="text-muted-foreground col-span-2">
                                 Sold: {new Date(item.soldDate).toLocaleDateString()}
                               </span>
                             )}
@@ -183,7 +211,10 @@ const Index = () => {
                           {invoice.items.map((item, idx) => (
                             <div key={idx} className="flex justify-between text-sm">
                               <div>
-                                <span className="font-medium">{item.serialNumber}</span>
+                                <span className="font-medium">{item.partNumber}</span>
+                                {item.serialNumber && (
+                                  <span className="text-xs text-muted-foreground ml-1">({item.serialNumber})</span>
+                                )}
                                 <span className="text-muted-foreground ml-2">{item.description}</span>
                               </div>
                               <span className="font-medium">${item.price.toFixed(2)}</span>

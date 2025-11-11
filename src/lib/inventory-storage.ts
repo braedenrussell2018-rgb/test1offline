@@ -1,8 +1,15 @@
 export interface InventoryItem {
   id: string;
-  serialNumber: string;
+  partNumber: string;
+  serialNumber?: string;
   description: string;
+  salePrice: number;
   cost: number;
+  weight?: number;
+  volume?: number;
+  warranty?: string;
+  minReorderLevel?: number;
+  maxReorderLevel?: number;
   status: 'available' | 'sold';
   soldDate?: string;
   invoiceId?: string;
@@ -14,7 +21,8 @@ export interface Invoice {
   invoiceNumber: string;
   items: {
     itemId: string;
-    serialNumber: string;
+    partNumber: string;
+    serialNumber?: string;
     description: string;
     price: number;
   }[];
@@ -82,7 +90,7 @@ export const inventoryStorage = {
     return `INV-${String(nextNum).padStart(5, '0')}`;
   },
 
-  createInvoice: (items: { itemId: string; serialNumber: string; description: string; price: number }[]) => {
+  createInvoice: (items: { itemId: string; partNumber: string; serialNumber?: string; description: string; price: number }[]) => {
     const invoices = inventoryStorage.getInvoices();
     const newInvoice: Invoice = {
       id: crypto.randomUUID(),
