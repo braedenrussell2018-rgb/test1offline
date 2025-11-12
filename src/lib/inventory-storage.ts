@@ -19,6 +19,15 @@ export interface InventoryItem {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  shipToAddress?: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
   items: {
     itemId: string;
     partNumber: string;
@@ -26,6 +35,9 @@ export interface Invoice {
     description: string;
     price: number;
   }[];
+  subtotal: number;
+  discount: number;
+  shippingCost: number;
   total: number;
   createdAt: string;
 }
@@ -90,13 +102,31 @@ export const inventoryStorage = {
     return `INV-${String(nextNum).padStart(5, '0')}`;
   },
 
-  createInvoice: (items: { itemId: string; partNumber: string; serialNumber?: string; description: string; price: number }[]) => {
+  createInvoice: (data: {
+    items: { itemId: string; partNumber: string; serialNumber?: string; description: string; price: number }[];
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    shipToAddress?: { street: string; city: string; state: string; zip: string };
+    discount: number;
+    shippingCost: number;
+  }) => {
     const invoices = inventoryStorage.getInvoices();
+    const subtotal = data.items.reduce((sum, item) => sum + item.price, 0);
+    const total = subtotal - data.discount + data.shippingCost;
+    
     const newInvoice: Invoice = {
       id: crypto.randomUUID(),
       invoiceNumber: inventoryStorage.getNextInvoiceNumber(),
-      items,
-      total: items.reduce((sum, item) => sum + item.price, 0),
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      shipToAddress: data.shipToAddress,
+      items: data.items,
+      subtotal,
+      discount: data.discount,
+      shippingCost: data.shippingCost,
+      total,
       createdAt: new Date().toISOString(),
     };
     invoices.push(newInvoice);
