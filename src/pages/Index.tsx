@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, FileText, DollarSign, TrendingUp } from "lucide-react";
+import { Package, FileText, DollarSign, TrendingUp, FileEdit } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
@@ -91,6 +93,12 @@ const Index = () => {
           <AddItemDialog onItemAdded={handleRefresh} />
           <BulkUploadDialog onItemsAdded={handleRefresh} />
           <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
+          <Link to="/estimates">
+            <Button variant="outline">
+              <FileEdit className="mr-2 h-4 w-4" />
+              View Estimates
+            </Button>
+          </Link>
         </div>
 
         {/* Tabs */}

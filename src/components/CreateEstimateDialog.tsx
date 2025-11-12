@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import { FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage, InventoryItem } from "@/lib/inventory-storage";
+import jsPDF from "jspdf";
 
-interface CreateInvoiceDialogProps {
-  onInvoiceCreated: () => void;
+interface CreateEstimateDialogProps {
+  onEstimateCreated: () => void;
 }
 
-export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogProps) => {
+export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialogProps) => {
   const [open, setOpen] = useState(false);
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
@@ -64,12 +64,12 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     setFilteredItems(filtered);
   }, [searchQuery, availableItems]);
 
-  const handleToggleItem = (itemId: string, checked: boolean) => {
+  const handleToggleItemWithSalePrice = (itemId: string, checked: boolean) => {
     const newSelected = new Map(selectedItems);
     if (checked) {
       const item = availableItems.find(i => i.id === itemId);
       if (item) {
-        newSelected.set(itemId, item.cost);
+        newSelected.set(itemId, item.salePrice);
       }
     } else {
       newSelected.delete(itemId);
@@ -86,20 +86,94 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     }
   };
 
-  const handleToggleItemWithSalePrice = (itemId: string, checked: boolean) => {
-    const newSelected = new Map(selectedItems);
-    if (checked) {
-      const item = availableItems.find(i => i.id === itemId);
-      if (item) {
-        newSelected.set(itemId, item.salePrice);
-      }
-    } else {
-      newSelected.delete(itemId);
+  const generatePDF = (estimate: any) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.text("ESTIMATE", 105, 20, { align: "center" });
+    
+    doc.setFontSize(10);
+    doc.text(`Estimate #: ${estimate.estimateNumber}`, 20, 35);
+    doc.text(`Date: ${new Date(estimate.createdAt).toLocaleDateString()}`, 20, 40);
+    
+    // Customer Info
+    if (estimate.customerName) {
+      doc.setFontSize(12);
+      doc.text("Bill To:", 20, 55);
+      doc.setFontSize(10);
+      doc.text(estimate.customerName, 20, 60);
+      if (estimate.customerEmail) doc.text(estimate.customerEmail, 20, 65);
+      if (estimate.customerPhone) doc.text(estimate.customerPhone, 20, 70);
     }
-    setSelectedItems(newSelected);
+    
+    // Ship To
+    if (estimate.shipToAddress) {
+      doc.setFontSize(12);
+      doc.text("Ship To:", 120, 55);
+      doc.setFontSize(10);
+      doc.text(estimate.shipToAddress.street, 120, 60);
+      doc.text(`${estimate.shipToAddress.city}, ${estimate.shipToAddress.state} ${estimate.shipToAddress.zip}`, 120, 65);
+    }
+    
+    // Items Table
+    let y = 90;
+    doc.setFontSize(10);
+    doc.text("Part Number", 20, y);
+    doc.text("Description", 70, y);
+    doc.text("Price", 170, y);
+    
+    y += 5;
+    doc.line(20, y, 190, y);
+    y += 7;
+    
+    estimate.items.forEach((item: any) => {
+      doc.text(item.partNumber, 20, y);
+      const description = item.description.length > 40 ? item.description.substring(0, 40) + "..." : item.description;
+      doc.text(description, 70, y);
+      doc.text(`$${item.price.toFixed(2)}`, 170, y);
+      if (item.serialNumber) {
+        y += 5;
+        doc.setFontSize(8);
+        doc.text(`SN: ${item.serialNumber}`, 70, y);
+        doc.setFontSize(10);
+      }
+      y += 7;
+    });
+    
+    // Totals
+    y += 5;
+    doc.line(140, y, 190, y);
+    y += 7;
+    
+    doc.text("Subtotal:", 140, y);
+    doc.text(`$${estimate.subtotal.toFixed(2)}`, 170, y);
+    y += 7;
+    
+    if (estimate.discount > 0) {
+      doc.text("Discount:", 140, y);
+      doc.text(`-$${estimate.discount.toFixed(2)}`, 170, y);
+      y += 7;
+    }
+    
+    if (estimate.shippingCost > 0) {
+      doc.text("Shipping:", 140, y);
+      doc.text(`$${estimate.shippingCost.toFixed(2)}`, 170, y);
+      y += 7;
+    }
+    
+    doc.setFontSize(12);
+    doc.text("Total:", 140, y);
+    doc.text(`$${estimate.total.toFixed(2)}`, 170, y);
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.text("This estimate is valid for 30 days from the date of issue.", 105, 280, { align: "center" });
+    
+    doc.save(`estimate-${estimate.estimateNumber}.pdf`);
   };
 
-  const handleCreateInvoice = () => {
+  const handleCreateEstimate = () => {
     if (selectedItems.size === 0) {
       toast({
         title: "Error",
@@ -109,7 +183,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       return;
     }
 
-    const invoiceItems = Array.from(selectedItems.entries()).map(([itemId, price]) => {
+    const estimateItems = Array.from(selectedItems.entries()).map(([itemId, price]) => {
       const item = availableItems.find(i => i.id === itemId)!;
       return {
         itemId,
@@ -120,8 +194,8 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       };
     });
 
-    const invoice = inventoryStorage.createInvoice({
-      items: invoiceItems,
+    const estimate = inventoryStorage.createEstimate({
+      items: estimateItems,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
@@ -135,22 +209,15 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       shippingCost,
     });
 
-    // Mark items as sold
-    invoiceItems.forEach(({ itemId }) => {
-      inventoryStorage.updateItem(itemId, {
-        status: 'sold',
-        soldDate: new Date().toISOString(),
-        invoiceId: invoice.id,
-      });
-    });
+    generatePDF(estimate);
 
     toast({
       title: "Success",
-      description: `Invoice ${invoice.invoiceNumber} created`,
+      description: `Estimate ${estimate.estimateNumber} created and PDF downloaded`,
     });
 
     setOpen(false);
-    onInvoiceCreated();
+    onEstimateCreated();
   };
 
   const subtotal = Array.from(selectedItems.values()).reduce((sum, price) => sum + price, 0);
@@ -161,12 +228,12 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       <DialogTrigger asChild>
         <Button variant="outline">
           <FileText className="mr-2 h-4 w-4" />
-          Create Invoice
+          Create Estimate
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Invoice</DialogTitle>
+          <DialogTitle>Create New Estimate</DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
           {availableItems.length === 0 ? (
@@ -301,7 +368,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                             <div className="flex items-center gap-2">
                               <div className="space-y-1">
                                 <Label htmlFor={`price-${item.id}`} className="text-xs">
-                                  Sell Price
+                                  Price
                                 </Label>
                                 <Input
                                   id={`price-${item.id}`}
@@ -374,8 +441,8 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateInvoice} disabled={selectedItems.size === 0}>
-                    Create Invoice
+                  <Button onClick={handleCreateEstimate} disabled={selectedItems.size === 0}>
+                    Create Estimate & Download PDF
                   </Button>
                 </div>
               </div>
