@@ -8,12 +8,15 @@ import { Package, FileText, DollarSign, TrendingUp, FileEdit } from "lucide-reac
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
+import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
 
 const Index = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   useEffect(() => {
     setItems(inventoryStorage.getItems());
@@ -22,6 +25,11 @@ const Index = () => {
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
+  };
+
+  const handleItemClick = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDetailDialogOpen(true);
   };
 
   const availableItems = items.filter(item => item.status === 'available');
@@ -124,7 +132,8 @@ const Index = () => {
                     {items.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-start justify-between p-4 border rounded-lg bg-card hover:bg-accent/5 transition-colors"
+                        onClick={() => handleItemClick(item)}
+                        className="flex items-start justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer"
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -237,6 +246,12 @@ const Index = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <ItemDetailDialog 
+          item={selectedItem}
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+        />
       </div>
     </div>
   );

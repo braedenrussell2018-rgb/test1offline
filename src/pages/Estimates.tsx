@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreateEstimateDialog } from "@/components/CreateEstimateDialog";
 import { inventoryStorage, Estimate } from "@/lib/inventory-storage";
-import { FileText, Calendar, DollarSign } from "lucide-react";
+import { Home, FileEdit, FileText, Calendar, DollarSign } from "lucide-react";
 
 const Estimates = () => {
   const [estimates, setEstimates] = useState<Estimate[]>([]);
@@ -50,7 +51,15 @@ const Estimates = () => {
               Create and manage customer estimates
             </p>
           </div>
-          <CreateEstimateDialog onEstimateCreated={loadEstimates} />
+          <div className="flex gap-2">
+            <Link to="/">
+              <Button variant="outline">
+                <Home className="mr-2 h-4 w-4" />
+                Home
+              </Button>
+            </Link>
+            <CreateEstimateDialog onEstimateCreated={loadEstimates} />
+          </div>
         </div>
 
         <div className="grid gap-4">
