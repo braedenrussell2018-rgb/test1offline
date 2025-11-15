@@ -18,7 +18,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
+  const [selectedItems, setSelectedItems] = useState<Map<string, { price: number; quantity: number; serialNumbers: string[] }>>(new Map());
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -69,7 +69,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     if (checked) {
       const item = availableItems.find(i => i.id === itemId);
       if (item) {
-        newSelected.set(itemId, item.salePrice);
+        newSelected.set(itemId, { price: item.salePrice, quantity: 1, serialNumbers: [''] });
       }
     } else {
       newSelected.delete(itemId);
@@ -81,7 +81,34 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     const priceNum = parseFloat(price);
     if (!isNaN(priceNum) && priceNum >= 0) {
       const newSelected = new Map(selectedItems);
-      newSelected.set(itemId, priceNum);
+      const current = newSelected.get(itemId);
+      if (current) {
+        newSelected.set(itemId, { ...current, price: priceNum });
+        setSelectedItems(newSelected);
+      }
+    }
+  };
+
+  const handleQuantityChange = (itemId: string, quantity: string) => {
+    const qtyNum = parseInt(quantity);
+    if (!isNaN(qtyNum) && qtyNum > 0) {
+      const newSelected = new Map(selectedItems);
+      const current = newSelected.get(itemId);
+      if (current) {
+        const newSerialNumbers = Array(qtyNum).fill('').map((_, i) => current.serialNumbers[i] || '');
+        newSelected.set(itemId, { ...current, quantity: qtyNum, serialNumbers: newSerialNumbers });
+        setSelectedItems(newSelected);
+      }
+    }
+  };
+
+  const handleSerialNumberChange = (itemId: string, index: number, serialNumber: string) => {
+    const newSelected = new Map(selectedItems);
+    const current = newSelected.get(itemId);
+    if (current) {
+      const newSerialNumbers = [...current.serialNumbers];
+      newSerialNumbers[index] = serialNumber;
+      newSelected.set(itemId, { ...current, serialNumbers: newSerialNumbers });
       setSelectedItems(newSelected);
     }
   };
@@ -183,15 +210,31 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       return;
     }
 
-    const estimateItems = Array.from(selectedItems.entries()).map(([itemId, price]) => {
+    // Validate serial numbers
+    for (const [itemId, data] of selectedItems.entries()) {
+      if (data.quantity > 1) {
+        const hasEmptySerials = data.serialNumbers.some(sn => !sn.trim());
+        if (hasEmptySerials) {
+          const item = availableItems.find(i => i.id === itemId);
+          toast({
+            title: "Error",
+            description: `Please enter all serial numbers for ${item?.partNumber}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    const estimateItems = Array.from(selectedItems.entries()).flatMap(([itemId, data]) => {
       const item = availableItems.find(i => i.id === itemId)!;
-      return {
+      return Array(data.quantity).fill(null).map((_, idx) => ({
         itemId,
         partNumber: item.partNumber,
-        serialNumber: item.serialNumber,
+        serialNumber: data.quantity > 1 ? data.serialNumbers[idx] : item.serialNumber,
         description: item.description,
-        price,
-      };
+        price: data.price,
+      }));
     });
 
     const estimate = inventoryStorage.createEstimate({
@@ -220,7 +263,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     onEstimateCreated();
   };
 
-  const subtotal = Array.from(selectedItems.values()).reduce((sum, price) => sum + price, 0);
+  const subtotal = Array.from(selectedItems.values()).reduce((sum, data) => sum + (data.price * data.quantity), 0);
   const total = subtotal - discount + shippingCost;
 
   return (
@@ -339,8 +382,8 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
                     <p className="text-muted-foreground text-center py-4">No items found</p>
                   ) : (
                     filteredItems.map((item) => {
+                      const itemData = selectedItems.get(item.id);
                       const isSelected = selectedItems.has(item.id);
-                      const price = selectedItems.get(item.id) || item.salePrice;
                       
                       return (
                         <div
@@ -364,22 +407,51 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
                               Cost: ${item.cost.toFixed(2)} | Sale: ${item.salePrice.toFixed(2)}
                             </div>
                           </div>
-                          {isSelected && (
-                            <div className="flex items-center gap-2">
-                              <div className="space-y-1">
-                                <Label htmlFor={`price-${item.id}`} className="text-xs">
-                                  Price
-                                </Label>
-                                <Input
-                                  id={`price-${item.id}`}
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={price}
-                                  onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                                  className="w-24"
-                                />
+                          {isSelected && itemData && (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label htmlFor={`price-${item.id}`} className="text-xs">
+                                    Price
+                                  </Label>
+                                  <Input
+                                    id={`price-${item.id}`}
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={itemData.price}
+                                    onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                                    className="w-24"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label htmlFor={`qty-${item.id}`} className="text-xs">
+                                    Qty
+                                  </Label>
+                                  <Input
+                                    id={`qty-${item.id}`}
+                                    type="number"
+                                    min="1"
+                                    value={itemData.quantity}
+                                    onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                    className="w-20"
+                                  />
+                                </div>
                               </div>
+                              {itemData.quantity > 1 && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Serial Numbers</Label>
+                                  {Array.from({ length: itemData.quantity }).map((_, idx) => (
+                                    <Input
+                                      key={idx}
+                                      placeholder={`SN #${idx + 1}`}
+                                      value={itemData.serialNumbers[idx] || ''}
+                                      onChange={(e) => handleSerialNumberChange(item.id, idx, e.target.value)}
+                                      className="text-xs"
+                                    />
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
