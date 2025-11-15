@@ -17,6 +17,8 @@ const Index = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("inventory");
+  const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
 
   useEffect(() => {
     setItems(inventoryStorage.getItems());
@@ -37,6 +39,11 @@ const Index = () => {
   const totalInventoryValue = availableItems.reduce((sum, item) => sum + item.cost, 0);
   const totalRevenue = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
 
+  const filteredItems = items.filter(item => {
+    if (itemFilter === 'all') return true;
+    return item.status === itemFilter;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
@@ -49,7 +56,13 @@ const Index = () => {
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => {
+              setActiveTab("inventory");
+              setItemFilter('all');
+            }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Items</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
@@ -62,7 +75,13 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => {
+              setActiveTab("inventory");
+              setItemFilter('available');
+            }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -73,7 +92,13 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => {
+              setActiveTab("inventory");
+              setItemFilter('sold');
+            }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -84,7 +109,10 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setActiveTab("invoices")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Invoices</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -110,7 +138,7 @@ const Index = () => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="inventory" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
@@ -119,17 +147,50 @@ const Index = () => {
           <TabsContent value="inventory" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>All Items</CardTitle>
-                <CardDescription>View and manage your inventory items</CardDescription>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>
+                      {itemFilter === 'all' ? 'All Items' : 
+                       itemFilter === 'available' ? 'Available Items' : 
+                       'Sold Items'}
+                    </CardTitle>
+                    <CardDescription>View and manage your inventory items</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={itemFilter === 'all' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setItemFilter('all')}
+                    >
+                      All ({items.length})
+                    </Button>
+                    <Button 
+                      variant={itemFilter === 'available' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setItemFilter('available')}
+                    >
+                      Available ({availableItems.length})
+                    </Button>
+                    <Button 
+                      variant={itemFilter === 'sold' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setItemFilter('sold')}
+                    >
+                      Sold ({soldItems.length})
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {items.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
-                    No items in inventory. Add your first item to get started.
+                    {itemFilter === 'all' 
+                      ? 'No items in inventory. Add your first item to get started.'
+                      : `No ${itemFilter} items found.`}
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {items.map((item) => (
+                    {filteredItems.map((item) => (
                       <div
                         key={item.id}
                         onClick={() => handleItemClick(item)}
@@ -154,6 +215,9 @@ const Index = () => {
                             </span>
                             <span className="text-muted-foreground">
                               Cost: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              Value: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
                             </span>
                             {item.weight && (
                               <span className="text-muted-foreground">
