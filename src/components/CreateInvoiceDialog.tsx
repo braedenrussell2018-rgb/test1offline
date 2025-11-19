@@ -91,6 +91,16 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
   };
 
   const handleQuantityChange = (itemId: string, quantity: string) => {
+    if (quantity === '') {
+      const newSelected = new Map(selectedItems);
+      const current = newSelected.get(itemId);
+      if (current) {
+        newSelected.set(itemId, { ...current, quantity: 0, serialNumbers: [] });
+        setSelectedItems(newSelected);
+      }
+      return;
+    }
+    
     const qtyNum = parseInt(quantity);
     if (!isNaN(qtyNum) && qtyNum > 0) {
       const newSelected = new Map(selectedItems);
@@ -357,8 +367,9 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                                     id={`qty-${item.id}`}
                                     type="number"
                                     min="1"
-                                    value={itemData.quantity}
+                                    value={itemData.quantity || ''}
                                     onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                    placeholder="1"
                                     className="w-20"
                                   />
                                 </div>
@@ -388,9 +399,9 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
 
               {/* Pricing Summary */}
               <div className="border-t pt-4 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="discount">Discount Amount</Label>
+                    <Label htmlFor="discount">Discount</Label>
                     <Input
                       id="discount"
                       type="number"
@@ -400,6 +411,29 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                       onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                       placeholder="0.00"
                     />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="discountType">Type</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={discountType === 'dollar' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDiscountType('dollar')}
+                        className="flex-1"
+                      >
+                        $
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={discountType === 'percent' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDiscountType('percent')}
+                        className="flex-1"
+                      >
+                        %
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="shippingCost">Shipping Cost</Label>
@@ -422,7 +456,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Discount:</span>
-                    <span>-${discount.toFixed(2)}</span>
+                    <span>-${discountAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Shipping:</span>
