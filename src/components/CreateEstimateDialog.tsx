@@ -18,7 +18,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItems, setSelectedItems] = useState<Map<string, { price: number; quantity: number; serialNumbers: string[] }>>(new Map());
+  const [selectedItems, setSelectedItems] = useState<Map<string, { price: number }>>(new Map());
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -70,7 +70,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     if (checked) {
       const item = availableItems.find(i => i.id === itemId);
       if (item) {
-        newSelected.set(itemId, { price: item.salePrice, quantity: 1, serialNumbers: [''] });
+        newSelected.set(itemId, { price: item.salePrice });
       }
     } else {
       newSelected.delete(itemId);
@@ -84,43 +84,9 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       const newSelected = new Map(selectedItems);
       const current = newSelected.get(itemId);
       if (current) {
-        newSelected.set(itemId, { ...current, price: priceNum });
+        newSelected.set(itemId, { price: priceNum });
         setSelectedItems(newSelected);
       }
-    }
-  };
-
-  const handleQuantityChange = (itemId: string, quantity: string) => {
-    if (quantity === '') {
-      const newSelected = new Map(selectedItems);
-      const current = newSelected.get(itemId);
-      if (current) {
-        newSelected.set(itemId, { ...current, quantity: 0, serialNumbers: [] });
-        setSelectedItems(newSelected);
-      }
-      return;
-    }
-    
-    const qtyNum = parseInt(quantity);
-    if (!isNaN(qtyNum) && qtyNum > 0) {
-      const newSelected = new Map(selectedItems);
-      const current = newSelected.get(itemId);
-      if (current) {
-        const newSerialNumbers = Array(qtyNum).fill('').map((_, i) => current.serialNumbers[i] || '');
-        newSelected.set(itemId, { ...current, quantity: qtyNum, serialNumbers: newSerialNumbers });
-        setSelectedItems(newSelected);
-      }
-    }
-  };
-
-  const handleSerialNumberChange = (itemId: string, index: number, serialNumber: string) => {
-    const newSelected = new Map(selectedItems);
-    const current = newSelected.get(itemId);
-    if (current) {
-      const newSerialNumbers = [...current.serialNumbers];
-      newSerialNumbers[index] = serialNumber;
-      newSelected.set(itemId, { ...current, serialNumbers: newSerialNumbers });
-      setSelectedItems(newSelected);
     }
   };
 
@@ -221,32 +187,19 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       return;
     }
 
-    // Validate serial numbers
-    for (const [itemId, data] of selectedItems.entries()) {
-      if (data.quantity > 1) {
-        const hasEmptySerials = data.serialNumbers.some(sn => !sn.trim());
-        if (hasEmptySerials) {
-          const item = availableItems.find(i => i.id === itemId);
-          toast({
-            title: "Error",
-            description: `Please enter all serial numbers for ${item?.partNumber}`,
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-    }
-
-    const estimateItems = Array.from(selectedItems.entries()).flatMap(([itemId, data]) => {
+    const estimateItems = Array.from(selectedItems.entries()).map(([itemId, data]) => {
       const item = availableItems.find(i => i.id === itemId)!;
-      return Array(data.quantity).fill(null).map((_, idx) => ({
+      return {
         itemId,
         partNumber: item.partNumber,
-        serialNumber: data.quantity > 1 ? data.serialNumbers[idx] : item.serialNumber,
+        serialNumber: item.serialNumber,
         description: item.description,
         price: data.price,
-      }));
+      };
     });
+
+    const subtotal = estimateItems.reduce((sum, item) => sum + item.price, 0);
+    const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
 
     const estimate = inventoryStorage.createEstimate({
       items: estimateItems,
@@ -274,7 +227,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     onEstimateCreated();
   };
 
-  const subtotal = Array.from(selectedItems.values()).reduce((sum, data) => sum + (data.price * data.quantity), 0);
+  const subtotal = Array.from(selectedItems.values()).reduce((sum, data) => sum + data.price, 0);
   const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
   const total = subtotal - discountAmount + shippingCost;
 
@@ -421,50 +374,20 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
                           </div>
                           {isSelected && itemData && (
                             <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label htmlFor={`price-${item.id}`} className="text-xs">
-                                    Price
-                                  </Label>
-                                  <Input
-                                    id={`price-${item.id}`}
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={itemData.price}
-                                    onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                                    className="w-24"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label htmlFor={`qty-${item.id}`} className="text-xs">
-                                    Qty
-                                  </Label>
-                                  <Input
-                                    id={`qty-${item.id}`}
-                                    type="number"
-                                    min="1"
-                                    value={itemData.quantity || ''}
-                                    onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                    placeholder="1"
-                                    className="w-20"
-                                  />
-                                </div>
+                              <div className="space-y-1">
+                                <Label htmlFor={`price-${item.id}`} className="text-xs">
+                                  Price
+                                </Label>
+                                <Input
+                                  id={`price-${item.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={itemData.price}
+                                  onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                                  className="w-24"
+                                />
                               </div>
-                              {itemData.quantity > 1 && (
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Serial Numbers</Label>
-                                  {Array.from({ length: itemData.quantity }).map((_, idx) => (
-                                    <Input
-                                      key={idx}
-                                      placeholder={`SN #${idx + 1}`}
-                                      value={itemData.serialNumbers[idx] || ''}
-                                      onChange={(e) => handleSerialNumberChange(item.id, idx, e.target.value)}
-                                      className="text-xs"
-                                    />
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>

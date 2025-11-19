@@ -16,7 +16,7 @@ interface AddItemDialogProps {
 export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
   const [open, setOpen] = useState(false);
   const [partNumber, setPartNumber] = useState("");
-  const [serialNumber, setSerialNumber] = useState("");
+  const [serialNumbers, setSerialNumbers] = useState<string[]>(['']);
   const [description, setDescription] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [cost, setCost] = useState("");
@@ -27,6 +27,22 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
   const [maxReorderLevel, setMaxReorderLevel] = useState("");
   const { toast } = useToast();
 
+  const handleAddSerialNumber = () => {
+    setSerialNumbers([...serialNumbers, '']);
+  };
+
+  const handleRemoveSerialNumber = (index: number) => {
+    if (serialNumbers.length > 1) {
+      setSerialNumbers(serialNumbers.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSerialNumberChange = (index: number, value: string) => {
+    const updated = [...serialNumbers];
+    updated[index] = value;
+    setSerialNumbers(updated);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -34,6 +50,18 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
       toast({
         title: "Error",
         description: "Please fill in required fields (Part Number, Description, Sale Price, Cost)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for duplicate serial numbers
+    const nonEmptySerials = serialNumbers.filter(sn => sn.trim());
+    const uniqueSerials = new Set(nonEmptySerials);
+    if (nonEmptySerials.length !== uniqueSerials.size) {
+      toast({
+        title: "Error",
+        description: "Duplicate serial numbers detected",
         variant: "destructive",
       });
       return;
@@ -101,27 +129,34 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
       return;
     }
 
-    inventoryStorage.addItem({
-      partNumber: partNumber.trim(),
-      serialNumber: serialNumber.trim() || undefined,
-      description: description.trim(),
-      salePrice: salePriceNum,
-      cost: costNum,
-      weight: weightNum,
-      volume: volumeNum,
-      warranty: warranty.trim() || undefined,
-      minReorderLevel: minNum,
-      maxReorderLevel: maxNum,
-      status: 'available',
+    // Add an item for each serial number (or one item if no serial numbers)
+    const serialsToAdd = nonEmptySerials.length > 0 ? nonEmptySerials : [''];
+    let addedCount = 0;
+
+    serialsToAdd.forEach((serial) => {
+      inventoryStorage.addItem({
+        partNumber: partNumber.trim(),
+        serialNumber: serial || undefined,
+        description: description.trim(),
+        salePrice: salePriceNum,
+        cost: costNum,
+        weight: weightNum,
+        volume: volumeNum,
+        warranty: warranty.trim() || undefined,
+        minReorderLevel: minNum,
+        maxReorderLevel: maxNum,
+        status: 'available',
+      });
+      addedCount++;
     });
 
     toast({
       title: "Success",
-      description: "Item added to inventory",
+      description: `${addedCount} item${addedCount > 1 ? 's' : ''} added to inventory`,
     });
 
     setPartNumber("");
-    setSerialNumber("");
+    setSerialNumbers(['']);
     setDescription("");
     setSalePrice("");
     setCost("");
@@ -160,14 +195,41 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
                   placeholder="PN-12345"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label>Serial Numbers (Optional)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddSerialNumber}
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  Add Serial #
+                </Button>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="serialNumber">Serial Number</Label>
-                <Input
-                  id="serialNumber"
-                  value={serialNumber}
-                  onChange={(e) => setSerialNumber(e.target.value)}
-                  placeholder="SN-12345 (Optional)"
-                />
+                {serialNumbers.map((serial, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={serial}
+                      onChange={(e) => handleSerialNumberChange(index, e.target.value)}
+                      placeholder={`SN-${index + 1}`}
+                    />
+                    {serialNumbers.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleRemoveSerialNumber(index)}
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
