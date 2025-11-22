@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreateEstimateDialog } from "@/components/CreateEstimateDialog";
+import { EstimatePDFPreview } from "@/components/EstimatePDFPreview";
 import { inventoryStorage, Estimate } from "@/lib/inventory-storage";
-import { Home, FileEdit, FileText, Calendar, DollarSign } from "lucide-react";
+import { Home, FileEdit, FileText, Calendar, DollarSign, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Estimates = () => {
   const [estimates, setEstimates] = useState<Estimate[]>([]);
+  const [previewEstimate, setPreviewEstimate] = useState<Estimate | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadEstimates();
@@ -35,8 +41,50 @@ const Estimates = () => {
   };
 
   const handleStatusChange = (estimateId: string, newStatus: 'pending' | 'approved' | 'rejected') => {
-    inventoryStorage.updateEstimate(estimateId, { status: newStatus });
-    loadEstimates();
+    const estimate = estimates.find(e => e.id === estimateId);
+    
+    if (newStatus === 'approved' && estimate) {
+      // Create invoice from estimate
+      const invoice = inventoryStorage.createInvoice({
+        items: estimate.items,
+        customerName: estimate.customerName,
+        customerEmail: estimate.customerEmail,
+        customerPhone: estimate.customerPhone,
+        shipToAddress: estimate.shipToAddress,
+        discount: estimate.discount,
+        shippingCost: estimate.shippingCost,
+        estimateId: estimate.id,
+      });
+
+      // Mark items as sold
+      estimate.items.forEach((item) => {
+        inventoryStorage.updateItem(item.itemId, {
+          status: 'sold',
+          soldDate: new Date().toISOString(),
+          invoiceId: invoice.id,
+        });
+      });
+
+      toast({
+        title: "Estimate Approved",
+        description: `Invoice ${invoice.invoiceNumber} created successfully`,
+      });
+
+      // Update estimate status
+      inventoryStorage.updateEstimate(estimateId, { status: newStatus });
+      loadEstimates();
+
+      // Navigate to invoices tab
+      setTimeout(() => navigate('/'), 500);
+    } else {
+      inventoryStorage.updateEstimate(estimateId, { status: newStatus });
+      loadEstimates();
+    }
+  };
+
+  const handlePreview = (estimate: Estimate) => {
+    setPreviewEstimate(estimate);
+    setPreviewOpen(true);
   };
 
   return (
@@ -156,32 +204,46 @@ const Estimates = () => {
                     </div>
                   </div>
 
-                  {estimate.status === 'pending' && (
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleStatusChange(estimate.id, 'approved')}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleStatusChange(estimate.id, 'rejected')}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePreview(estimate)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Preview PDF
+                    </Button>
+                    {estimate.status === 'pending' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => handleStatusChange(estimate.id, 'approved')}
+                        >
+                          Approve & Create Invoice
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStatusChange(estimate.id, 'rejected')}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))
           )}
         </div>
       </div>
+
+      <EstimatePDFPreview 
+        estimate={previewEstimate}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
     </div>
   );
 };
