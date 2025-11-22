@@ -1,19 +1,18 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Estimate } from "@/lib/inventory-storage";
+import { Invoice } from "@/lib/inventory-storage";
 import jsPDF from "jspdf";
 import { Download } from "lucide-react";
 
-interface EstimatePDFPreviewProps {
-  estimate: Estimate | null;
+interface InvoicePDFPreviewProps {
+  invoice: Invoice | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDFPreviewProps) => {
-
+export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPreviewProps) => {
   const handleDownload = () => {
-    if (!estimate) return;
+    if (!invoice) return;
     
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -30,15 +29,15 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     doc.text("Info@TrueAttachments.com", pageWidth / 2, 38, { align: "center" });
     doc.text("417-306-9612", pageWidth / 2, 43, { align: "center" });
 
-    // Date and Estimate Number
+    // Date and Invoice Number
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text("DATE", 140, 20);
-    doc.text("Sales Order", 165, 20);
+    doc.text("Invoice", 165, 20);
     
     doc.setFont("helvetica", "normal");
-    doc.text(new Date(estimate.createdAt).toLocaleDateString(), 140, 26);
-    doc.text(estimate.estimateNumber, 165, 26);
+    doc.text(new Date(invoice.createdAt).toLocaleDateString(), 140, 26);
+    doc.text(invoice.invoiceNumber, 165, 26);
 
     // Bill To and Ship To
     let yPos = 55;
@@ -49,27 +48,27 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     
     yPos += 5;
     doc.setFont("helvetica", "normal");
-    if (estimate.customerName) {
-      doc.text(estimate.customerName, 20, yPos);
-      doc.text(estimate.customerName, 110, yPos);
+    if (invoice.customerName) {
+      doc.text(invoice.customerName, 20, yPos);
+      doc.text(invoice.customerName, 110, yPos);
       yPos += 5;
     }
-    if (estimate.customerEmail) {
-      doc.text(estimate.customerEmail, 20, yPos);
+    if (invoice.customerEmail) {
+      doc.text(invoice.customerEmail, 20, yPos);
       yPos += 5;
     }
-    if (estimate.customerPhone) {
-      doc.text(estimate.customerPhone, 20, yPos);
+    if (invoice.customerPhone) {
+      doc.text(invoice.customerPhone, 20, yPos);
       yPos += 5;
     }
     
     // Ship To Address
     let shipYPos = 65;
-    if (estimate.customerName) shipYPos += 5;
-    if (estimate.shipToAddress) {
-      doc.text(estimate.shipToAddress.street, 110, shipYPos);
+    if (invoice.customerName) shipYPos += 5;
+    if (invoice.shipToAddress) {
+      doc.text(invoice.shipToAddress.street, 110, shipYPos);
       shipYPos += 5;
-      doc.text(`${estimate.shipToAddress.city}, ${estimate.shipToAddress.state} ${estimate.shipToAddress.zip}`, 110, shipYPos);
+      doc.text(`${invoice.shipToAddress.city}, ${invoice.shipToAddress.state} ${invoice.shipToAddress.zip}`, 110, shipYPos);
     }
 
     // Items Table
@@ -89,7 +88,7 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     doc.setFont("helvetica", "normal");
     
     // Table rows
-    estimate.items.forEach((item) => {
+    invoice.items.forEach((item) => {
       if (yPos > 250) {
         doc.addPage();
         yPos = 20;
@@ -111,15 +110,15 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     doc.setFont("helvetica", "normal");
     
     doc.text("SUBTOTAL", summaryX, yPos);
-    doc.text(`$${estimate.subtotal.toFixed(2)}`, 175, yPos, { align: "right" });
+    doc.text(`$${invoice.subtotal.toFixed(2)}`, 175, yPos, { align: "right" });
     yPos += 6;
     
     doc.text("SHIPPING", summaryX, yPos);
-    doc.text(`$${estimate.shippingCost.toFixed(2)}`, 175, yPos, { align: "right" });
+    doc.text(`$${invoice.shippingCost.toFixed(2)}`, 175, yPos, { align: "right" });
     yPos += 6;
     
     doc.text("DISCOUNT", summaryX, yPos);
-    doc.text(`$${estimate.discount.toFixed(2)}`, 175, yPos, { align: "right" });
+    doc.text(`$${invoice.discount.toFixed(2)}`, 175, yPos, { align: "right" });
     yPos += 6;
     
     doc.text("TAX", summaryX, yPos);
@@ -129,19 +128,19 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text("TOTAL", summaryX, yPos);
-    doc.text(`$${estimate.total.toFixed(2)}`, 175, yPos, { align: "right" });
+    doc.text(`$${invoice.total.toFixed(2)}`, 175, yPos, { align: "right" });
 
-    doc.save(`${estimate.estimateNumber}.pdf`);
+    doc.save(`${invoice.invoiceNumber}.pdf`);
   };
 
-  if (!estimate) return null;
+  if (!invoice) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Estimate Preview - {estimate.estimateNumber}</span>
+            <span>Invoice Preview - {invoice.invoiceNumber}</span>
             <Button onClick={handleDownload} size="sm">
               <Download className="mr-2 h-4 w-4" />
               Download PDF
@@ -159,15 +158,15 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
               <p className="text-sm">417-306-9612</p>
             </div>
 
-            {/* Date and Estimate Number */}
+            {/* Date and Invoice Number */}
             <div className="flex justify-end gap-8 mb-8">
               <div>
                 <p className="font-bold">DATE</p>
-                <p>{new Date(estimate.createdAt).toLocaleDateString()}</p>
+                <p>{new Date(invoice.createdAt).toLocaleDateString()}</p>
               </div>
               <div>
-                <p className="font-bold">Sales Order</p>
-                <p>{estimate.estimateNumber}</p>
+                <p className="font-bold">Invoice</p>
+                <p>{invoice.invoiceNumber}</p>
               </div>
             </div>
 
@@ -175,17 +174,17 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
             <div className="grid grid-cols-2 gap-8 mb-8">
               <div>
                 <p className="font-bold mb-2">BILL TO</p>
-                {estimate.customerName && <p>{estimate.customerName}</p>}
-                {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
-                {estimate.customerPhone && <p>{estimate.customerPhone}</p>}
+                {invoice.customerName && <p>{invoice.customerName}</p>}
+                {invoice.customerEmail && <p>{invoice.customerEmail}</p>}
+                {invoice.customerPhone && <p>{invoice.customerPhone}</p>}
               </div>
               <div>
                 <p className="font-bold mb-2">SHIP TO</p>
-                {estimate.customerName && <p>{estimate.customerName}</p>}
-                {estimate.shipToAddress && (
+                {invoice.customerName && <p>{invoice.customerName}</p>}
+                {invoice.shipToAddress && (
                   <>
-                    <p>{estimate.shipToAddress.street}</p>
-                    <p>{estimate.shipToAddress.city}, {estimate.shipToAddress.state} {estimate.shipToAddress.zip}</p>
+                    <p>{invoice.shipToAddress.street}</p>
+                    <p>{invoice.shipToAddress.city}, {invoice.shipToAddress.state} {invoice.shipToAddress.zip}</p>
                   </>
                 )}
               </div>
@@ -203,7 +202,7 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
                 </tr>
               </thead>
               <tbody>
-                {estimate.items.map((item, idx) => (
+                {invoice.items.map((item, idx) => (
                   <tr key={idx}>
                     <td className="border p-2">{item.partNumber}</td>
                     <td className="border p-2">{item.description}</td>
@@ -219,15 +218,15 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
             <div className="ml-auto w-64">
               <div className="flex justify-between py-1">
                 <span>SUBTOTAL</span>
-                <span>${estimate.subtotal.toFixed(2)}</span>
+                <span>${invoice.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-1">
                 <span>SHIPPING</span>
-                <span>${estimate.shippingCost.toFixed(2)}</span>
+                <span>${invoice.shippingCost.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-1">
                 <span>DISCOUNT</span>
-                <span>${estimate.discount.toFixed(2)}</span>
+                <span>${invoice.discount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-1">
                 <span>TAX</span>
@@ -235,7 +234,7 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
               </div>
               <div className="flex justify-between py-2 border-t-2 font-bold text-lg">
                 <span>TOTAL</span>
-                <span>${estimate.total.toFixed(2)}</span>
+                <span>${invoice.total.toFixed(2)}</span>
               </div>
             </div>
           </div>
