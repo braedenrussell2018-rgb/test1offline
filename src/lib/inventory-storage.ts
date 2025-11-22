@@ -19,6 +19,7 @@ export interface InventoryItem {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  estimateId?: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -139,6 +140,7 @@ export const inventoryStorage = {
     shipToAddress?: { street: string; city: string; state: string; zip: string };
     discount: number;
     shippingCost: number;
+    estimateId?: string;
   }) => {
     const invoices = inventoryStorage.getInvoices();
     const subtotal = data.items.reduce((sum, item) => sum + item.price, 0);
@@ -147,6 +149,7 @@ export const inventoryStorage = {
     const newInvoice: Invoice = {
       id: crypto.randomUUID(),
       invoiceNumber: inventoryStorage.getNextInvoiceNumber(),
+      estimateId: data.estimateId,
       customerName: data.customerName,
       customerEmail: data.customerEmail,
       customerPhone: data.customerPhone,
