@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, FileText, DollarSign, TrendingUp, FileEdit } from "lucide-react";
+import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { ItemDetailDialog } from "@/components/ItemDetailDialog";
+import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
 
 const Index = () => {
@@ -19,6 +20,8 @@ const Index = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("inventory");
   const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
 
   useEffect(() => {
     setItems(inventoryStorage.getItems());
@@ -43,6 +46,11 @@ const Index = () => {
     if (itemFilter === 'all') return true;
     return item.status === itemFilter;
   });
+
+  const handleInvoicePreview = (invoice: Invoice) => {
+    setPreviewInvoice(invoice);
+    setInvoicePreviewOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -302,6 +310,16 @@ const Index = () => {
                             </div>
                           ))}
                         </div>
+                        <div className="border-t pt-3 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleInvoicePreview(invoice)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview PDF
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -315,6 +333,12 @@ const Index = () => {
           item={selectedItem}
           open={detailDialogOpen}
           onOpenChange={setDetailDialogOpen}
+        />
+
+        <InvoicePDFPreview
+          invoice={previewInvoice}
+          open={invoicePreviewOpen}
+          onOpenChange={setInvoicePreviewOpen}
         />
       </div>
     </div>
