@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { inventoryStorage, InventoryItem } from "@/lib/inventory-storage";
+import { inventoryStorage, InventoryItem, Company, Person } from "@/lib/inventory-storage";
 
 interface CreateInvoiceDialogProps {
   onInvoiceCreated: () => void;
@@ -19,6 +20,14 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItems, setSelectedItems] = useState<Map<string, { price: number }>>(new Map());
+  
+  // CRM Integration
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [persons, setPersons] = useState<Person[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [availablePersons, setAvailablePersons] = useState<Person[]>([]);
+  
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -38,6 +47,14 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       setFilteredItems(items);
       setSelectedItems(new Map());
       setSearchQuery("");
+      
+      // Load CRM data
+      setCompanies(inventoryStorage.getCompanies());
+      setPersons(inventoryStorage.getPersons());
+      
+      // Reset form
+      setSelectedCompanyId("");
+      setSelectedPersonId("");
       setCustomerName("");
       setCustomerEmail("");
       setCustomerPhone("");
@@ -49,6 +66,51 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       setShippingCost(0);
     }
   }, [open]);
+
+  // Update available persons when company is selected
+  useEffect(() => {
+    if (selectedCompanyId) {
+      const companyPersons = persons.filter(p => p.companyId === selectedCompanyId);
+      setAvailablePersons(companyPersons);
+      setSelectedPersonId(""); // Reset person selection
+    } else {
+      setAvailablePersons([]);
+      setSelectedPersonId("");
+    }
+  }, [selectedCompanyId, persons]);
+
+  // Auto-fill customer information when person is selected
+  useEffect(() => {
+    if (selectedPersonId) {
+      const person = persons.find(p => p.id === selectedPersonId);
+      const company = companies.find(c => c.id === selectedCompanyId);
+      
+      if (person && company) {
+        setCustomerName(`${person.firstName} ${person.lastName} - ${company.name}`);
+        setCustomerEmail(person.email || "");
+        setCustomerPhone(person.phone || "");
+        
+        // Pre-fill address if available
+        if (person.address) {
+          // Try to parse address (basic parsing)
+          const addressParts = person.address.split(',').map(s => s.trim());
+          if (addressParts.length >= 3) {
+            setShipStreet(addressParts[0] || "");
+            setShipCity(addressParts[1] || "");
+            // Try to extract state and zip from last part
+            const lastPart = addressParts[addressParts.length - 1];
+            const stateZipMatch = lastPart.match(/([A-Z]{2})\s*(\d{5})/);
+            if (stateZipMatch) {
+              setShipState(stateZipMatch[1]);
+              setShipZip(stateZipMatch[2]);
+            }
+          } else {
+            setShipStreet(person.address);
+          }
+        }
+      }
+    }
+  }, [selectedPersonId, persons, companies, selectedCompanyId]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -170,9 +232,45 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
             </p>
           ) : (
             <>
-              {/* Customer Information */}
+              {/* Customer Information from CRM */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-sm">Customer Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="company">Company</Label>
+                    <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map((company) => (
+                          <SelectItem key={company.id} value={company.id}>
+                            {company.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="person">Contact Person</Label>
+                    <Select 
+                      value={selectedPersonId} 
+                      onValueChange={setSelectedPersonId}
+                      disabled={!selectedCompanyId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedCompanyId ? "Select a contact" : "Select company first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePersons.map((person) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.firstName} {person.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor="customerName">Customer Name</Label>
