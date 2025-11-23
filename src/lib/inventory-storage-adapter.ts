@@ -390,6 +390,34 @@ export const deleteEstimate = async (id: string): Promise<void> => {
   await db.deleteEstimate(id);
 };
 
+// Helper functions
+export const getPersons = getPeople; // Alias for compatibility
+
+export const addNoteToPerson = async (personId: string, noteText: string): Promise<void> => {
+  const people = await getPeople();
+  const person = people.find(p => p.id === personId);
+  if (!person) throw new Error("Person not found");
+  
+  const newNote = {
+    id: crypto.randomUUID(),
+    text: noteText,
+    timestamp: new Date().toISOString(),
+  };
+  
+  person.notes = [...person.notes, newNote];
+  await updatePerson(person);
+};
+
+export const createInvoice = addInvoice; // Alias for compatibility
+export const createEstimate = addEstimate; // Alias for compatibility
+
+export const updateEstimate = async (estimate: Estimate): Promise<void> => {
+  // For now, we'll delete and recreate since we don't have an update function
+  // In a real implementation, you'd add an update function to supabase-storage
+  await deleteEstimate(estimate.id);
+  await addEstimate(estimate);
+};
+
 // Legacy compatibility - export as default object
 export const inventoryStorage = {
   getItems,
@@ -401,12 +429,17 @@ export const inventoryStorage = {
   updateCompany,
   deleteCompany,
   getPeople,
+  getPersons,
   addPerson,
   updatePerson,
   deletePerson,
+  addNoteToPerson,
   getInvoices,
   addInvoice,
+  createInvoice,
   getEstimates,
   addEstimate,
+  createEstimate,
+  updateEstimate,
   deleteEstimate,
 };

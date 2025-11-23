@@ -13,7 +13,7 @@ import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
 
-const Index = () => {
+function IndexContent() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -25,8 +25,15 @@ const Index = () => {
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
 
   useEffect(() => {
-    setItems(inventoryStorage.getItems());
-    setInvoices(inventoryStorage.getInvoices());
+    const loadData = async () => {
+      const [itemsData, invoicesData] = await Promise.all([
+        inventoryStorage.getItems(),
+        inventoryStorage.getInvoices()
+      ]);
+      setItems(itemsData);
+      setInvoices(invoicesData);
+    };
+    loadData();
   }, [refreshKey]);
 
   const handleRefresh = () => {
@@ -347,4 +354,10 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default function Index() {
+  return (
+    <ProtectedRoute>
+      <IndexContent />
+    </ProtectedRoute>
+  );
+}

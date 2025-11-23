@@ -10,9 +10,17 @@ const Accounting = () => {
   const [estimates, setEstimates] = useState<Estimate[]>([]);
 
   useEffect(() => {
-    setItems(inventoryStorage.getItems());
-    setInvoices(inventoryStorage.getInvoices());
-    setEstimates(inventoryStorage.getEstimates());
+    const loadData = async () => {
+      const [itemsData, invoicesData, estimatesData] = await Promise.all([
+        inventoryStorage.getItems(),
+        inventoryStorage.getInvoices(),
+        inventoryStorage.getEstimates()
+      ]);
+      setItems(itemsData);
+      setInvoices(invoicesData);
+      setEstimates(estimatesData);
+    };
+    loadData();
   }, []);
 
   const soldItems = items.filter(item => item.status === 'sold');
