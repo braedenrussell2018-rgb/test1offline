@@ -186,21 +186,12 @@ const CRM = () => {
                       >
                         <div className="border rounded-lg p-3 sm:p-4 bg-card hover:bg-accent/5 transition-colors cursor-pointer">
                           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                            {person.businessCardPhoto && (
-                              <div className="flex-shrink-0">
-                                <img
-                                  src={person.businessCardPhoto}
-                                  alt="Business card"
-                                  className="w-full sm:w-32 h-20 object-cover rounded border"
-                                />
-                              </div>
-                            )}
-                            <div className="flex-1 space-y-2">
-                              <div>
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
-                                  <h3 className="font-semibold text-base sm:text-lg">
-                                    {person.firstName} {person.lastName}
-                                  </h3>
+                              <div className="flex-1 space-y-2">
+                                <div>
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+                                    <h3 className="font-semibold text-base sm:text-lg">
+                                      {person.name}
+                                    </h3>
                                   <Badge variant="secondary" className="w-fit">
                                     {getCompanyName(person.companyId)}
                                   </Badge>

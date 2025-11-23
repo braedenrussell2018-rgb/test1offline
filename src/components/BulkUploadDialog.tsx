@@ -118,7 +118,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
     }
 
     // Check for duplicate part numbers in existing inventory
-    const existingItems = inventoryStorage.getItems();
+    const existingItems = await inventoryStorage.getItems();
     if (partNumber && existingItems.some(i => i.partNumber === partNumber)) {
       errors.push("Part number already exists");
     }
