@@ -22,6 +22,7 @@ interface AddCompanyDialogProps {
 export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,7 +37,7 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
       return;
     }
 
-    inventoryStorage.addCompany(name);
+    inventoryStorage.addCompany(name, address);
     
     toast({
       title: "Success",
@@ -44,6 +45,7 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
     });
     
     setName("");
+    setAddress("");
     setOpen(false);
     onCompanyAdded();
   };
@@ -72,6 +74,15 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Acme Corporation"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Main St, City, State, ZIP"
               />
             </div>
           </div>

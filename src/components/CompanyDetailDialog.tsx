@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building2, User, Mail, Phone, Briefcase } from "lucide-react";
+import { Building2, User, Mail, Phone, Briefcase, MapPin } from "lucide-react";
 import { Company, Person } from "@/lib/inventory-storage";
 
 interface CompanyDetailDialogProps {
@@ -44,6 +44,12 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, children 
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-2">
+                {company.address && (
+                  <div className="flex items-start gap-2 text-sm mb-3 pb-3 border-b">
+                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <span>{company.address}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Created</span>
                   <span>{new Date(company.createdAt).toLocaleDateString()}</span>
