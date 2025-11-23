@@ -73,6 +73,7 @@ export interface Estimate {
 export interface Company {
   id: string;
   name: string;
+  address?: string;
   createdAt: string;
 }
 
@@ -264,11 +265,12 @@ export const inventoryStorage = {
     localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
   },
 
-  addCompany: (name: string) => {
+  addCompany: (name: string, address?: string) => {
     const companies = inventoryStorage.getCompanies();
     const newCompany: Company = {
       id: crypto.randomUUID(),
       name,
+      address,
       createdAt: new Date().toISOString(),
     };
     companies.push(newCompany);
