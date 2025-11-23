@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
+import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [pendingQuotesOpen, setPendingQuotesOpen] = useState(false);
+  const [approvedQuotesOpen, setApprovedQuotesOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -217,20 +224,68 @@ const Accounting = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 border rounded-lg bg-muted/30">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Pending Quotes</span>
-                    <Badge variant="outline">{pendingQuotes.length}</Badge>
-                  </div>
-                  <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
-                </div>
-                <div className="p-4 border rounded-lg bg-muted/30">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Approved Quotes</span>
-                    <Badge variant="default">{approvedQuotes.length}</Badge>
-                  </div>
-                  <div className="text-2xl font-bold">${approvedQuotesValue.toFixed(2)}</div>
-                </div>
+                <Collapsible open={pendingQuotesOpen} onOpenChange={setPendingQuotesOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="p-4 border rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">Pending Quotes</span>
+                          {pendingQuotesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                        <Badge variant="outline">{pendingQuotes.length}</Badge>
+                      </div>
+                      <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="space-y-2 pl-4">
+                      {pendingQuotes.map((quote) => (
+                        <div key={quote.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm">
+                          <div>
+                            <div className="font-medium">{quote.quoteNumber}</div>
+                            <div className="text-xs text-muted-foreground">{quote.customerName}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">${quote.total.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{quote.items.length} items</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Collapsible open={approvedQuotesOpen} onOpenChange={setApprovedQuotesOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="p-4 border rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">Approved Quotes</span>
+                          {approvedQuotesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                        <Badge variant="default">{approvedQuotes.length}</Badge>
+                      </div>
+                      <div className="text-2xl font-bold">${approvedQuotesValue.toFixed(2)}</div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="space-y-2 pl-4">
+                      {approvedQuotes.map((quote) => (
+                        <div key={quote.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm">
+                          <div>
+                            <div className="font-medium">{quote.quoteNumber}</div>
+                            <div className="text-xs text-muted-foreground">{quote.customerName}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">${quote.total.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{quote.items.length} items</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
                 <div className="p-4 border rounded-lg bg-primary/10">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Total Quotes Value</span>
@@ -292,7 +347,14 @@ const Accounting = () => {
               ) : (
                 <div className="space-y-3">
                   {invoices.slice(-5).reverse().map((invoice) => (
-                    <div key={invoice.id} className="flex justify-between items-center p-3 border rounded-lg bg-muted/20">
+                    <div 
+                      key={invoice.id} 
+                      className="flex justify-between items-center p-3 border rounded-lg bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => {
+                        setSelectedInvoice(invoice);
+                        setInvoicePreviewOpen(true);
+                      }}
+                    >
                       <div>
                         <div className="font-medium">{invoice.invoiceNumber}</div>
                         <div className="text-xs text-muted-foreground">
@@ -350,6 +412,12 @@ const Accounting = () => {
           </Card>
         </div>
       </div>
+
+      <InvoicePDFPreview 
+        invoice={selectedInvoice}
+        open={invoicePreviewOpen}
+        onOpenChange={setInvoicePreviewOpen}
+      />
     </div>
   );
 };
