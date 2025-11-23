@@ -1,0 +1,412 @@
+// Adapter layer that bridges the existing localStorage interfaces with the new database storage
+import * as db from "./supabase-storage";
+
+export interface InventoryItem {
+  id: string;
+  partNumber: string;
+  serialNumber?: string;
+  description: string;
+  salePrice: number;
+  cost: number;
+  weight?: number;
+  volume?: number;
+  warranty?: string;
+  minReorderLevel?: number;
+  maxReorderLevel?: number;
+  status: 'available' | 'sold';
+  soldDate?: string;
+  invoiceId?: string;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  estimateId?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  shipToName?: string;
+  shipToAddress?: string;
+  items: {
+    itemId: string;
+    partNumber: string;
+    serialNumber?: string;
+    description: string;
+    price: number;
+  }[];
+  subtotal: number;
+  discount: number;
+  shippingCost: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface Estimate {
+  id: string;
+  estimateNumber: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  shipToName?: string;
+  shipToAddress?: string;
+  items: {
+    itemId: string;
+    partNumber: string;
+    serialNumber?: string;
+    description: string;
+    price: number;
+  }[];
+  subtotal: number;
+  discount: number;
+  shippingCost: number;
+  total: number;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  address?: string;
+  notes: Array<{ text: string; timestamp: string }>;
+  createdAt: string;
+}
+
+export interface Note {
+  id: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface Person {
+  id: string;
+  companyId?: string;
+  name: string;
+  jobTitle?: string;
+  address?: string;
+  notes: Note[];
+  email?: string;
+  phone?: string;
+  createdAt: string;
+}
+
+// Convert DB item to local format
+function convertItemFromDB(item: db.Item): InventoryItem {
+  return {
+    id: item.id,
+    partNumber: item.partNumber,
+    serialNumber: item.serialNumber,
+    description: item.description,
+    salePrice: item.salePrice || 0,
+    cost: item.cost || 0,
+    weight: item.weight,
+    volume: item.volume,
+    warranty: item.warrantyMonths ? `${item.warrantyMonths} months` : undefined,
+    minReorderLevel: item.minReorderLevel,
+    maxReorderLevel: item.maxReorderLevel,
+    status: item.status,
+    soldDate: item.dateSold,
+    invoiceId: item.soldInInvoiceId,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// Convert local item to DB format
+function convertItemToDB(item: Partial<InventoryItem>): Partial<db.Item> {
+  const warrantyMonths = item.warranty ? parseInt(item.warranty) : undefined;
+  
+  return {
+    partNumber: item.partNumber!,
+    serialNumber: item.serialNumber,
+    description: item.description!,
+    salePrice: item.salePrice,
+    cost: item.cost,
+    weight: item.weight,
+    volume: item.volume,
+    warrantyMonths,
+    minReorderLevel: item.minReorderLevel,
+    maxReorderLevel: item.maxReorderLevel,
+    status: item.status!,
+    soldInInvoiceId: item.invoiceId,
+    dateSold: item.soldDate,
+  };
+}
+
+// Items
+export const getItems = async (): Promise<InventoryItem[]> => {
+  const items = await db.getItems();
+  return items.map(convertItemFromDB);
+};
+
+export const addItem = async (item: Omit<InventoryItem, "id" | "createdAt">): Promise<InventoryItem> => {
+  const dbItem = await db.addItem(convertItemToDB(item) as Omit<db.Item, "id">);
+  return convertItemFromDB(dbItem);
+};
+
+export const updateItem = async (item: InventoryItem): Promise<void> => {
+  await db.updateItem({ ...convertItemToDB(item), id: item.id } as db.Item);
+};
+
+export const deleteItem = async (id: string): Promise<void> => {
+  await db.deleteItem(id);
+};
+
+// Companies
+export const getCompanies = async (): Promise<Company[]> => {
+  const companies = await db.getCompanies();
+  return companies.map(c => ({
+    ...c,
+    createdAt: new Date().toISOString(),
+  }));
+};
+
+export const addCompany = async (name: string, address?: string): Promise<Company> => {
+  const company = await db.addCompany(name, address);
+  return {
+    ...company,
+    createdAt: new Date().toISOString(),
+  };
+};
+
+export const updateCompany = async (company: Company): Promise<void> => {
+  await db.updateCompany(company);
+};
+
+export const deleteCompany = async (id: string): Promise<void> => {
+  await db.deleteCompany(id);
+};
+
+// People
+export const getPeople = async (): Promise<Person[]> => {
+  const people = await db.getPeople();
+  return people.map(p => ({
+    id: p.id,
+    companyId: p.companyId,
+    name: p.name,
+    jobTitle: p.jobTitle,
+    address: p.address,
+    notes: p.notes.map(n => ({ id: crypto.randomUUID(), ...n })),
+    email: p.email,
+    phone: p.phone,
+    createdAt: new Date().toISOString(),
+  }));
+};
+
+export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promise<Person> => {
+  const dbPerson = await db.addPerson({
+    name: person.name,
+    companyId: person.companyId,
+    jobTitle: person.jobTitle,
+    email: person.email,
+    phone: person.phone,
+    address: person.address,
+    notes: person.notes || [],
+  });
+  
+  return {
+    id: dbPerson.id,
+    companyId: dbPerson.companyId,
+    name: dbPerson.name,
+    jobTitle: dbPerson.jobTitle,
+    address: dbPerson.address,
+    notes: dbPerson.notes.map(n => ({ id: crypto.randomUUID(), ...n })),
+    email: dbPerson.email,
+    phone: dbPerson.phone,
+    createdAt: new Date().toISOString(),
+  };
+};
+
+export const updatePerson = async (person: Person): Promise<void> => {
+  await db.updatePerson({
+    id: person.id,
+    name: person.name,
+    companyId: person.companyId,
+    jobTitle: person.jobTitle,
+    email: person.email,
+    phone: person.phone,
+    address: person.address,
+    notes: person.notes,
+  });
+};
+
+export const deletePerson = async (id: string): Promise<void> => {
+  await db.deletePerson(id);
+};
+
+// Invoices
+export const getInvoices = async (): Promise<Invoice[]> => {
+  const invoices = await db.getInvoices();
+  return invoices.map(inv => ({
+    id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    customerName: inv.customerName,
+    customerEmail: inv.customerEmail,
+    customerPhone: inv.customerPhone,
+    customerAddress: inv.customerAddress,
+    shipToName: inv.shipToName,
+    shipToAddress: inv.shipToAddress,
+    items: inv.items.map((item: any) => ({
+      itemId: item.id,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      price: item.sellPrice,
+    })),
+    subtotal: inv.subtotal,
+    discount: inv.discount,
+    shippingCost: inv.shipping,
+    total: inv.total,
+    createdAt: inv.createdAt,
+  }));
+};
+
+export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Promise<Invoice> => {
+  const dbInvoice = await db.addInvoice({
+    invoiceNumber: invoice.invoiceNumber,
+    customerName: invoice.customerName!,
+    customerEmail: invoice.customerEmail,
+    customerPhone: invoice.customerPhone,
+    customerAddress: invoice.customerAddress,
+    shipToName: invoice.shipToName,
+    shipToAddress: invoice.shipToAddress,
+    items: invoice.items.map(item => ({
+      id: item.itemId,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      sellPrice: item.price,
+    })),
+    subtotal: invoice.subtotal,
+    discount: invoice.discount,
+    shipping: invoice.shippingCost,
+    total: invoice.total,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    id: dbInvoice.id,
+    invoiceNumber: dbInvoice.invoiceNumber,
+    customerName: dbInvoice.customerName,
+    customerEmail: dbInvoice.customerEmail,
+    customerPhone: dbInvoice.customerPhone,
+    customerAddress: dbInvoice.customerAddress,
+    shipToName: dbInvoice.shipToName,
+    shipToAddress: dbInvoice.shipToAddress,
+    items: dbInvoice.items.map((item: any) => ({
+      itemId: item.id,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      price: item.sellPrice,
+    })),
+    subtotal: dbInvoice.subtotal,
+    discount: dbInvoice.discount,
+    shippingCost: dbInvoice.shipping,
+    total: dbInvoice.total,
+    createdAt: dbInvoice.createdAt,
+  };
+};
+
+// Estimates
+export const getEstimates = async (): Promise<Estimate[]> => {
+  const estimates = await db.getEstimates();
+  return estimates.map(est => ({
+    id: est.id,
+    estimateNumber: est.estimateNumber,
+    customerName: est.customerName,
+    customerEmail: est.customerEmail,
+    customerPhone: est.customerPhone,
+    customerAddress: est.customerAddress,
+    shipToName: est.shipToName,
+    shipToAddress: est.shipToAddress,
+    items: est.items.map((item: any) => ({
+      itemId: item.id,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      price: item.sellPrice,
+    })),
+    subtotal: est.subtotal,
+    discount: est.discount,
+    shippingCost: est.shipping,
+    total: est.total,
+    status: 'pending',
+    createdAt: est.createdAt,
+  }));
+};
+
+export const addEstimate = async (estimate: Omit<Estimate, "id" | "createdAt">): Promise<Estimate> => {
+  const dbEstimate = await db.addEstimate({
+    estimateNumber: estimate.estimateNumber,
+    customerName: estimate.customerName!,
+    customerEmail: estimate.customerEmail,
+    customerPhone: estimate.customerPhone,
+    customerAddress: estimate.customerAddress,
+    shipToName: estimate.shipToName,
+    shipToAddress: estimate.shipToAddress,
+    items: estimate.items.map(item => ({
+      id: item.itemId,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      sellPrice: item.price,
+    })),
+    subtotal: estimate.subtotal,
+    discount: estimate.discount,
+    shipping: estimate.shippingCost,
+    total: estimate.total,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    id: dbEstimate.id,
+    estimateNumber: dbEstimate.estimateNumber,
+    customerName: dbEstimate.customerName,
+    customerEmail: dbEstimate.customerEmail,
+    customerPhone: dbEstimate.customerPhone,
+    customerAddress: dbEstimate.customerAddress,
+    shipToName: dbEstimate.shipToName,
+    shipToAddress: dbEstimate.shipToAddress,
+    items: dbEstimate.items.map((item: any) => ({
+      itemId: item.id,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      price: item.sellPrice,
+    })),
+    subtotal: dbEstimate.subtotal,
+    discount: dbEstimate.discount,
+    shippingCost: dbEstimate.shipping,
+    total: dbEstimate.total,
+    status: 'pending',
+    createdAt: dbEstimate.createdAt,
+  };
+};
+
+export const deleteEstimate = async (id: string): Promise<void> => {
+  await db.deleteEstimate(id);
+};
+
+// Legacy compatibility - export as default object
+export const inventoryStorage = {
+  getItems,
+  addItem,
+  updateItem,
+  deleteItem,
+  getCompanies,
+  addCompany,
+  updateCompany,
+  deleteCompany,
+  getPeople,
+  addPerson,
+  updatePerson,
+  deletePerson,
+  getInvoices,
+  addInvoice,
+  getEstimates,
+  addEstimate,
+  deleteEstimate,
+};
