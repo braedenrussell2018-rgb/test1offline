@@ -10,11 +10,19 @@ import { PersonDetailDialog } from "@/components/PersonDetailDialog";
 import { inventoryStorage, Company, Person } from "@/lib/inventory-storage";
 
 const CRM = () => {
-  const [activeTab, setActiveTab] = useState("companies");
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('crm_active_tab') || "companies";
+  });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+
+  // Persist active tab on change
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    sessionStorage.setItem('crm_active_tab', value);
+  };
 
   useEffect(() => {
     setCompanies(inventoryStorage.getCompanies());
@@ -90,14 +98,14 @@ const CRM = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4 mb-12">
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
           <AddCompanyDialog onCompanyAdded={handleRefresh} />
           <AddPersonDialog onPersonAdded={handleRefresh} />
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
@@ -126,17 +134,17 @@ const CRM = () => {
                           persons={companyPersons}
                           onPersonClick={handlePersonClick}
                         >
-                          <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer">
+                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-semibold text-lg">{company.name}</span>
+                                <span className="font-semibold text-base sm:text-lg">{company.name}</span>
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {companyPersons.length} {companyPersons.length === 1 ? 'contact' : 'contacts'}
                               </div>
                             </div>
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-xs sm:text-sm text-muted-foreground">
                               Added {new Date(company.createdAt).toLocaleDateString()}
                             </div>
                           </div>
@@ -169,24 +177,24 @@ const CRM = () => {
                         companyName={getCompanyName(person.companyId)}
                         onUpdate={handleRefresh}
                       >
-                        <div className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors cursor-pointer">
-                          <div className="flex gap-4">
+                        <div className="border rounded-lg p-3 sm:p-4 bg-card hover:bg-accent/5 transition-colors cursor-pointer">
+                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                             {person.businessCardPhoto && (
                               <div className="flex-shrink-0">
                                 <img
                                   src={person.businessCardPhoto}
                                   alt="Business card"
-                                  className="w-32 h-20 object-cover rounded border"
+                                  className="w-full sm:w-32 h-20 object-cover rounded border"
                                 />
                               </div>
                             )}
                             <div className="flex-1 space-y-2">
                               <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-semibold text-lg">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-base sm:text-lg">
                                     {person.firstName} {person.lastName}
                                   </h3>
-                                  <Badge variant="secondary">
+                                  <Badge variant="secondary" className="w-fit">
                                     {getCompanyName(person.companyId)}
                                   </Badge>
                                 </div>
