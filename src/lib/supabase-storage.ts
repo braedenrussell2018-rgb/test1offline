@@ -58,9 +58,9 @@ export interface Invoice {
   createdAt: string;
 }
 
-export interface Estimate {
+export interface Quote {
   id: string;
-  estimateNumber: string;
+  quoteNumber: string;
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -368,17 +368,17 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
   };
 };
 
-// Estimates
-export const getEstimates = async (): Promise<Estimate[]> => {
+// Quotes
+export const getQuotes = async (): Promise<Quote[]> => {
   const { data, error } = await supabase
-    .from("estimates")
+    .from("quotes")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
   return (data || []).map(row => ({
     id: row.id,
-    estimateNumber: row.estimate_number,
+    quoteNumber: row.quote_number,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
@@ -394,22 +394,22 @@ export const getEstimates = async (): Promise<Estimate[]> => {
   }));
 };
 
-export const addEstimate = async (estimate: Omit<Estimate, "id">): Promise<Estimate> => {
+export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
   const { data, error } = await supabase
-    .from("estimates")
+    .from("quotes")
     .insert({
-      estimate_number: estimate.estimateNumber,
-      customer_name: estimate.customerName,
-      customer_email: estimate.customerEmail,
-      customer_phone: estimate.customerPhone,
-      customer_address: estimate.customerAddress,
-      ship_to_name: estimate.shipToName,
-      ship_to_address: estimate.shipToAddress,
-      items: estimate.items,
-      subtotal: estimate.subtotal,
-      discount: estimate.discount,
-      shipping: estimate.shipping,
-      total: estimate.total,
+      quote_number: quote.quoteNumber,
+      customer_name: quote.customerName,
+      customer_email: quote.customerEmail,
+      customer_phone: quote.customerPhone,
+      customer_address: quote.customerAddress,
+      ship_to_name: quote.shipToName,
+      ship_to_address: quote.shipToAddress,
+      items: quote.items,
+      subtotal: quote.subtotal,
+      discount: quote.discount,
+      shipping: quote.shipping,
+      total: quote.total,
     })
     .select()
     .single();
@@ -417,7 +417,7 @@ export const addEstimate = async (estimate: Omit<Estimate, "id">): Promise<Estim
   if (error) throw error;
   return {
     id: data.id,
-    estimateNumber: data.estimate_number,
+    quoteNumber: data.quote_number,
     customerName: data.customer_name,
     customerEmail: data.customer_email,
     customerPhone: data.customer_phone,
@@ -433,9 +433,9 @@ export const addEstimate = async (estimate: Omit<Estimate, "id">): Promise<Estim
   };
 };
 
-export const deleteEstimate = async (id: string): Promise<void> => {
+export const deleteQuote = async (id: string): Promise<void> => {
   const { error } = await supabase
-    .from("estimates")
+    .from("quotes")
     .delete()
     .eq("id", id);
 
