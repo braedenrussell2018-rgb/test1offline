@@ -45,7 +45,7 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <User className="h-6 w-6" />
@@ -79,7 +79,7 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
               <CardTitle>Contact Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-muted-foreground">Company</span>
                   <p className="font-medium">{companyName}</p>
@@ -208,10 +208,11 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         </div>
 
         {/* Close Button */}
-        <div className="flex justify-end pt-4 border-t">
+        <div className="flex justify-end pt-4 border-t sticky bottom-0 bg-background">
           <Button 
             variant="outline" 
             onClick={() => setOpen(false)}
+            className="w-full sm:w-auto"
           >
             Close
           </Button>
