@@ -160,7 +160,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     }
   };
 
-  const handleCreateInvoice = () => {
+  const handleCreateInvoice = async () => {
     if (selectedItems.size === 0) {
       toast({
         title: "Error",
@@ -183,30 +183,35 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
 
     const subtotal = invoiceItems.reduce((sum, item) => sum + item.price, 0);
     const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
+    const total = subtotal - discountAmount + shippingCost;
 
-    const invoice = inventoryStorage.createInvoice({
+    const shipToAddressStr = (shipStreet || shipCity || shipState || shipZip) 
+      ? `${shipStreet}, ${shipCity}, ${shipState} ${shipZip}`.trim()
+      : undefined;
+
+    const invoiceNumber = `INV-${Date.now()}`;
+
+    const invoice = await inventoryStorage.createInvoice({
+      invoiceNumber,
       items: invoiceItems,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
-      shipToAddress: (shipStreet || shipCity || shipState || shipZip) ? {
-        street: shipStreet,
-        city: shipCity,
-        state: shipState,
-        zip: shipZip,
-      } : undefined,
+      shipToAddress: shipToAddressStr,
       discount: discountAmount,
       shippingCost,
+      subtotal,
+      total,
     });
 
     // Mark items as sold
-    selectedItems.forEach((data, itemId) => {
-      inventoryStorage.updateItem(itemId, {
+    for (const [itemId, data] of selectedItems.entries()) {
+      await inventoryStorage.updateItem(itemId, {
         status: 'sold',
         soldDate: new Date().toISOString(),
         invoiceId: invoice.id,
       });
-    });
+    }
 
     toast({
       title: "Success",

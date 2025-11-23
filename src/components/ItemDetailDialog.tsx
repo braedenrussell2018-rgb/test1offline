@@ -69,7 +69,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
     setNewSerialNumbers(updated);
   };
 
-  const handleAddMoreQuantity = () => {
+  const handleAddMoreQuantity = async () => {
     const nonEmptySerials = newSerialNumbers.filter(sn => sn.trim());
     
     if (nonEmptySerials.length === 0) {
@@ -93,7 +93,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
     }
 
     // Check if serial numbers already exist
-    const existingItems = inventoryStorage.getItems();
+    const existingItems = await inventoryStorage.getItems();
     const existingSerials = existingItems
       .filter(i => i.partNumber === item.partNumber && i.serialNumber)
       .map(i => i.serialNumber);
@@ -135,7 +135,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
     onItemAdded?.();
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editPartNumber.trim() || !editDescription.trim() || !editSalePrice || !editCost) {
       toast({
         title: "Error",
@@ -189,7 +189,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
       return;
     }
 
-    inventoryStorage.updateItem(item.id, {
+    await inventoryStorage.updateItem(item.id, {
       partNumber: editPartNumber.trim(),
       serialNumber: editSerialNumber.trim() || undefined,
       description: editDescription.trim(),

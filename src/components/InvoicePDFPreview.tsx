@@ -66,9 +66,9 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
     let shipYPos = 65;
     if (invoice.customerName) shipYPos += 5;
     if (invoice.shipToAddress) {
-      doc.text(invoice.shipToAddress.street, 110, shipYPos);
-      shipYPos += 5;
-      doc.text(`${invoice.shipToAddress.city}, ${invoice.shipToAddress.state} ${invoice.shipToAddress.zip}`, 110, shipYPos);
+      const lines = doc.splitTextToSize(invoice.shipToAddress, 75);
+      doc.text(lines, 110, shipYPos);
+      shipYPos += (lines.length * 5);
     }
 
     // Items Table
@@ -181,12 +181,7 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
               <div>
                 <p className="font-bold mb-2">SHIP TO</p>
                 {invoice.customerName && <p>{invoice.customerName}</p>}
-                {invoice.shipToAddress && (
-                  <>
-                    <p>{invoice.shipToAddress.street}</p>
-                    <p>{invoice.shipToAddress.city}, {invoice.shipToAddress.state} {invoice.shipToAddress.zip}</p>
-                  </>
-                )}
+                {invoice.shipToAddress && <p>{invoice.shipToAddress}</p>}
               </div>
             </div>
 

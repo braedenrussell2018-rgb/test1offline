@@ -67,15 +67,11 @@ const Estimates = () => {
 
       // Mark items as sold
       for (const item of estimate.items) {
-        const fullItem = (await inventoryStorage.getItems()).find(i => i.id === item.itemId);
-        if (fullItem) {
-          await inventoryStorage.updateItem({
-            ...fullItem,
-            status: 'sold',
-            soldDate: new Date().toISOString(),
-            invoiceId: invoice.id,
-          });
-        }
+        await inventoryStorage.updateItem(item.itemId, {
+          status: 'sold',
+          soldDate: new Date().toISOString(),
+          invoiceId: invoice.id,
+        });
       }
 
       toast({
@@ -176,10 +172,7 @@ const Estimates = () => {
                       {estimate.shipToAddress && (
                         <div className="text-sm text-muted-foreground">
                           <div className="font-medium">Ship To:</div>
-                          <div>{estimate.shipToAddress.street}</div>
-                          <div>
-                            {estimate.shipToAddress.city}, {estimate.shipToAddress.state} {estimate.shipToAddress.zip}
-                          </div>
+                          <div>{estimate.shipToAddress}</div>
                         </div>
                       )}
                     </div>

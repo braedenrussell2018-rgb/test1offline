@@ -183,12 +183,7 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
               <div>
                 <p className="font-bold mb-2">SHIP TO</p>
                 {estimate.customerName && <p>{estimate.customerName}</p>}
-                {estimate.shipToAddress && (
-                  <>
-                    <p>{estimate.shipToAddress.street}</p>
-                    <p>{estimate.shipToAddress.city}, {estimate.shipToAddress.state} {estimate.shipToAddress.zip}</p>
-                  </>
-                )}
+                {estimate.shipToAddress && <p>{estimate.shipToAddress}</p>}
               </div>
             </div>
 
