@@ -42,15 +42,23 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
 
   useEffect(() => {
     if (open) {
-      const items = inventoryStorage.getItems().filter(item => item.status === 'available');
-      setAvailableItems(items);
-      setFilteredItems(items);
+      const loadData = async () => {
+        const [items, companiesData, personsData] = await Promise.all([
+          inventoryStorage.getItems(),
+          inventoryStorage.getCompanies(),
+          inventoryStorage.getPersons()
+        ]);
+        
+        const availableItems = items.filter(item => item.status === 'available');
+        setAvailableItems(availableItems);
+        setFilteredItems(availableItems);
+        setCompanies(companiesData);
+        setPersons(personsData);
+      };
+      
+      loadData();
       setSelectedItems(new Map());
       setSearchQuery("");
-      
-      // Load CRM data
-      setCompanies(inventoryStorage.getCompanies());
-      setPersons(inventoryStorage.getPersons());
       
       // Reset form
       setSelectedCompanyId("");
@@ -86,7 +94,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       const company = companies.find(c => c.id === selectedCompanyId);
       
       if (person && company) {
-        setCustomerName(`${person.firstName} ${person.lastName} - ${company.name}`);
+        setCustomerName(`${person.name} - ${company.name}`);
         setCustomerEmail(person.email || "");
         setCustomerPhone(person.phone || "");
         
@@ -264,7 +272,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                       <SelectContent>
                         {availablePersons.map((person) => (
                           <SelectItem key={person.id} value={person.id}>
-                            {person.firstName} {person.lastName}
+                            {person.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

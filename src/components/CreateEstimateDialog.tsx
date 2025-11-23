@@ -33,9 +33,13 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
 
   useEffect(() => {
     if (open) {
-      const items = inventoryStorage.getItems().filter(item => item.status === 'available');
-      setAvailableItems(items);
-      setFilteredItems(items);
+      const loadItems = async () => {
+        const items = await inventoryStorage.getItems();
+        const availableItems = items.filter(item => item.status === 'available');
+        setAvailableItems(availableItems);
+        setFilteredItems(availableItems);
+      };
+      loadItems();
       setSelectedItems(new Map());
       setSearchQuery("");
       setCustomerName("");

@@ -49,7 +49,7 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <User className="h-6 w-6" />
-            {person.firstName} {person.lastName}
+            {person.name}
           </DialogTitle>
           <DialogDescription>
             Contact information and notes
@@ -57,22 +57,6 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
-          {/* Business Card Photo */}
-          {person.businessCardPhoto && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Business Card</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <img
-                  src={person.businessCardPhoto}
-                  alt="Business card"
-                  className="w-full max-w-md rounded border"
-                />
-              </CardContent>
-            </Card>
-          )}
-
           {/* Contact Information */}
           <Card>
             <CardHeader>

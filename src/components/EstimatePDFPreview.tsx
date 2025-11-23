@@ -67,9 +67,10 @@ export const EstimatePDFPreview = ({ estimate, open, onOpenChange }: EstimatePDF
     let shipYPos = 65;
     if (estimate.customerName) shipYPos += 5;
     if (estimate.shipToAddress) {
-      doc.text(estimate.shipToAddress.street, 110, shipYPos);
-      shipYPos += 5;
-      doc.text(`${estimate.shipToAddress.city}, ${estimate.shipToAddress.state} ${estimate.shipToAddress.zip}`, 110, shipYPos);
+      const addressLines = estimate.shipToAddress.split('\n');
+      addressLines.forEach((line, i) => {
+        doc.text(line.trim(), 110, shipYPos + (i * 5));
+      });
     }
 
     // Items Table

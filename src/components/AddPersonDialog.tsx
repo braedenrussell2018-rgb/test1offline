@@ -98,9 +98,10 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
         }
       }
       
-      if (contactInfo.company) {
+        if (contactInfo.company) {
         // Try to find existing company
-        const existingCompany = companies.find(
+        const companiesData = await inventoryStorage.getCompanies();
+        const existingCompany = companiesData.find(
           c => c.name.toLowerCase() === contactInfo.company.toLowerCase()
         );
         

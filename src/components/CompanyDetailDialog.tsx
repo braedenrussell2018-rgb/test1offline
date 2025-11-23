@@ -87,7 +87,7 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, children 
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="font-semibold">
-                            {person.firstName} {person.lastName}
+                            {person.name}
                           </h4>
                           {person.jobTitle && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
