@@ -70,11 +70,33 @@ export interface Estimate {
   createdAt: string;
 }
 
+export interface Company {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface Person {
+  id: string;
+  companyId: string;
+  firstName: string;
+  lastName: string;
+  jobTitle?: string;
+  address?: string;
+  notes?: string;
+  businessCardPhoto?: string;
+  email?: string;
+  phone?: string;
+  createdAt: string;
+}
+
 const INVENTORY_KEY = 'inventory_items';
 const INVOICES_KEY = 'invoices';
 const INVOICE_COUNTER_KEY = 'invoice_counter';
 const ESTIMATES_KEY = 'estimates';
 const ESTIMATE_COUNTER_KEY = 'estimate_counter';
+const COMPANIES_KEY = 'companies';
+const PERSONS_KEY = 'persons';
 
 export const inventoryStorage = {
   getItems: (): InventoryItem[] => {
@@ -225,5 +247,69 @@ export const inventoryStorage = {
       return estimates[index];
     }
     return null;
+  },
+
+  getCompanies: (): Company[] => {
+    const data = localStorage.getItem(COMPANIES_KEY);
+    return data ? JSON.parse(data) : [];
+  },
+
+  saveCompanies: (companies: Company[]) => {
+    localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+  },
+
+  addCompany: (name: string) => {
+    const companies = inventoryStorage.getCompanies();
+    const newCompany: Company = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+    };
+    companies.push(newCompany);
+    inventoryStorage.saveCompanies(companies);
+    return newCompany;
+  },
+
+  deleteCompany: (id: string) => {
+    const companies = inventoryStorage.getCompanies();
+    const filtered = companies.filter(company => company.id !== id);
+    inventoryStorage.saveCompanies(filtered);
+    
+    // Also delete all persons associated with this company
+    const persons = inventoryStorage.getPersons();
+    const filteredPersons = persons.filter(person => person.companyId !== id);
+    inventoryStorage.savePersons(filteredPersons);
+  },
+
+  getPersons: (): Person[] => {
+    const data = localStorage.getItem(PERSONS_KEY);
+    return data ? JSON.parse(data) : [];
+  },
+
+  savePersons: (persons: Person[]) => {
+    localStorage.setItem(PERSONS_KEY, JSON.stringify(persons));
+  },
+
+  addPerson: (person: Omit<Person, 'id' | 'createdAt'>) => {
+    const persons = inventoryStorage.getPersons();
+    const newPerson: Person = {
+      ...person,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    persons.push(newPerson);
+    inventoryStorage.savePersons(persons);
+    return newPerson;
+  },
+
+  deletePerson: (id: string) => {
+    const persons = inventoryStorage.getPersons();
+    const filtered = persons.filter(person => person.id !== id);
+    inventoryStorage.savePersons(filtered);
+  },
+
+  getPersonsByCompany: (companyId: string): Person[] => {
+    const persons = inventoryStorage.getPersons();
+    return persons.filter(person => person.companyId === companyId);
   },
 };
