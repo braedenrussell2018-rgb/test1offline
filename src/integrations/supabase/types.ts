@@ -41,57 +41,6 @@ export type Database = {
         }
         Relationships: []
       }
-      estimates: {
-        Row: {
-          created_at: string | null
-          customer_address: string | null
-          customer_email: string | null
-          customer_name: string
-          customer_phone: string | null
-          discount: number | null
-          estimate_number: string
-          id: string
-          items: Json
-          ship_to_address: string | null
-          ship_to_name: string | null
-          shipping: number | null
-          subtotal: number
-          total: number
-        }
-        Insert: {
-          created_at?: string | null
-          customer_address?: string | null
-          customer_email?: string | null
-          customer_name: string
-          customer_phone?: string | null
-          discount?: number | null
-          estimate_number: string
-          id?: string
-          items?: Json
-          ship_to_address?: string | null
-          ship_to_name?: string | null
-          shipping?: number | null
-          subtotal: number
-          total: number
-        }
-        Update: {
-          created_at?: string | null
-          customer_address?: string | null
-          customer_email?: string | null
-          customer_name?: string
-          customer_phone?: string | null
-          discount?: number | null
-          estimate_number?: string
-          id?: string
-          items?: Json
-          ship_to_address?: string | null
-          ship_to_name?: string | null
-          shipping?: number | null
-          subtotal?: number
-          total?: number
-        }
-        Relationships: []
-      }
       invoices: {
         Row: {
           created_at: string | null
@@ -246,6 +195,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quotes: {
+        Row: {
+          created_at: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount: number | null
+          id: string
+          items: Json
+          quote_number: string
+          ship_to_address: string | null
+          ship_to_name: string | null
+          shipping: number | null
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          discount?: number | null
+          id?: string
+          items?: Json
+          quote_number: string
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal: number
+          total: number
+        }
+        Update: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount?: number | null
+          id?: string
+          items?: Json
+          quote_number?: string
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal?: number
+          total?: number
+        }
+        Relationships: []
       }
     }
     Views: {

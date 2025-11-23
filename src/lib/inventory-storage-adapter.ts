@@ -43,9 +43,9 @@ export interface Invoice {
   createdAt: string;
 }
 
-export interface Estimate {
+export interface Quote {
   id: string;
-  estimateNumber: string;
+  quoteNumber: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -315,84 +315,84 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
   };
 };
 
-// Estimates
-export const getEstimates = async (): Promise<Estimate[]> => {
-  const estimates = await db.getEstimates();
-  return estimates.map(est => ({
-    id: est.id,
-    estimateNumber: est.estimateNumber,
-    customerName: est.customerName,
-    customerEmail: est.customerEmail,
-    customerPhone: est.customerPhone,
-    customerAddress: est.customerAddress,
-    shipToName: est.shipToName,
-    shipToAddress: est.shipToAddress,
-    items: est.items.map((item: any) => ({
+// Quotes
+export const getQuotes = async (): Promise<Quote[]> => {
+  const quotes = await db.getQuotes();
+  return quotes.map(quote => ({
+    id: quote.id,
+    quoteNumber: quote.quoteNumber,
+    customerName: quote.customerName,
+    customerEmail: quote.customerEmail,
+    customerPhone: quote.customerPhone,
+    customerAddress: quote.customerAddress,
+    shipToName: quote.shipToName,
+    shipToAddress: quote.shipToAddress,
+    items: quote.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
     })),
-    subtotal: est.subtotal,
-    discount: est.discount,
-    shippingCost: est.shipping,
-    total: est.total,
+    subtotal: quote.subtotal,
+    discount: quote.discount,
+    shippingCost: quote.shipping,
+    total: quote.total,
     status: 'pending',
-    createdAt: est.createdAt,
+    createdAt: quote.createdAt,
   }));
 };
 
-export const addEstimate = async (estimate: Omit<Estimate, "id" | "createdAt">): Promise<Estimate> => {
-  const dbEstimate = await db.addEstimate({
-    estimateNumber: estimate.estimateNumber,
-    customerName: estimate.customerName!,
-    customerEmail: estimate.customerEmail,
-    customerPhone: estimate.customerPhone,
-    customerAddress: estimate.customerAddress,
-    shipToName: estimate.shipToName,
-    shipToAddress: estimate.shipToAddress,
-    items: estimate.items.map(item => ({
+export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<Quote> => {
+  const dbQuote = await db.addQuote({
+    quoteNumber: quote.quoteNumber,
+    customerName: quote.customerName!,
+    customerEmail: quote.customerEmail,
+    customerPhone: quote.customerPhone,
+    customerAddress: quote.customerAddress,
+    shipToName: quote.shipToName,
+    shipToAddress: quote.shipToAddress,
+    items: quote.items.map(item => ({
       id: item.itemId,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
       description: item.description,
       sellPrice: item.price,
     })),
-    subtotal: estimate.subtotal,
-    discount: estimate.discount,
-    shipping: estimate.shippingCost,
-    total: estimate.total,
+    subtotal: quote.subtotal,
+    discount: quote.discount,
+    shipping: quote.shippingCost,
+    total: quote.total,
     createdAt: new Date().toISOString(),
   });
 
   return {
-    id: dbEstimate.id,
-    estimateNumber: dbEstimate.estimateNumber,
-    customerName: dbEstimate.customerName,
-    customerEmail: dbEstimate.customerEmail,
-    customerPhone: dbEstimate.customerPhone,
-    customerAddress: dbEstimate.customerAddress,
-    shipToName: dbEstimate.shipToName,
-    shipToAddress: dbEstimate.shipToAddress,
-    items: dbEstimate.items.map((item: any) => ({
+    id: dbQuote.id,
+    quoteNumber: dbQuote.quoteNumber,
+    customerName: dbQuote.customerName,
+    customerEmail: dbQuote.customerEmail,
+    customerPhone: dbQuote.customerPhone,
+    customerAddress: dbQuote.customerAddress,
+    shipToName: dbQuote.shipToName,
+    shipToAddress: dbQuote.shipToAddress,
+    items: dbQuote.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
     })),
-    subtotal: dbEstimate.subtotal,
-    discount: dbEstimate.discount,
-    shippingCost: dbEstimate.shipping,
-    total: dbEstimate.total,
+    subtotal: dbQuote.subtotal,
+    discount: dbQuote.discount,
+    shippingCost: dbQuote.shipping,
+    total: dbQuote.total,
     status: 'pending',
-    createdAt: dbEstimate.createdAt,
+    createdAt: dbQuote.createdAt,
   };
 };
 
-export const deleteEstimate = async (id: string): Promise<void> => {
-  await db.deleteEstimate(id);
+export const deleteQuote = async (id: string): Promise<void> => {
+  await db.deleteQuote(id);
 };
 
 // Helper functions
@@ -414,13 +414,13 @@ export const addNoteToPerson = async (personId: string, noteText: string): Promi
 };
 
 export const createInvoice = addInvoice; // Alias for compatibility
-export const createEstimate = addEstimate; // Alias for compatibility
+export const createQuote = addQuote; // Alias for compatibility
 
-export const updateEstimate = async (estimate: Estimate): Promise<void> => {
+export const updateQuote = async (quote: Quote): Promise<void> => {
   // For now, we'll delete and recreate since we don't have an update function
   // In a real implementation, you'd add an update function to supabase-storage
-  await deleteEstimate(estimate.id);
-  await addEstimate(estimate);
+  await deleteQuote(quote.id);
+  await addQuote(quote);
 };
 
 // Legacy compatibility - export as default object
@@ -442,9 +442,9 @@ export const inventoryStorage = {
   getInvoices,
   addInvoice,
   createInvoice,
-  getEstimates,
-  addEstimate,
-  createEstimate,
-  updateEstimate,
-  deleteEstimate,
+  getQuotes,
+  addQuote,
+  createQuote,
+  updateQuote,
+  deleteQuote,
 };

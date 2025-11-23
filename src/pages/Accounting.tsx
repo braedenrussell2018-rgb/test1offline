@@ -2,23 +2,23 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator } from "lucide-react";
-import { inventoryStorage, InventoryItem, Invoice, Estimate } from "@/lib/inventory-storage";
+import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [estimates, setEstimates] = useState<Estimate[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
-      const [itemsData, invoicesData, estimatesData] = await Promise.all([
+      const [itemsData, invoicesData, quotesData] = await Promise.all([
         inventoryStorage.getItems(),
         inventoryStorage.getInvoices(),
-        inventoryStorage.getEstimates()
+        inventoryStorage.getQuotes()
       ]);
       setItems(itemsData);
       setInvoices(invoicesData);
-      setEstimates(estimatesData);
+      setQuotes(quotesData);
     };
     loadData();
   }, []);
@@ -45,11 +45,11 @@ const Accounting = () => {
   // Total shipping collected
   const totalShipping = invoices.reduce((sum, invoice) => sum + invoice.shippingCost, 0);
   
-  // Estimates
-  const pendingEstimates = estimates.filter(e => e.status === 'pending');
-  const approvedEstimates = estimates.filter(e => e.status === 'approved');
-  const pendingEstimatesValue = pendingEstimates.reduce((sum, est) => sum + est.total, 0);
-  const approvedEstimatesValue = approvedEstimates.reduce((sum, est) => sum + est.total, 0);
+  // Quotes
+  const pendingQuotes = quotes.filter(e => e.status === 'pending');
+  const approvedQuotes = quotes.filter(e => e.status === 'approved');
+  const pendingQuotesValue = pendingQuotes.reduce((sum, q) => sum + q.total, 0);
+  const approvedQuotesValue = approvedQuotes.reduce((sum, q) => sum + q.total, 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -205,10 +205,10 @@ const Accounting = () => {
                 <div className="p-4 border rounded-lg bg-primary/10">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Total Estimates Value</span>
-                    <Badge>{estimates.length}</Badge>
+                    <Badge>{quotes.length}</Badge>
                   </div>
                   <div className="text-2xl font-bold">
-                    ${(pendingEstimatesValue + approvedEstimatesValue).toFixed(2)}
+                    ${(pendingQuotesValue + approvedQuotesValue).toFixed(2)}
                   </div>
                 </div>
               </div>

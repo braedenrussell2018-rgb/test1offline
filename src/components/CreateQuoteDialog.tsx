@@ -4,21 +4,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { inventoryStorage, InventoryItem } from "@/lib/inventory-storage";
-import jsPDF from "jspdf";
+import { inventoryStorage, InventoryItem, Company, Person } from "@/lib/inventory-storage";
 
-interface CreateEstimateDialogProps {
-  onEstimateCreated: () => void;
+interface CreateQuoteDialogProps {
+  onQuoteCreated: () => void;
 }
 
-export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialogProps) => {
+export const CreateQuoteDialog = ({ onQuoteCreated }: CreateQuoteDialogProps) => {
   const [open, setOpen] = useState(false);
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItems, setSelectedItems] = useState<Map<string, { price: number }>>(new Map());
+  
+  // CRM Integration
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [persons, setPersons] = useState<Person[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [availablePersons, setAvailablePersons] = useState<Person[]>([]);
+  
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -33,15 +41,27 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
 
   useEffect(() => {
     if (open) {
-      const loadItems = async () => {
-        const items = await inventoryStorage.getItems();
+      const loadData = async () => {
+        const [items, companiesData, personsData] = await Promise.all([
+          inventoryStorage.getItems(),
+          inventoryStorage.getCompanies(),
+          inventoryStorage.getPersons()
+        ]);
+        
         const availableItems = items.filter(item => item.status === 'available');
         setAvailableItems(availableItems);
         setFilteredItems(availableItems);
+        setCompanies(companiesData);
+        setPersons(personsData);
       };
-      loadItems();
+      
+      loadData();
       setSelectedItems(new Map());
       setSearchQuery("");
+      
+      // Reset form
+      setSelectedCompanyId("");
+      setSelectedPersonId("");
       setCustomerName("");
       setCustomerEmail("");
       setCustomerPhone("");
@@ -53,6 +73,51 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       setShippingCost(0);
     }
   }, [open]);
+
+  // Update available persons when company is selected
+  useEffect(() => {
+    if (selectedCompanyId) {
+      const companyPersons = persons.filter(p => p.companyId === selectedCompanyId);
+      setAvailablePersons(companyPersons);
+      setSelectedPersonId(""); // Reset person selection
+    } else {
+      setAvailablePersons([]);
+      setSelectedPersonId("");
+    }
+  }, [selectedCompanyId, persons]);
+
+  // Auto-fill customer information when person is selected
+  useEffect(() => {
+    if (selectedPersonId) {
+      const person = persons.find(p => p.id === selectedPersonId);
+      const company = companies.find(c => c.id === selectedCompanyId);
+      
+      if (person && company) {
+        setCustomerName(`${person.name} - ${company.name}`);
+        setCustomerEmail(person.email || "");
+        setCustomerPhone(person.phone || "");
+        
+        // Pre-fill address if available
+        if (person.address) {
+          // Try to parse address (basic parsing)
+          const addressParts = person.address.split(',').map(s => s.trim());
+          if (addressParts.length >= 3) {
+            setShipStreet(addressParts[0] || "");
+            setShipCity(addressParts[1] || "");
+            // Try to extract state and zip from last part
+            const lastPart = addressParts[addressParts.length - 1];
+            const stateZipMatch = lastPart.match(/([A-Z]{2})\s*(\d{5})/);
+            if (stateZipMatch) {
+              setShipState(stateZipMatch[1]);
+              setShipZip(stateZipMatch[2]);
+            }
+          } else {
+            setShipStreet(person.address);
+          }
+        }
+      }
+    }
+  }, [selectedPersonId, persons, companies, selectedCompanyId]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -94,94 +159,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     }
   };
 
-  const generatePDF = (estimate: any) => {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(20);
-    doc.text("ESTIMATE", 105, 20, { align: "center" });
-    
-    doc.setFontSize(10);
-    doc.text(`Estimate #: ${estimate.estimateNumber}`, 20, 35);
-    doc.text(`Date: ${new Date(estimate.createdAt).toLocaleDateString()}`, 20, 40);
-    
-    // Customer Info
-    if (estimate.customerName) {
-      doc.setFontSize(12);
-      doc.text("Bill To:", 20, 55);
-      doc.setFontSize(10);
-      doc.text(estimate.customerName, 20, 60);
-      if (estimate.customerEmail) doc.text(estimate.customerEmail, 20, 65);
-      if (estimate.customerPhone) doc.text(estimate.customerPhone, 20, 70);
-    }
-    
-    // Ship To
-    if (estimate.shipToAddress) {
-      doc.setFontSize(12);
-      doc.text("Ship To:", 120, 55);
-      doc.setFontSize(10);
-      doc.text(estimate.shipToAddress.street, 120, 60);
-      doc.text(`${estimate.shipToAddress.city}, ${estimate.shipToAddress.state} ${estimate.shipToAddress.zip}`, 120, 65);
-    }
-    
-    // Items Table
-    let y = 90;
-    doc.setFontSize(10);
-    doc.text("Part Number", 20, y);
-    doc.text("Description", 70, y);
-    doc.text("Price", 170, y);
-    
-    y += 5;
-    doc.line(20, y, 190, y);
-    y += 7;
-    
-    estimate.items.forEach((item: any) => {
-      doc.text(item.partNumber, 20, y);
-      const description = item.description.length > 40 ? item.description.substring(0, 40) + "..." : item.description;
-      doc.text(description, 70, y);
-      doc.text(`$${item.price.toFixed(2)}`, 170, y);
-      if (item.serialNumber) {
-        y += 5;
-        doc.setFontSize(8);
-        doc.text(`SN: ${item.serialNumber}`, 70, y);
-        doc.setFontSize(10);
-      }
-      y += 7;
-    });
-    
-    // Totals
-    y += 5;
-    doc.line(140, y, 190, y);
-    y += 7;
-    
-    doc.text("Subtotal:", 140, y);
-    doc.text(`$${estimate.subtotal.toFixed(2)}`, 170, y);
-    y += 7;
-    
-    if (estimate.discount > 0) {
-      doc.text("Discount:", 140, y);
-      doc.text(`-$${estimate.discount.toFixed(2)}`, 170, y);
-      y += 7;
-    }
-    
-    if (estimate.shippingCost > 0) {
-      doc.text("Shipping:", 140, y);
-      doc.text(`$${estimate.shippingCost.toFixed(2)}`, 170, y);
-      y += 7;
-    }
-    
-    doc.setFontSize(12);
-    doc.text("Total:", 140, y);
-    doc.text(`$${estimate.total.toFixed(2)}`, 170, y);
-    
-    // Footer
-    doc.setFontSize(8);
-    doc.text("This estimate is valid for 30 days from the date of issue.", 105, 280, { align: "center" });
-    
-    doc.save(`estimate-${estimate.estimateNumber}.pdf`);
-  };
-
-  const handleCreateEstimate = async () => {
+  const handleCreateQuote = async () => {
     if (selectedItems.size === 0) {
       toast({
         title: "Error",
@@ -191,7 +169,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       return;
     }
 
-    const estimateItems = Array.from(selectedItems.entries()).map(([itemId, data]) => {
+    const quoteItems = Array.from(selectedItems.entries()).map(([itemId, data]) => {
       const item = availableItems.find(i => i.id === itemId)!;
       return {
         itemId,
@@ -202,7 +180,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       };
     });
 
-    const subtotal = estimateItems.reduce((sum, item) => sum + item.price, 0);
+    const subtotal = quoteItems.reduce((sum, item) => sum + item.price, 0);
     const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
     const total = subtotal - discountAmount + shippingCost;
 
@@ -210,11 +188,11 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       ? `${shipStreet}, ${shipCity}, ${shipState} ${shipZip}`.trim()
       : undefined;
 
-    const estimateNumber = `EST-${Date.now()}`;
+    const quoteNumber = `QTE-${Date.now()}`;
 
-    const estimate = await inventoryStorage.createEstimate({
-      estimateNumber,
-      items: estimateItems,
+    const quote = await inventoryStorage.createQuote({
+      quoteNumber,
+      items: quoteItems,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
@@ -226,15 +204,13 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       status: 'pending',
     });
 
-    generatePDF(estimate);
-
     toast({
       title: "Success",
-      description: `Estimate ${estimate.estimateNumber} created and PDF downloaded`,
+      description: `Quote ${quote.quoteNumber} created successfully`,
     });
 
     setOpen(false);
-    onEstimateCreated();
+    onQuoteCreated();
   };
 
   const subtotal = Array.from(selectedItems.values()).reduce((sum, data) => sum + data.price, 0);
@@ -246,12 +222,12 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
       <DialogTrigger asChild>
         <Button variant="outline">
           <FileText className="mr-2 h-4 w-4" />
-          Create Estimate
+          Create Quote
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Estimate</DialogTitle>
+          <DialogTitle>Create New Quote</DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
           {availableItems.length === 0 ? (
@@ -260,9 +236,45 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
             </p>
           ) : (
             <>
-              {/* Customer Information */}
+              {/* Customer Information from CRM */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-sm">Customer Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="company">Company</Label>
+                    <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map((company) => (
+                          <SelectItem key={company.id} value={company.id}>
+                            {company.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="person">Contact Person</Label>
+                    <Select 
+                      value={selectedPersonId} 
+                      onValueChange={setSelectedPersonId}
+                      disabled={!selectedCompanyId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedCompanyId ? "Select a contact" : "Select company first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePersons.map((person) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor="customerName">Customer Name</Label>
@@ -386,7 +398,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
                             <div className="space-y-2">
                               <div className="space-y-1">
                                 <Label htmlFor={`price-${item.id}`} className="text-xs">
-                                  Price
+                                  Quote Price
                                 </Label>
                                 <Input
                                   id={`price-${item.id}`}
@@ -461,31 +473,37 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
 
                 <div className="space-y-2 pt-2">
                   <div className="flex justify-between text-sm">
-                    <span>Subtotal:</span>
+                    <span className="text-muted-foreground">Subtotal:</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Discount:</span>
-                    <span>-${discountAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Shipping:</span>
-                    <span>${shippingCost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t pt-2">
-                    <span className="font-semibold">Total:</span>
-                    <span className="text-xl font-bold">${total.toFixed(2)}</span>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Discount ({discountType === 'percent' ? `${discount}%` : `$${discount}`}):
+                      </span>
+                      <span>-${discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {shippingCost > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Shipping:</span>
+                      <span>${shippingCost.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-semibold border-t pt-2">
+                    <span>Total:</span>
+                    <span>${total.toFixed(2)}</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateEstimate} disabled={selectedItems.size === 0}>
-                    Create Estimate & Download PDF
-                  </Button>
-                </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateQuote} disabled={selectedItems.size === 0}>
+                  Create Quote
+                </Button>
               </div>
             </>
           )}
