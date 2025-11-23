@@ -1,15 +1,108 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { InventoryItem } from "@/lib/inventory-storage";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, PackagePlus } from "lucide-react";
+import { InventoryItem, inventoryStorage } from "@/lib/inventory-storage";
+import { useToast } from "@/hooks/use-toast";
 
 interface ItemDetailDialogProps {
   item: InventoryItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onItemAdded?: () => void;
 }
 
-export const ItemDetailDialog = ({ item, open, onOpenChange }: ItemDetailDialogProps) => {
+export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: ItemDetailDialogProps) => {
+  const [showAddQuantity, setShowAddQuantity] = useState(false);
+  const [newSerialNumbers, setNewSerialNumbers] = useState<string[]>(['']);
+  const { toast } = useToast();
+
   if (!item) return null;
+
+  const handleAddSerialNumber = () => {
+    setNewSerialNumbers([...newSerialNumbers, '']);
+  };
+
+  const handleRemoveSerialNumber = (index: number) => {
+    if (newSerialNumbers.length > 1) {
+      setNewSerialNumbers(newSerialNumbers.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSerialNumberChange = (index: number, value: string) => {
+    const updated = [...newSerialNumbers];
+    updated[index] = value;
+    setNewSerialNumbers(updated);
+  };
+
+  const handleAddMoreQuantity = () => {
+    const nonEmptySerials = newSerialNumbers.filter(sn => sn.trim());
+    
+    if (nonEmptySerials.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please enter at least one serial number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for duplicate serial numbers
+    const uniqueSerials = new Set(nonEmptySerials);
+    if (nonEmptySerials.length !== uniqueSerials.size) {
+      toast({
+        title: "Error",
+        description: "Duplicate serial numbers detected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if serial numbers already exist
+    const existingItems = inventoryStorage.getItems();
+    const existingSerials = existingItems
+      .filter(i => i.partNumber === item.partNumber && i.serialNumber)
+      .map(i => i.serialNumber);
+    
+    const duplicates = nonEmptySerials.filter(sn => existingSerials.includes(sn));
+    if (duplicates.length > 0) {
+      toast({
+        title: "Error",
+        description: `Serial numbers already exist: ${duplicates.join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Add new items with same specs but different serial numbers
+    nonEmptySerials.forEach((serial) => {
+      inventoryStorage.addItem({
+        partNumber: item.partNumber,
+        serialNumber: serial,
+        description: item.description,
+        salePrice: item.salePrice,
+        cost: item.cost,
+        weight: item.weight,
+        volume: item.volume,
+        warranty: item.warranty,
+        minReorderLevel: item.minReorderLevel,
+        maxReorderLevel: item.maxReorderLevel,
+        status: 'available',
+      });
+    });
+
+    toast({
+      title: "Success",
+      description: `Added ${nonEmptySerials.length} more item${nonEmptySerials.length > 1 ? 's' : ''} with part number ${item.partNumber}`,
+    });
+
+    setNewSerialNumbers(['']);
+    setShowAddQuantity(false);
+    onItemAdded?.();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,6 +206,72 @@ export const ItemDetailDialog = ({ item, open, onOpenChange }: ItemDetailDialogP
               <span>{new Date(item.createdAt).toLocaleString()}</span>
             </div>
           </div>
+
+          {/* Add More Quantity Section */}
+          {item.status === 'available' && (
+            <div className="pt-4 border-t">
+              {!showAddQuantity ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowAddQuantity(true)}
+                >
+                  <PackagePlus className="mr-2 h-4 w-4" />
+                  Add More Quantity with Different Serial Numbers
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-base font-semibold">Add More Quantity</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddSerialNumber}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add Serial #
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {newSerialNumbers.map((serial, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          value={serial}
+                          onChange={(e) => handleSerialNumberChange(index, e.target.value)}
+                          placeholder={`New SN-${index + 1}`}
+                        />
+                        {newSerialNumbers.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleRemoveSerialNumber(index)}
+                          >
+                            ×
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowAddQuantity(false);
+                        setNewSerialNumbers(['']);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddMoreQuantity}>
+                      Add {newSerialNumbers.filter(sn => sn.trim()).length || 1} Item{newSerialNumbers.filter(sn => sn.trim()).length > 1 ? 's' : ''}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

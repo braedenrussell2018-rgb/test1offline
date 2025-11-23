@@ -333,6 +333,7 @@ const Index = () => {
           item={selectedItem}
           open={detailDialogOpen}
           onOpenChange={setDetailDialogOpen}
+          onItemAdded={handleRefresh}
         />
 
         <InvoicePDFPreview
