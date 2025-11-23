@@ -9,6 +9,7 @@ import { AddPersonDialog } from "@/components/AddPersonDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
 import { PersonDetailDialog } from "@/components/PersonDetailDialog";
 import { QuotePDFPreview } from "@/components/QuotePDFPreview";
+import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
 
 const CRM = () => {
@@ -23,6 +24,8 @@ const CRM = () => {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [previewQuote, setPreviewQuote] = useState<Quote | null>(null);
   const [quotePreviewOpen, setQuotePreviewOpen] = useState(false);
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -62,6 +65,11 @@ const CRM = () => {
   const handleQuotePreview = (quote: Quote) => {
     setPreviewQuote(quote);
     setQuotePreviewOpen(true);
+  };
+
+  const handleInvoicePreview = (invoice: Invoice) => {
+    setPreviewInvoice(invoice);
+    setInvoicePreviewOpen(true);
   };
 
   const pendingQuotes = quotes.filter(q => q.status === 'pending');
@@ -349,6 +357,16 @@ const CRM = () => {
                             </div>
                           </div>
                         </div>
+                        <div className="border-t pt-3 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleInvoicePreview(invoice)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview PDF
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -362,6 +380,12 @@ const CRM = () => {
           quote={previewQuote}
           open={quotePreviewOpen}
           onOpenChange={setQuotePreviewOpen}
+        />
+
+        <InvoicePDFPreview
+          invoice={previewInvoice}
+          open={invoicePreviewOpen}
+          onOpenChange={setInvoicePreviewOpen}
         />
       </div>
     </div>
