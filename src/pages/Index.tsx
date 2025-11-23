@@ -9,6 +9,7 @@ import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye } from "lucide
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
+import { IssuePODialog } from "@/components/IssuePODialog";
 import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
@@ -144,6 +145,7 @@ function IndexContent() {
         <div className="flex gap-4 mb-6">
           <AddItemDialog onItemAdded={handleRefresh} />
           <BulkUploadDialog onItemsAdded={handleRefresh} />
+          <IssuePODialog onPOCreated={handleRefresh} />
           <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
           <Link to="/quotes">
             <Button variant="outline">
