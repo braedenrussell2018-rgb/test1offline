@@ -142,13 +142,13 @@ function IndexContent() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           <AddItemDialog onItemAdded={handleRefresh} />
           <BulkUploadDialog onItemsAdded={handleRefresh} />
           <IssuePODialog onPOCreated={handleRefresh} />
           <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
           <Link to="/quotes">
-            <Button variant="outline">
+            <Button variant="outline" className="w-full">
               <FileEdit className="mr-2 h-4 w-4" />
               View Quotes
             </Button>
