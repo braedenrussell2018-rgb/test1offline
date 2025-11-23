@@ -14,7 +14,239 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          id: string
+          name: string
+          notes: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          notes?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          notes?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      estimates: {
+        Row: {
+          created_at: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount: number | null
+          estimate_number: string
+          id: string
+          items: Json
+          ship_to_address: string | null
+          ship_to_name: string | null
+          shipping: number | null
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          discount?: number | null
+          estimate_number: string
+          id?: string
+          items?: Json
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal: number
+          total: number
+        }
+        Update: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount?: number | null
+          estimate_number?: string
+          id?: string
+          items?: Json
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal?: number
+          total?: number
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          created_at: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount: number | null
+          id: string
+          invoice_number: string
+          items: Json
+          ship_to_address: string | null
+          ship_to_name: string | null
+          shipping: number | null
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          discount?: number | null
+          id?: string
+          invoice_number: string
+          items?: Json
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal: number
+          total: number
+        }
+        Update: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount?: number | null
+          id?: string
+          invoice_number?: string
+          items?: Json
+          ship_to_address?: string | null
+          ship_to_name?: string | null
+          shipping?: number | null
+          subtotal?: number
+          total?: number
+        }
+        Relationships: []
+      }
+      items: {
+        Row: {
+          cost: number | null
+          created_at: string | null
+          date_sold: string | null
+          description: string
+          id: string
+          max_reorder_level: number | null
+          min_reorder_level: number | null
+          part_number: string
+          sale_price: number | null
+          serial_number: string | null
+          sold_in_invoice_id: string | null
+          status: string
+          updated_at: string | null
+          volume: number | null
+          warranty_months: number | null
+          weight: number | null
+        }
+        Insert: {
+          cost?: number | null
+          created_at?: string | null
+          date_sold?: string | null
+          description: string
+          id?: string
+          max_reorder_level?: number | null
+          min_reorder_level?: number | null
+          part_number: string
+          sale_price?: number | null
+          serial_number?: string | null
+          sold_in_invoice_id?: string | null
+          status: string
+          updated_at?: string | null
+          volume?: number | null
+          warranty_months?: number | null
+          weight?: number | null
+        }
+        Update: {
+          cost?: number | null
+          created_at?: string | null
+          date_sold?: string | null
+          description?: string
+          id?: string
+          max_reorder_level?: number | null
+          min_reorder_level?: number | null
+          part_number?: string
+          sale_price?: number | null
+          serial_number?: string | null
+          sold_in_invoice_id?: string | null
+          status?: string
+          updated_at?: string | null
+          volume?: number | null
+          warranty_months?: number | null
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      people: {
+        Row: {
+          address: string | null
+          company_id: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          job_title: string | null
+          name: string
+          notes: Json | null
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          job_title?: string | null
+          name: string
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          job_title?: string | null
+          name?: string
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "people_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
