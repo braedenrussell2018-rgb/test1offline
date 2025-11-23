@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserPlus, Upload, X } from "lucide-react";
+import { UserPlus, Upload, X, Plus } from "lucide-react";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,6 +38,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [businessCardPhoto, setBusinessCardPhoto] = useState<string>("");
+  const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
   const { toast } = useToast();
 
   const companies = inventoryStorage.getCompanies();
@@ -57,6 +59,28 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     setBusinessCardPhoto("");
   };
 
+  const handleCreateNewCompany = () => {
+    if (!newCompanyName.trim()) {
+      toast({
+        title: "Error",
+        description: "Company name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newCompany = inventoryStorage.addCompany(newCompanyName);
+
+    setCompanyId(newCompany.id);
+    setNewCompanyName("");
+    setShowNewCompanyForm(false);
+    
+    toast({
+      title: "Success",
+      description: "Company created successfully",
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -69,10 +93,10 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       return;
     }
 
-    if (!companyId) {
+    if (!companyId && !showNewCompanyForm) {
       toast({
         title: "Error",
-        description: "Please select a company",
+        description: "Please select a company or create a new one",
         variant: "destructive",
       });
       return;
@@ -105,6 +129,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     setEmail("");
     setPhone("");
     setBusinessCardPhoto("");
+    setShowNewCompanyForm(false);
+    setNewCompanyName("");
     setOpen(false);
     onPersonAdded();
   };
@@ -112,8 +138,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <UserPlus className="mr-2 h-4 w-4" />
+        <Button variant="outline" size="lg">
+          <UserPlus className="mr-2 h-5 w-5" />
           Add Person
         </Button>
       </DialogTrigger>
@@ -128,18 +154,55 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="company">Company *</Label>
-              <Select value={companyId} onValueChange={setCompanyId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!showNewCompanyForm ? (
+                <div className="flex gap-2">
+                  <Select value={companyId} onValueChange={setCompanyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a company" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowNewCompanyForm(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New company name"
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={handleCreateNewCompany}
+                  >
+                    Create
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewCompanyForm(false);
+                      setNewCompanyName("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
