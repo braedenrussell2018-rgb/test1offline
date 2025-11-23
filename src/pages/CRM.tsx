@@ -77,7 +77,7 @@ const CRM = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <Card 
             className="cursor-pointer hover:bg-accent/5 transition-colors"
             onClick={() => setActiveTab("companies")}
