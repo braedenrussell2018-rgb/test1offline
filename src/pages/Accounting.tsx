@@ -136,7 +136,7 @@ const Accounting = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Estimates</CardTitle>
+              <CardTitle className="text-sm font-medium">Pending Quotes</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -183,7 +183,7 @@ const Accounting = () => {
           {/* Estimates Overview */}
           <Card>
             <CardHeader>
-              <CardTitle>Estimates Overview</CardTitle>
+              <CardTitle>Quotes Overview</CardTitle>
               <CardDescription>Quote status and value</CardDescription>
             </CardHeader>
             <CardContent>
