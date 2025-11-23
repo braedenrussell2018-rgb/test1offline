@@ -20,6 +20,11 @@ export function AppMenuBar() {
               <MenubarTrigger className="cursor-pointer">CRM</MenubarTrigger>
             </NavLink>
           </MenubarMenu>
+          <MenubarMenu>
+            <NavLink to="/accounting">
+              <MenubarTrigger className="cursor-pointer">Accounting</MenubarTrigger>
+            </NavLink>
+          </MenubarMenu>
         </Menubar>
       </div>
     </div>

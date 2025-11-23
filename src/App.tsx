@@ -7,6 +7,7 @@ import { AppMenuBar } from "@/components/AppMenuBar";
 import Index from "./pages/Index";
 import Estimates from "./pages/Estimates";
 import CRM from "./pages/CRM";
+import Accounting from "./pages/Accounting";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/estimates" element={<Estimates />} />
           <Route path="/crm" element={<CRM />} />
+          <Route path="/accounting" element={<Accounting />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
