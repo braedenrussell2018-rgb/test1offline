@@ -57,13 +57,24 @@ export const QuotePDFPreview = ({ quote, open, onOpenChange }: QuotePDFPreviewPr
       const description = item.description.length > 40 ? item.description.substring(0, 40) + "..." : item.description;
       doc.text(description, 70, y);
       doc.text(`$${item.price.toFixed(2)}`, 170, y);
+      y += 5;
+      
       if (item.serialNumber) {
-        y += 5;
         doc.setFontSize(8);
         doc.text(`SN: ${item.serialNumber}`, 70, y);
-        doc.setFontSize(10);
+        y += 5;
       }
-      y += 7;
+      
+      if (quote.salesmanName) {
+        doc.setFontSize(7);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Added by: ${quote.salesmanName}`, 70, y);
+        doc.setTextColor(0, 0, 0);
+        y += 5;
+      }
+      
+      doc.setFontSize(10);
+      y += 2;
     });
     
     // Totals
@@ -142,6 +153,9 @@ export const QuotePDFPreview = ({ quote, open, onOpenChange }: QuotePDFPreviewPr
                         <p className="text-muted-foreground">{item.description}</p>
                         {item.serialNumber && (
                           <p className="text-xs text-muted-foreground">SN: {item.serialNumber}</p>
+                        )}
+                        {quote.salesmanName && (
+                          <p className="text-xs text-gray-400">Added by: {quote.salesmanName}</p>
                         )}
                       </div>
                       <p className="font-medium">${item.price.toFixed(2)}</p>
