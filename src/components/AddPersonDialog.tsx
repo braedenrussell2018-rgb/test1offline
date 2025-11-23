@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserPlus, Upload, X, Plus } from "lucide-react";
-import { inventoryStorage } from "@/lib/inventory-storage";
+import { inventoryStorage, Note } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 
 interface AddPersonDialogProps {
@@ -108,10 +108,10 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       lastName,
       jobTitle: jobTitle || undefined,
       address: address || undefined,
-      notes: notes || undefined,
       businessCardPhoto: businessCardPhoto || undefined,
       email: email || undefined,
       phone: phone || undefined,
+      notes: notes ? [{ id: crypto.randomUUID(), text: notes, timestamp: new Date().toISOString() }] : [],
     });
     
     toast({
