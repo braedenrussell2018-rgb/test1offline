@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,8 +43,11 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
+  const [companies, setCompanies] = useState<any[]>([]);
 
-  const companies = inventoryStorage.getCompanies();
+  useEffect(() => {
+    inventoryStorage.getCompanies().then(setCompanies);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,7 +138,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     }
   };
 
-  const handleCreateNewCompany = () => {
+  const handleCreateNewCompany = async () => {
     if (!newCompanyName.trim()) {
       toast({
         title: "Error",
@@ -145,11 +148,12 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       return;
     }
 
-    const newCompany = inventoryStorage.addCompany(newCompanyName);
+    const newCompany = await inventoryStorage.addCompany(newCompanyName);
 
     setCompanyId(newCompany.id);
     setNewCompanyName("");
     setShowNewCompanyForm(false);
+    setCompanies([...companies, newCompany]);
     
     toast({
       title: "Success",
@@ -180,11 +184,9 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
     inventoryStorage.addPerson({
       companyId,
-      firstName,
-      lastName,
+      name: `${firstName.trim()} ${lastName.trim()}`,
       jobTitle: jobTitle || undefined,
       address: address || undefined,
-      businessCardPhoto: businessCardPhoto || undefined,
       email: email || undefined,
       phone: phone || undefined,
       notes: notes ? [{ id: crypto.randomUUID(), text: notes, timestamp: new Date().toISOString() }] : [],

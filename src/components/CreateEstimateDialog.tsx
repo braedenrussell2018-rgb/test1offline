@@ -181,7 +181,7 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
     doc.save(`estimate-${estimate.estimateNumber}.pdf`);
   };
 
-  const handleCreateEstimate = () => {
+  const handleCreateEstimate = async () => {
     if (selectedItems.size === 0) {
       toast({
         title: "Error",
@@ -204,20 +204,26 @@ export const CreateEstimateDialog = ({ onEstimateCreated }: CreateEstimateDialog
 
     const subtotal = estimateItems.reduce((sum, item) => sum + item.price, 0);
     const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
+    const total = subtotal - discountAmount + shippingCost;
 
-    const estimate = inventoryStorage.createEstimate({
+    const shipToAddressStr = (shipStreet || shipCity || shipState || shipZip) 
+      ? `${shipStreet}, ${shipCity}, ${shipState} ${shipZip}`.trim()
+      : undefined;
+
+    const estimateNumber = `EST-${Date.now()}`;
+
+    const estimate = await inventoryStorage.createEstimate({
+      estimateNumber,
       items: estimateItems,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
-      shipToAddress: shipStreet ? {
-        street: shipStreet,
-        city: shipCity,
-        state: shipState,
-        zip: shipZip,
-      } : undefined,
+      shipToAddress: shipToAddressStr,
       discount: discountAmount,
       shippingCost,
+      subtotal,
+      total,
+      status: 'pending',
     });
 
     generatePDF(estimate);

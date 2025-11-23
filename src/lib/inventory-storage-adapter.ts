@@ -146,8 +146,13 @@ export const addItem = async (item: Omit<InventoryItem, "id" | "createdAt">): Pr
   return convertItemFromDB(dbItem);
 };
 
-export const updateItem = async (item: InventoryItem): Promise<void> => {
-  await db.updateItem({ ...convertItemToDB(item), id: item.id } as db.Item);
+export const updateItem = async (id: string, updates: Partial<InventoryItem>): Promise<void> => {
+  const items = await db.getItems();
+  const item = items.find(i => i.id === id);
+  if (!item) throw new Error("Item not found");
+  
+  const updated = { ...item, ...convertItemToDB(updates), id };
+  await db.updateItem(updated as db.Item);
 };
 
 export const deleteItem = async (id: string): Promise<void> => {
