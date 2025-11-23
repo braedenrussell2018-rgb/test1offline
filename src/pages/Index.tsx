@@ -145,10 +145,10 @@ function IndexContent() {
           <AddItemDialog onItemAdded={handleRefresh} />
           <BulkUploadDialog onItemsAdded={handleRefresh} />
           <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
-          <Link to="/estimates">
+          <Link to="/quotes">
             <Button variant="outline">
               <FileEdit className="mr-2 h-4 w-4" />
-              View Estimates
+              View Quotes
             </Button>
           </Link>
         </div>

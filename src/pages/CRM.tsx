@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye } from "lucide-react";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
 import { PersonDetailDialog } from "@/components/PersonDetailDialog";
-import { inventoryStorage, Company, Person } from "@/lib/inventory-storage";
+import { QuotePDFPreview } from "@/components/QuotePDFPreview";
+import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
 
 const CRM = () => {
   const [activeTab, setActiveTab] = useState(() => {
@@ -15,8 +17,12 @@ const CRM = () => {
   });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [previewQuote, setPreviewQuote] = useState<Quote | null>(null);
+  const [quotePreviewOpen, setQuotePreviewOpen] = useState(false);
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -26,12 +32,16 @@ const CRM = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const [companiesData, personsData] = await Promise.all([
+      const [companiesData, personsData, quotesData, invoicesData] = await Promise.all([
         inventoryStorage.getCompanies(),
-        inventoryStorage.getPersons()
+        inventoryStorage.getPersons(),
+        inventoryStorage.getQuotes(),
+        inventoryStorage.getInvoices()
       ]);
       setCompanies(companiesData);
       setPersons(personsData);
+      setQuotes(quotesData);
+      setInvoices(invoicesData);
     };
     loadData();
   }, [refreshKey]);
@@ -48,6 +58,13 @@ const CRM = () => {
   const handlePersonClick = (person: Person) => {
     setSelectedPerson(person);
   };
+
+  const handleQuotePreview = (quote: Quote) => {
+    setPreviewQuote(quote);
+    setQuotePreviewOpen(true);
+  };
+
+  const pendingQuotes = quotes.filter(q => q.status === 'pending');
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,7 +115,7 @@ const CRM = () => {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">{pendingQuotes.length}</div>
               <p className="text-xs text-muted-foreground">Pending quotes</p>
             </CardContent>
           </Card>
@@ -251,9 +268,48 @@ const CRM = () => {
                 <CardDescription>Track quotes sent to companies</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-center text-muted-foreground py-8">
-                  No quotes yet. Create your first quote.
-                </p>
+                {quotes.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No quotes yet. Create your first quote.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {quotes.map((quote) => (
+                      <div
+                        key={quote.id}
+                        className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="font-semibold text-lg">{quote.quoteNumber}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {quote.customerName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(quote.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold">${quote.total.toFixed(2)}</div>
+                            <Badge variant={quote.status === 'pending' ? 'outline' : quote.status === 'approved' ? 'default' : 'destructive'}>
+                              {quote.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="border-t pt-3 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleQuotePreview(quote)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview PDF
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -265,13 +321,48 @@ const CRM = () => {
                 <CardDescription>View invoices organized by company</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-center text-muted-foreground py-8">
-                  No invoices yet. Invoices will appear here when created.
-                </p>
+                {invoices.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No invoices yet. Invoices will appear here when created.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {invoices.map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="font-semibold text-lg">{invoice.invoiceNumber}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {invoice.customerName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(invoice.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold">${invoice.total.toFixed(2)}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {invoice.items.length} {invoice.items.length === 1 ? 'item' : 'items'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        <QuotePDFPreview
+          quote={previewQuote}
+          open={quotePreviewOpen}
+          onOpenChange={setQuotePreviewOpen}
+        />
       </div>
     </div>
   );
