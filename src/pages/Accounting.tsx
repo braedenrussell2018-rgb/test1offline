@@ -140,8 +140,8 @@ const Accounting = () => {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${pendingEstimatesValue.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">{pendingEstimates.length} estimates</p>
+              <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">{pendingQuotes.length} quotes</p>
             </CardContent>
           </Card>
         </div>
@@ -190,21 +190,21 @@ const Accounting = () => {
               <div className="space-y-4">
                 <div className="p-4 border rounded-lg bg-muted/30">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Pending Estimates</span>
-                    <Badge variant="outline">{pendingEstimates.length}</Badge>
+                    <span className="text-sm font-medium">Pending Quotes</span>
+                    <Badge variant="outline">{pendingQuotes.length}</Badge>
                   </div>
-                  <div className="text-2xl font-bold">${pendingEstimatesValue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
                 </div>
                 <div className="p-4 border rounded-lg bg-muted/30">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Approved Estimates</span>
-                    <Badge variant="default">{approvedEstimates.length}</Badge>
+                    <span className="text-sm font-medium">Approved Quotes</span>
+                    <Badge variant="default">{approvedQuotes.length}</Badge>
                   </div>
-                  <div className="text-2xl font-bold">${approvedEstimatesValue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">${approvedQuotesValue.toFixed(2)}</div>
                 </div>
                 <div className="p-4 border rounded-lg bg-primary/10">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Total Estimates Value</span>
+                    <span className="text-sm font-medium">Total Quotes Value</span>
                     <Badge>{quotes.length}</Badge>
                   </div>
                   <div className="text-2xl font-bold">
