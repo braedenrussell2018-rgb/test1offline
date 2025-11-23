@@ -102,6 +102,16 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
       doc.text(`$${item.price.toFixed(2)}`, 165, yPos);
       
       yPos += Math.max(6, description.length * 5);
+      
+      // Add salesman name in fine print
+      if (invoice.salesmanName) {
+        doc.setFontSize(7);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Added by: ${invoice.salesmanName}`, 60, yPos);
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        yPos += 4;
+      }
     });
 
     // Summary
@@ -200,7 +210,14 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
                 {invoice.items.map((item, idx) => (
                   <tr key={idx}>
                     <td className="border p-2">{item.partNumber}</td>
-                    <td className="border p-2">{item.description}</td>
+                    <td className="border p-2">
+                      {item.description}
+                      {invoice.salesmanName && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          Added by: {invoice.salesmanName}
+                        </div>
+                      )}
+                    </td>
                     <td className="border p-2 text-center">1</td>
                     <td className="border p-2 text-right">${item.price.toFixed(2)}</td>
                     <td className="border p-2 text-right">${item.price.toFixed(2)}</td>
