@@ -46,7 +46,10 @@ const CRM = () => {
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
+          <Card 
+            className="cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => setActiveTab("companies")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
               <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -57,7 +60,10 @@ const CRM = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => setActiveTab("contacts")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
               <User className="h-4 w-4 text-muted-foreground" />
@@ -68,7 +74,10 @@ const CRM = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => setActiveTab("quotes")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Open Quotes</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
