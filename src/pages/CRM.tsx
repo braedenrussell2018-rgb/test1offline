@@ -74,7 +74,7 @@ const CRM = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex gap-4 mb-12">
           <AddCompanyDialog onCompanyAdded={handleRefresh} />
           <AddPersonDialog onPersonAdded={handleRefresh} />
         </div>
