@@ -20,8 +20,8 @@ const Estimates = () => {
     loadEstimates();
   }, []);
 
-  const loadEstimates = () => {
-    const allEstimates = inventoryStorage.getEstimates();
+  const loadEstimates = async () => {
+    const allEstimates = await inventoryStorage.getEstimates();
     setEstimates(allEstimates.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     ));
@@ -40,46 +40,61 @@ const Estimates = () => {
     }
   };
 
-  const handleStatusChange = (estimateId: string, newStatus: 'pending' | 'approved' | 'rejected') => {
+  const handleStatusChange = async (estimateId: string, newStatus: 'pending' | 'approved' | 'rejected') => {
     const estimate = estimates.find(e => e.id === estimateId);
     
     if (newStatus === 'approved' && estimate) {
+      // Generate invoice number
+      const invoices = await inventoryStorage.getInvoices();
+      const invoiceNumber = `INV-${Date.now()}`;
+      
       // Create invoice from estimate
-      const invoice = inventoryStorage.createInvoice({
+      const invoice = await inventoryStorage.createInvoice({
+        invoiceNumber,
         items: estimate.items,
         customerName: estimate.customerName,
         customerEmail: estimate.customerEmail,
         customerPhone: estimate.customerPhone,
+        customerAddress: estimate.customerAddress,
+        shipToName: estimate.shipToName,
         shipToAddress: estimate.shipToAddress,
         discount: estimate.discount,
         shippingCost: estimate.shippingCost,
         estimateId: estimate.id,
+        subtotal: estimate.subtotal,
+        total: estimate.total,
       });
 
       // Mark items as sold
-      estimate.items.forEach((item) => {
-        inventoryStorage.updateItem(item.itemId, {
-          status: 'sold',
-          soldDate: new Date().toISOString(),
-          invoiceId: invoice.id,
-        });
-      });
+      for (const item of estimate.items) {
+        const fullItem = (await inventoryStorage.getItems()).find(i => i.id === item.itemId);
+        if (fullItem) {
+          await inventoryStorage.updateItem({
+            ...fullItem,
+            status: 'sold',
+            soldDate: new Date().toISOString(),
+            invoiceId: invoice.id,
+          });
+        }
+      }
 
       toast({
-        title: "Estimate Approved",
-        description: `Invoice ${invoice.invoiceNumber} created successfully`,
+        title: "Invoice created",
+        description: `Invoice ${invoice.invoiceNumber} has been created`,
       });
 
-      // Update estimate status
-      inventoryStorage.updateEstimate(estimateId, { status: newStatus });
-      loadEstimates();
-
-      // Navigate to invoices tab
-      setTimeout(() => navigate('/'), 500);
-    } else {
-      inventoryStorage.updateEstimate(estimateId, { status: newStatus });
-      loadEstimates();
+      navigate('/');
     }
+
+    // Update estimate status
+    const updatedEstimate = { ...estimate!, status: newStatus };
+    await inventoryStorage.updateEstimate(updatedEstimate);
+    loadEstimates();
+
+    toast({
+      title: "Status updated",
+      description: `Estimate status changed to ${newStatus}`,
+    });
   };
 
   const handlePreview = (estimate: Estimate) => {

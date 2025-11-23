@@ -25,8 +25,15 @@ const CRM = () => {
   };
 
   useEffect(() => {
-    setCompanies(inventoryStorage.getCompanies());
-    setPersons(inventoryStorage.getPersons());
+    const loadData = async () => {
+      const [companiesData, personsData] = await Promise.all([
+        inventoryStorage.getCompanies(),
+        inventoryStorage.getPersons()
+      ]);
+      setCompanies(companiesData);
+      setPersons(personsData);
+    };
+    loadData();
   }, [refreshKey]);
 
   const handleRefresh = () => {
