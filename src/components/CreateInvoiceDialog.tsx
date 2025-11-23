@@ -31,6 +31,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [salesmanName, setSalesmanName] = useState("");
   const [shipStreet, setShipStreet] = useState("");
   const [shipCity, setShipCity] = useState("");
   const [shipState, setShipState] = useState("");
@@ -197,6 +198,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
+      salesmanName: salesmanName || undefined,
       shipToAddress: shipToAddressStr,
       discount: discountAmount,
       shippingCost,
@@ -313,6 +315,20 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
                       placeholder="(555) 123-4567"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Salesman */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm">Salesman</h3>
+                <div className="space-y-1">
+                  <Label htmlFor="salesmanName">Salesman Name</Label>
+                  <Input
+                    id="salesmanName"
+                    value={salesmanName}
+                    onChange={(e) => setSalesmanName(e.target.value)}
+                    placeholder="Enter salesman name"
+                  />
                 </div>
               </div>
 

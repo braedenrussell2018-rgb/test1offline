@@ -52,6 +52,7 @@ export type Database = {
           id: string
           invoice_number: string
           items: Json
+          salesman_name: string | null
           ship_to_address: string | null
           ship_to_name: string | null
           shipping: number | null
@@ -68,6 +69,7 @@ export type Database = {
           id?: string
           invoice_number: string
           items?: Json
+          salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
@@ -84,6 +86,7 @@ export type Database = {
           id?: string
           invoice_number?: string
           items?: Json
+          salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
@@ -207,6 +210,7 @@ export type Database = {
           id: string
           items: Json
           quote_number: string
+          salesman_name: string | null
           ship_to_address: string | null
           ship_to_name: string | null
           shipping: number | null
@@ -223,6 +227,7 @@ export type Database = {
           id?: string
           items?: Json
           quote_number: string
+          salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
@@ -239,6 +244,7 @@ export type Database = {
           id?: string
           items?: Json
           quote_number?: string
+          salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null

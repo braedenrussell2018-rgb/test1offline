@@ -29,6 +29,7 @@ export interface Invoice {
   customerAddress?: string;
   shipToName?: string;
   shipToAddress?: string;
+  salesmanName?: string;
   items: {
     itemId: string;
     partNumber: string;
@@ -52,6 +53,7 @@ export interface Quote {
   customerAddress?: string;
   shipToName?: string;
   shipToAddress?: string;
+  salesmanName?: string;
   items: {
     itemId: string;
     partNumber: string;
