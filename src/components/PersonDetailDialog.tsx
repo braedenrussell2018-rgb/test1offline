@@ -206,6 +206,16 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
             </CardContent>
           </Card>
         </div>
+
+        {/* Close Button */}
+        <div className="flex justify-end pt-4 border-t">
+          <Button 
+            variant="outline" 
+            onClick={() => setOpen(false)}
+          >
+            Close
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
