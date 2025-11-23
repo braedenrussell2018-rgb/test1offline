@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User } from "lucide-react";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
+import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
+import { PersonDetailDialog } from "@/components/PersonDetailDialog";
 import { inventoryStorage, Company, Person } from "@/lib/inventory-storage";
 
 const CRM = () => {
@@ -12,6 +14,7 @@ const CRM = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   useEffect(() => {
     setCompanies(inventoryStorage.getCompanies());
@@ -25,6 +28,10 @@ const CRM = () => {
   const getCompanyName = (companyId: string) => {
     const company = companies.find(c => c.id === companyId);
     return company?.name || "Unknown Company";
+  };
+
+  const handlePersonClick = (person: Person) => {
+    setSelectedPerson(person);
   };
 
   return (
@@ -104,23 +111,27 @@ const CRM = () => {
                     {companies.map((company) => {
                       const companyPersons = persons.filter(p => p.companyId === company.id);
                       return (
-                        <div
+                        <CompanyDetailDialog
                           key={company.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors"
+                          company={company}
+                          persons={companyPersons}
+                          onPersonClick={handlePersonClick}
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Building2 className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-semibold text-lg">{company.name}</span>
+                          <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-semibold text-lg">{company.name}</span>
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {companyPersons.length} {companyPersons.length === 1 ? 'contact' : 'contacts'}
+                              </div>
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {companyPersons.length} {companyPersons.length === 1 ? 'contact' : 'contacts'}
+                              Added {new Date(company.createdAt).toLocaleDateString()}
                             </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            Added {new Date(company.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
+                        </CompanyDetailDialog>
                       );
                     })}
                   </div>
@@ -143,70 +154,74 @@ const CRM = () => {
                 ) : (
                   <div className="space-y-4">
                     {persons.map((person) => (
-                      <div
+                      <PersonDetailDialog
                         key={person.id}
-                        className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors"
+                        person={person}
+                        companyName={getCompanyName(person.companyId)}
+                        onUpdate={handleRefresh}
                       >
-                        <div className="flex gap-4">
-                          {person.businessCardPhoto && (
-                            <div className="flex-shrink-0">
-                              <img
-                                src={person.businessCardPhoto}
-                                alt="Business card"
-                                className="w-32 h-20 object-cover rounded border"
-                              />
-                            </div>
-                          )}
-                          <div className="flex-1 space-y-2">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-lg">
-                                  {person.firstName} {person.lastName}
-                                </h3>
-                                <Badge variant="secondary">
-                                  {getCompanyName(person.companyId)}
-                                </Badge>
-                              </div>
-                              {person.jobTitle && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Briefcase className="h-3 w-3" />
-                                  <span>{person.jobTitle}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="space-y-1">
-                              {person.email && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Mail className="h-3 w-3 text-muted-foreground" />
-                                  <a href={`mailto:${person.email}`} className="text-primary hover:underline">
-                                    {person.email}
-                                  </a>
-                                </div>
-                              )}
-                              {person.phone && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <a href={`tel:${person.phone}`} className="text-primary hover:underline">
-                                    {person.phone}
-                                  </a>
-                                </div>
-                              )}
-                              {person.address && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <MapPin className="h-3 w-3" />
-                                  <span>{person.address}</span>
-                                </div>
-                              )}
-                            </div>
-                            {person.notes && (
-                              <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded mt-2">
-                                <StickyNote className="h-3 w-3 inline mr-1" />
-                                {person.notes}
+                        <div className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors cursor-pointer">
+                          <div className="flex gap-4">
+                            {person.businessCardPhoto && (
+                              <div className="flex-shrink-0">
+                                <img
+                                  src={person.businessCardPhoto}
+                                  alt="Business card"
+                                  className="w-32 h-20 object-cover rounded border"
+                                />
                               </div>
                             )}
+                            <div className="flex-1 space-y-2">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">
+                                    {person.firstName} {person.lastName}
+                                  </h3>
+                                  <Badge variant="secondary">
+                                    {getCompanyName(person.companyId)}
+                                  </Badge>
+                                </div>
+                                {person.jobTitle && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Briefcase className="h-3 w-3" />
+                                    <span>{person.jobTitle}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                {person.email && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                    <a href={`mailto:${person.email}`} className="text-primary hover:underline">
+                                      {person.email}
+                                    </a>
+                                  </div>
+                                )}
+                                {person.phone && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <Phone className="h-3 w-3 text-muted-foreground" />
+                                    <a href={`tel:${person.phone}`} className="text-primary hover:underline">
+                                      {person.phone}
+                                    </a>
+                                  </div>
+                                )}
+                                {person.address && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>{person.address}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {person.notes.length > 0 && (
+                                <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded mt-2">
+                                  <StickyNote className="h-3 w-3 inline mr-1" />
+                                  {person.notes.length} {person.notes.length === 1 ? 'note' : 'notes'}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </PersonDetailDialog>
                     ))}
                   </div>
                 )}

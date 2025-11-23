@@ -76,6 +76,12 @@ export interface Company {
   createdAt: string;
 }
 
+export interface Note {
+  id: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface Person {
   id: string;
   companyId: string;
@@ -83,7 +89,7 @@ export interface Person {
   lastName: string;
   jobTitle?: string;
   address?: string;
-  notes?: string;
+  notes: Note[];
   businessCardPhoto?: string;
   email?: string;
   phone?: string;
@@ -283,23 +289,72 @@ export const inventoryStorage = {
 
   getPersons: (): Person[] => {
     const data = localStorage.getItem(PERSONS_KEY);
-    return data ? JSON.parse(data) : [];
+    const persons: Person[] = data ? JSON.parse(data) : [];
+    
+    // Migration: Convert old notes string to new notes array format
+    const migrated = persons.map(person => {
+      if (!Array.isArray(person.notes)) {
+        const oldNotes = person.notes as any;
+        return {
+          ...person,
+          notes: oldNotes && typeof oldNotes === 'string' 
+            ? [{ id: crypto.randomUUID(), text: oldNotes, timestamp: person.createdAt }] 
+            : []
+        };
+      }
+      return person;
+    });
+    
+    // Save migrated data back if needed
+    if (migrated.some((p, i) => p !== persons[i])) {
+      localStorage.setItem(PERSONS_KEY, JSON.stringify(migrated));
+    }
+    
+    return migrated;
   },
 
   savePersons: (persons: Person[]) => {
     localStorage.setItem(PERSONS_KEY, JSON.stringify(persons));
   },
 
-  addPerson: (person: Omit<Person, 'id' | 'createdAt'>) => {
+  addPerson: (person: Omit<Person, 'id' | 'createdAt' | 'notes'> & { notes?: Note[] }) => {
     const persons = inventoryStorage.getPersons();
     const newPerson: Person = {
       ...person,
+      notes: person.notes || [],
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
     persons.push(newPerson);
     inventoryStorage.savePersons(persons);
     return newPerson;
+  },
+
+  updatePerson: (id: string, updates: Partial<Person>) => {
+    const persons = inventoryStorage.getPersons();
+    const index = persons.findIndex(person => person.id === id);
+    if (index !== -1) {
+      persons[index] = { ...persons[index], ...updates };
+      inventoryStorage.savePersons(persons);
+      return persons[index];
+    }
+    return null;
+  },
+
+  addNoteToPerson: (personId: string, noteText: string) => {
+    const persons = inventoryStorage.getPersons();
+    const person = persons.find(p => p.id === personId);
+    if (person) {
+      const newNote: Note = {
+        id: crypto.randomUUID(),
+        text: noteText,
+        timestamp: new Date().toISOString(),
+      };
+      person.notes = [...person.notes, newNote];
+      inventoryStorage.savePersons(persons);
+      return person;
+    }
+    return null;
   },
 
   deletePerson: (id: string) => {
