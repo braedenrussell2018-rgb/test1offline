@@ -223,6 +223,109 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_items: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          part_number: string
+          po_id: string
+          quantity: number
+          received_quantity: number | null
+          serial_number: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          part_number: string
+          po_id: string
+          quantity?: number
+          received_quantity?: number | null
+          serial_number?: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          part_number?: string
+          po_id?: string
+          quantity?: number
+          received_quantity?: number | null
+          serial_number?: string | null
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string | null
+          id: string
+          items: Json
+          notes: string | null
+          po_number: string
+          shipping: number | null
+          status: string
+          subtotal: number
+          tax: number | null
+          total: number
+          updated_at: string | null
+          vendor_id: string | null
+          vendor_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          po_number: string
+          shipping?: number | null
+          status?: string
+          subtotal: number
+          tax?: number | null
+          total: number
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          po_number?: string
+          shipping?: number | null
+          status?: string
+          subtotal?: number
+          tax?: number | null
+          total?: number
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotes: {
         Row: {
           created_at: string | null
@@ -274,6 +377,42 @@ export type Database = {
           shipping?: number | null
           subtotal?: number
           total?: number
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          address: string | null
+          contact_name: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: Json | null
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }

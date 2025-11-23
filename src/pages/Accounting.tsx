@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -15,17 +16,24 @@ const Accounting = () => {
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [pendingQuotesOpen, setPendingQuotesOpen] = useState(false);
   const [approvedQuotesOpen, setApprovedQuotesOpen] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [vendorPOsOpen, setVendorPOsOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const loadData = async () => {
-      const [itemsData, invoicesData, quotesData] = await Promise.all([
+      const [itemsData, invoicesData, quotesData, vendorsData, posData] = await Promise.all([
         inventoryStorage.getItems(),
         inventoryStorage.getInvoices(),
-        inventoryStorage.getQuotes()
+        inventoryStorage.getQuotes(),
+        getVendors(),
+        getPurchaseOrders()
       ]);
       setItems(itemsData);
       setInvoices(invoicesData);
       setQuotes(quotesData);
+      setVendors(vendorsData);
+      setPurchaseOrders(posData);
     };
     loadData();
   }, []);
@@ -86,6 +94,19 @@ const Accounting = () => {
   const salesmenArray = Array.from(salesmanStats.entries())
     .map(([name, stats]) => ({ name, ...stats }))
     .sort((a, b) => b.revenue - a.revenue);
+
+  // Purchase Orders
+  const totalPOValue = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
+  const pendingPOs = purchaseOrders.filter(po => po.status === 'pending');
+
+  // Group POs by vendor
+  const posByVendor = vendors.map(vendor => ({
+    vendor,
+    pos: purchaseOrders.filter(po => po.vendorId === vendor.id),
+    totalValue: purchaseOrders
+      .filter(po => po.vendorId === vendor.id)
+      .reduce((sum, po) => sum + po.total, 0)
+  })).filter(v => v.pos.length > 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -411,9 +432,92 @@ const Accounting = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Vendors & Purchase Orders Section */}
+        {posByVendor.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Vendors & Purchase Orders</h2>
+              <Card className="px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Total PO Value</div>
+                    <div className="text-lg font-bold">${totalPOValue.toFixed(2)}</div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {posByVendor.map(({ vendor, pos, totalValue }) => (
+                <Card key={vendor.id}>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle>{vendor.name}</CardTitle>
+                        <CardDescription>
+                          {vendor.email && <div>{vendor.email}</div>}
+                          {vendor.phone && <div>{vendor.phone}</div>}
+                        </CardDescription>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold">${totalValue.toFixed(2)}</div>
+                        <Badge variant="outline">{pos.length} {pos.length === 1 ? 'PO' : 'POs'}</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Collapsible 
+                      open={vendorPOsOpen[vendor.id]} 
+                      onOpenChange={(open) => setVendorPOsOpen(prev => ({ ...prev, [vendor.id]: open }))}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2">
+                          <span className="font-medium">View Purchase Orders</span>
+                          {vendorPOsOpen[vendor.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2">
+                        <div className="space-y-2">
+                          {pos.map((po) => (
+                            <div key={po.id} className="p-3 border rounded-lg bg-muted/20">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-medium">{po.poNumber}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {new Date(po.createdAt).toLocaleDateString()}
+                                  </div>
+                                  <Badge variant={po.status === 'pending' ? 'outline' : 'default'} className="mt-1">
+                                    {po.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-bold">${po.total.toFixed(2)}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {po.items.length} items
+                                  </div>
+                                </div>
+                              </div>
+                              {po.notes && (
+                                <div className="mt-2 text-sm text-muted-foreground">
+                                  {po.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <InvoicePDFPreview 
+      <InvoicePDFPreview
         invoice={selectedInvoice}
         open={invoicePreviewOpen}
         onOpenChange={setInvoicePreviewOpen}
