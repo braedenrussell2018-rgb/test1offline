@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserPlus, Upload, X, Plus } from "lucide-react";
+import { UserPlus, Upload, X, Plus, Scan } from "lucide-react";
 import { inventoryStorage, Note } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AddPersonDialogProps {
   onPersonAdded: () => void;
@@ -40,6 +41,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [businessCardPhoto, setBusinessCardPhoto] = useState<string>("");
   const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
 
   const companies = inventoryStorage.getCompanies();
@@ -57,6 +59,79 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
   const handleRemovePhoto = () => {
     setBusinessCardPhoto("");
+  };
+
+  const handleScanBusinessCard = async () => {
+    if (!businessCardPhoto) {
+      toast({
+        title: "Error",
+        description: "Please upload a business card photo first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsScanning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('scan-business-card', {
+        body: { imageData: businessCardPhoto }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const { contactInfo } = data;
+      
+      // Auto-fill the form fields
+      if (contactInfo.name) {
+        const nameParts = contactInfo.name.trim().split(/\s+/);
+        if (nameParts.length > 0) {
+          setFirstName(nameParts[0]);
+          if (nameParts.length > 1) {
+            setLastName(nameParts.slice(1).join(' '));
+          }
+        }
+      }
+      
+      if (contactInfo.company) {
+        // Try to find existing company
+        const existingCompany = companies.find(
+          c => c.name.toLowerCase() === contactInfo.company.toLowerCase()
+        );
+        
+        if (existingCompany) {
+          setCompanyId(existingCompany.id);
+        } else {
+          // Set up new company creation
+          setNewCompanyName(contactInfo.company);
+          setShowNewCompanyForm(true);
+        }
+      }
+      
+      if (contactInfo.jobTitle) setJobTitle(contactInfo.jobTitle);
+      if (contactInfo.email) setEmail(contactInfo.email);
+      if (contactInfo.phone) setPhone(contactInfo.phone);
+      if (contactInfo.address) setAddress(contactInfo.address);
+
+      toast({
+        title: "Success",
+        description: "Business card scanned successfully!",
+      });
+    } catch (error) {
+      console.error('Error scanning business card:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to scan business card",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleCreateNewCompany = () => {
@@ -283,20 +358,32 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
             <div className="grid gap-2">
               <Label htmlFor="businessCard">Business Card Photo</Label>
               {businessCardPhoto ? (
-                <div className="relative">
-                  <img
-                    src={businessCardPhoto}
-                    alt="Business card"
-                    className="w-full h-48 object-contain border rounded-md bg-muted"
-                  />
+                <div className="space-y-2">
+                  <div className="relative">
+                    <img
+                      src={businessCardPhoto}
+                      alt="Business card"
+                      className="w-full h-48 object-contain border rounded-md bg-muted"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2"
+                      onClick={handleRemovePhoto}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Button
                     type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemovePhoto}
+                    variant="default"
+                    className="w-full"
+                    onClick={handleScanBusinessCard}
+                    disabled={isScanning}
                   >
-                    <X className="h-4 w-4" />
+                    <Scan className="mr-2 h-4 w-4" />
+                    {isScanning ? "Scanning..." : "Scan Business Card with AI"}
                   </Button>
                 </div>
               ) : (
