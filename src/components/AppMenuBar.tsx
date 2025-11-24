@@ -8,6 +8,7 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from "@/components/ui/menubar";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 export function AppMenuBar() {
   const { user, signOut } = useAuth();
@@ -27,8 +28,8 @@ export function AppMenuBar() {
   return (
     <div className="border-b bg-card">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between">
-          <Menubar className="border-0 bg-transparent flex-1">
+        <div className="flex items-center justify-between gap-4">
+          <Menubar className="border-0 bg-transparent">
             <MenubarMenu>
               <NavLink to="/">
                 <MenubarTrigger className="cursor-pointer">Inventory</MenubarTrigger>
@@ -45,15 +46,17 @@ export function AppMenuBar() {
               </NavLink>
             </MenubarMenu>
           </Menubar>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSignOut}
-            className="ml-4"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <GlobalSearch />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </div>
     </div>
