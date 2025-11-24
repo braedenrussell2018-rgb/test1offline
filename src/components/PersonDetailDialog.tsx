@@ -39,17 +39,17 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         const allQuotes = await inventoryStorage.getQuotes();
         const allInvoices = await inventoryStorage.getInvoices();
 
-        // Match by name, email, or phone
+        // Match by name (partial match), email, or phone
         const personQuotes = allQuotes.filter(
           (q) =>
-            q.customerName.toLowerCase() === person.name.toLowerCase() ||
+            q.customerName.toLowerCase().includes(person.name.toLowerCase()) ||
             (person.email && q.customerEmail?.toLowerCase() === person.email.toLowerCase()) ||
             (person.phone && q.customerPhone === person.phone)
         );
 
         const personInvoices = allInvoices.filter(
           (inv) =>
-            inv.customerName.toLowerCase() === person.name.toLowerCase() ||
+            inv.customerName.toLowerCase().includes(person.name.toLowerCase()) ||
             (person.email && inv.customerEmail?.toLowerCase() === person.email.toLowerCase()) ||
             (person.phone && inv.customerPhone === person.phone)
         );
