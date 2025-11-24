@@ -9,8 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus } from "lucide-react";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check } from "lucide-react";
 import { Person, inventoryStorage, Note } from "@/lib/inventory-storage";
 import { format } from "date-fns";
 
@@ -25,6 +27,8 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [open, setOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPerson, setEditedPerson] = useState<Person>(person);
 
   const handleAddNote = () => {
     if (newNote.trim()) {
@@ -33,6 +37,17 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
       setIsAddingNote(false);
       onUpdate();
     }
+  };
+
+  const handleSaveEdit = () => {
+    inventoryStorage.updatePerson(editedPerson);
+    setIsEditing(false);
+    onUpdate();
+  };
+
+  const handleCancelEdit = () => {
+    setEditedPerson(person);
+    setIsEditing(false);
   };
 
   // Sort notes by timestamp, newest first
@@ -47,10 +62,31 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <User className="h-6 w-6" />
-            {person.name}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 text-2xl">
+                <User className="h-6 w-6" />
+                {person.name}
+              </DialogTitle>
+            </div>
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit}>
+                  <Check className="h-4 w-4 mr-1" />
+                  Save
+                </Button>
+              </div>
+            )}
+          </div>
           <DialogDescription>
             Contact information and notes
           </DialogDescription>
@@ -63,54 +99,103 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
               <CardTitle>Contact Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm text-muted-foreground">Company</span>
-                  <p className="font-medium">{companyName}</p>
-                </div>
-                {person.jobTitle && (
-                  <div>
-                    <span className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Briefcase className="h-3 w-3" />
-                      Job Title
-                    </span>
-                    <p className="font-medium">{person.jobTitle}</p>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-name">Name</Label>
+                    <Input
+                      id="edit-name"
+                      value={editedPerson.name}
+                      onChange={(e) => setEditedPerson({ ...editedPerson, name: e.target.value })}
+                    />
                   </div>
-                )}
-              </div>
-              
-              {person.email && (
-                <div>
-                  <span className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Mail className="h-3 w-3" />
-                    Email
-                  </span>
-                  <a href={`mailto:${person.email}`} className="text-primary hover:underline">
-                    {person.email}
-                  </a>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-job-title">Job Title</Label>
+                    <Input
+                      id="edit-job-title"
+                      value={editedPerson.jobTitle || ""}
+                      onChange={(e) => setEditedPerson({ ...editedPerson, jobTitle: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-email">Email</Label>
+                    <Input
+                      id="edit-email"
+                      type="email"
+                      value={editedPerson.email || ""}
+                      onChange={(e) => setEditedPerson({ ...editedPerson, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phone">Phone</Label>
+                    <Input
+                      id="edit-phone"
+                      value={editedPerson.phone || ""}
+                      onChange={(e) => setEditedPerson({ ...editedPerson, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-address">Address</Label>
+                    <Textarea
+                      id="edit-address"
+                      value={editedPerson.address || ""}
+                      onChange={(e) => setEditedPerson({ ...editedPerson, address: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
                 </div>
-              )}
-              
-              {person.phone && (
-                <div>
-                  <span className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
-                    Phone
-                  </span>
-                  <a href={`tel:${person.phone}`} className="text-primary hover:underline">
-                    {person.phone}
-                  </a>
-                </div>
-              )}
-              
-              {person.address && (
-                <div>
-                  <span className="text-sm text-muted-foreground flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    Address
-                  </span>
-                  <p>{person.address}</p>
-                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-muted-foreground">Company</span>
+                      <p className="font-medium">{companyName}</p>
+                    </div>
+                    {person.jobTitle && (
+                      <div>
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Briefcase className="h-3 w-3" />
+                          Job Title
+                        </span>
+                        <p className="font-medium">{person.jobTitle}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {person.email && (
+                    <div>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        Email
+                      </span>
+                      <a href={`mailto:${person.email}`} className="text-primary hover:underline">
+                        {person.email}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {person.phone && (
+                    <div>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        Phone
+                      </span>
+                      <a href={`tel:${person.phone}`} className="text-primary hover:underline">
+                        {person.phone}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {person.address && (
+                    <div>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        Address
+                      </span>
+                      <p>{person.address}</p>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
