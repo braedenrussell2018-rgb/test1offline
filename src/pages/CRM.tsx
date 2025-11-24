@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download } from "lucide-react";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
@@ -74,6 +74,43 @@ const CRM = () => {
 
   const pendingQuotes = quotes.filter(q => q.status === 'pending');
 
+  const exportContactsToCSV = () => {
+    // Create CSV header
+    const headers = ['First Name', 'Last Name', 'Email', 'Phone Number'];
+    
+    // Create CSV rows
+    const rows = persons.map(person => {
+      // Split name into first and last name
+      const nameParts = person.name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      return [
+        firstName,
+        lastName,
+        person.email || '',
+        person.phone || ''
+      ];
+    });
+    
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `contacts_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
@@ -133,6 +170,14 @@ const CRM = () => {
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
           <AddCompanyDialog onCompanyAdded={handleRefresh} />
           <AddPersonDialog onPersonAdded={handleRefresh} />
+          <Button 
+            variant="outline" 
+            onClick={exportContactsToCSV}
+            disabled={persons.length === 0}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Contacts
+          </Button>
         </div>
 
         {/* Tabs */}
