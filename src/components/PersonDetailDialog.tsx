@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check } from "lucide-react";
-import { Person, inventoryStorage, Note } from "@/lib/inventory-storage";
+import { Badge } from "@/components/ui/badge";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt } from "lucide-react";
+import { Person, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
 import { format } from "date-fns";
 
 interface PersonDetailDialogProps {
@@ -29,6 +30,37 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPerson, setEditedPerson] = useState<Person>(person);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    const fetchRelatedData = async () => {
+      if (open) {
+        const allQuotes = await inventoryStorage.getQuotes();
+        const allInvoices = await inventoryStorage.getInvoices();
+
+        // Match by name, email, or phone
+        const personQuotes = allQuotes.filter(
+          (q) =>
+            q.customerName.toLowerCase() === person.name.toLowerCase() ||
+            (person.email && q.customerEmail?.toLowerCase() === person.email.toLowerCase()) ||
+            (person.phone && q.customerPhone === person.phone)
+        );
+
+        const personInvoices = allInvoices.filter(
+          (inv) =>
+            inv.customerName.toLowerCase() === person.name.toLowerCase() ||
+            (person.email && inv.customerEmail?.toLowerCase() === person.email.toLowerCase()) ||
+            (person.phone && inv.customerPhone === person.phone)
+        );
+
+        setQuotes(personQuotes);
+        setInvoices(personInvoices);
+      }
+    };
+
+    fetchRelatedData();
+  }, [open, person]);
 
   const handleAddNote = () => {
     if (newNote.trim()) {
@@ -268,6 +300,90 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(note.timestamp), 'MMM d, yyyy h:mm a')}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quotes Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Quotes
+                <Badge variant="secondary" className="ml-2">
+                  {quotes.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {quotes.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No quotes for this contact yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {quotes.map((quote) => (
+                    <div
+                      key={quote.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                    >
+                      <div>
+                        <p className="font-medium">Quote {quote.quoteNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(quote.createdAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">${quote.total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {quote.items.length} {quote.items.length === 1 ? 'item' : 'items'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Invoices Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Invoices
+                <Badge variant="secondary" className="ml-2">
+                  {invoices.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No invoices for this contact yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {invoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                    >
+                      <div>
+                        <p className="font-medium">Invoice {invoice.invoiceNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(invoice.createdAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">${invoice.total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {invoice.items.length} {invoice.items.length === 1 ? 'item' : 'items'}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
