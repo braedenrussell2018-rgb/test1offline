@@ -108,6 +108,20 @@ const Accounting = () => {
       .reduce((sum, po) => sum + po.total, 0)
   })).filter(v => v.pos.length > 0);
 
+  // Average inventory age (in days)
+  const now = new Date();
+  const inventoryAges = availableItems.map(item => {
+    const createdDate = new Date(item.createdAt);
+    const ageInMs = now.getTime() - createdDate.getTime();
+    return ageInMs / (1000 * 60 * 60 * 24); // Convert to days
+  });
+  const avgInventoryAge = inventoryAges.length > 0 
+    ? inventoryAges.reduce((sum, age) => sum + age, 0) / inventoryAges.length 
+    : 0;
+
+  // Sale price value of available units
+  const salePriceValue = availableItems.reduce((sum, item) => sum + (item.salePrice || 0), 0);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
@@ -337,6 +351,10 @@ const Accounting = () => {
                   <span className="font-semibold">${inventoryValue.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-sm text-muted-foreground">Sale Price Value</span>
+                  <span className="font-semibold">${salePriceValue.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
                   <span className="text-sm text-muted-foreground">Sold Units</span>
                   <span className="font-semibold">{soldItems.length}</span>
                 </div>
@@ -345,6 +363,10 @@ const Accounting = () => {
                   <span className="font-semibold">
                     ${availableItems.length > 0 ? (inventoryValue / availableItems.length).toFixed(2) : '0.00'}
                   </span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-sm text-muted-foreground">Avg Inventory Age</span>
+                  <span className="font-semibold">{avgInventoryAge.toFixed(0)} days</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
                   <span className="font-semibold">Turnover Rate</span>
