@@ -9,19 +9,36 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building2, User, Mail, Phone, Briefcase, MapPin } from "lucide-react";
-import { Company, Person } from "@/lib/inventory-storage";
+import { Building2, User, Mail, Phone, Briefcase, MapPin, Edit, X, Check } from "lucide-react";
+import { Company, Person, inventoryStorage } from "@/lib/inventory-storage";
 
 interface CompanyDetailDialogProps {
   company: Company;
   persons: Person[];
   onPersonClick: (person: Person) => void;
+  onUpdate: () => void;
   children: React.ReactNode;
 }
 
-export const CompanyDetailDialog = ({ company, persons, onPersonClick, children }: CompanyDetailDialogProps) => {
+export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate, children }: CompanyDetailDialogProps) => {
   const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedCompany, setEditedCompany] = useState<Company>(company);
+
+  const handleSaveEdit = () => {
+    inventoryStorage.updateCompany(editedCompany);
+    setIsEditing(false);
+    onUpdate();
+  };
+
+  const handleCancelEdit = () => {
+    setEditedCompany(company);
+    setIsEditing(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -30,10 +47,31 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, children 
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <Building2 className="h-6 w-6" />
-            {company.name}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 text-2xl">
+                <Building2 className="h-6 w-6" />
+                {company.name}
+              </DialogTitle>
+            </div>
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit}>
+                  <Check className="h-4 w-4 mr-1" />
+                  Save
+                </Button>
+              </div>
+            )}
+          </div>
           <DialogDescription>
             Company details and contacts
           </DialogDescription>
@@ -43,22 +81,44 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, children 
           {/* Company Info */}
           <Card>
             <CardContent className="pt-6">
-              <div className="space-y-2">
-                {company.address && (
-                  <div className="flex items-start gap-2 text-sm mb-3 pb-3 border-b">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <span>{company.address}</span>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-company-name">Company Name</Label>
+                    <Input
+                      id="edit-company-name"
+                      value={editedCompany.name}
+                      onChange={(e) => setEditedCompany({ ...editedCompany, name: e.target.value })}
+                    />
                   </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Created</span>
-                  <span>{new Date(company.createdAt).toLocaleDateString()}</span>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-company-address">Address</Label>
+                    <Textarea
+                      id="edit-company-address"
+                      value={editedCompany.address || ""}
+                      onChange={(e) => setEditedCompany({ ...editedCompany, address: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Contacts</span>
-                  <span>{persons.length}</span>
+              ) : (
+                <div className="space-y-2">
+                  {company.address && (
+                    <div className="flex items-start gap-2 text-sm mb-3 pb-3 border-b">
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <span>{company.address}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Created</span>
+                    <span>{new Date(company.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Contacts</span>
+                    <span>{persons.length}</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 

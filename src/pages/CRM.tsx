@@ -165,6 +165,7 @@ const CRM = () => {
                           company={company}
                           persons={companyPersons}
                           onPersonClick={handlePersonClick}
+                          onUpdate={handleRefresh}
                         >
                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer">
                             <div className="flex-1">
