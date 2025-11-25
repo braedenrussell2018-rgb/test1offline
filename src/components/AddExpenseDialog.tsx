@@ -220,12 +220,12 @@ export const AddExpenseDialog = ({ onExpenseAdded }: AddExpenseDialogProps) => {
           {/* Customer Assignment */}
           <div className="space-y-2">
             <Label htmlFor="customer">Assign to Customer (Optional)</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
+          <Select value={customerId} onValueChange={(value) => setCustomerId(value === "none" ? "" : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a customer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {persons.map((person) => (
                   <SelectItem key={person.id} value={person.id}>
                     {person.name}
