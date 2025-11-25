@@ -56,6 +56,8 @@ export interface Invoice {
   shipping: number;
   total: number;
   createdAt: string;
+  paid?: boolean;
+  paidAt?: string;
 }
 
 export interface Quote {
@@ -326,6 +328,8 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     shipping: Number(row.shipping),
     total: Number(row.total),
     createdAt: row.created_at,
+    paid: row.paid || false,
+    paidAt: row.paid_at,
   }));
 };
 
@@ -366,6 +370,18 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
     total: Number(data.total),
     createdAt: data.created_at,
   };
+};
+
+export const updateInvoice = async (id: string, updates: { paid?: boolean; paidAt?: string }): Promise<void> => {
+  const { error } = await supabase
+    .from("invoices")
+    .update({
+      paid: updates.paid,
+      paid_at: updates.paidAt,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
 };
 
 // Quotes

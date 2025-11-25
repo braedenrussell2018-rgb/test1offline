@@ -41,6 +41,56 @@ export type Database = {
         }
         Relationships: []
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string | null
+          credit_card_last4: string | null
+          customer_id: string | null
+          description: string | null
+          employee_name: string
+          expense_date: string
+          id: string
+          receipt_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string | null
+          credit_card_last4?: string | null
+          customer_id?: string | null
+          description?: string | null
+          employee_name: string
+          expense_date?: string
+          id?: string
+          receipt_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string | null
+          credit_card_last4?: string | null
+          customer_id?: string | null
+          description?: string | null
+          employee_name?: string
+          expense_date?: string
+          id?: string
+          receipt_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           created_at: string | null
@@ -52,6 +102,8 @@ export type Database = {
           id: string
           invoice_number: string
           items: Json
+          paid: boolean | null
+          paid_at: string | null
           salesman_name: string | null
           ship_to_address: string | null
           ship_to_name: string | null
@@ -69,6 +121,8 @@ export type Database = {
           id?: string
           invoice_number: string
           items?: Json
+          paid?: boolean | null
+          paid_at?: string | null
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
@@ -86,6 +140,8 @@ export type Database = {
           id?: string
           invoice_number?: string
           items?: Json
+          paid?: boolean | null
+          paid_at?: string | null
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null

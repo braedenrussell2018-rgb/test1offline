@@ -1,16 +1,41 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Invoice } from "@/lib/inventory-storage";
+import { Badge } from "@/components/ui/badge";
+import { Invoice, inventoryStorage } from "@/lib/inventory-storage";
 import jsPDF from "jspdf";
-import { Download } from "lucide-react";
+import { Download, CheckCircle, Circle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface InvoicePDFPreviewProps {
   invoice: Invoice | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onInvoiceUpdated?: () => void;
 }
 
-export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPreviewProps) => {
+export const InvoicePDFPreview = ({ invoice, open, onOpenChange, onInvoiceUpdated }: InvoicePDFPreviewProps) => {
+  const { toast } = useToast();
+
+  const handleMarkAsPaid = async () => {
+    if (!invoice) return;
+    
+    try {
+      await inventoryStorage.updateInvoicePaidStatus(invoice.id, !invoice.paid);
+      toast({
+        title: "Success",
+        description: invoice.paid ? "Invoice marked as unpaid" : "Invoice marked as paid",
+      });
+      onInvoiceUpdated?.();
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update invoice status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDownload = () => {
     if (!invoice) return;
     
@@ -38,6 +63,15 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
     doc.setFont("helvetica", "normal");
     doc.text(new Date(invoice.createdAt).toLocaleDateString(), 140, 26);
     doc.text(invoice.invoiceNumber, 165, 26);
+
+    // Paid status
+    if (invoice.paid) {
+      doc.setTextColor(34, 197, 94);
+      doc.setFont("helvetica", "bold");
+      doc.text("PAID", 140, 35);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+    }
 
     // Bill To and Ship To
     let yPos = 55;
@@ -149,12 +183,34 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Invoice Preview - {invoice.invoiceNumber}</span>
-            <Button onClick={handleDownload} size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </Button>
+          <DialogTitle className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span>Invoice Preview - {invoice.invoiceNumber}</span>
+              {invoice.paid ? (
+                <Badge variant="default" className="bg-green-500">Paid</Badge>
+              ) : (
+                <Badge variant="outline">Unpaid</Badge>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleMarkAsPaid} variant="outline" size="sm">
+                {invoice.paid ? (
+                  <>
+                    <Circle className="mr-2 h-4 w-4" />
+                    Mark Unpaid
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Mark Paid
+                  </>
+                )}
+              </Button>
+              <Button onClick={handleDownload} size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </Button>
+            </div>
           </DialogTitle>
         </DialogHeader>
         <div className="overflow-auto max-h-[70vh] bg-muted p-4 rounded-lg">
@@ -178,6 +234,14 @@ export const InvoicePDFPreview = ({ invoice, open, onOpenChange }: InvoicePDFPre
                 <p className="font-bold">Invoice</p>
                 <p>{invoice.invoiceNumber}</p>
               </div>
+              {invoice.paid && (
+                <div>
+                  <p className="font-bold text-green-600">PAID</p>
+                  {invoice.paidAt && (
+                    <p className="text-sm">{new Date(invoice.paidAt).toLocaleDateString()}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Bill To and Ship To */}
