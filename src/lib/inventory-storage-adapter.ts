@@ -42,6 +42,8 @@ export interface Invoice {
   shippingCost: number;
   total: number;
   createdAt: string;
+  paid?: boolean;
+  paidAt?: string;
 }
 
 export interface Quote {
@@ -267,6 +269,8 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     shippingCost: inv.shipping,
     total: inv.total,
     createdAt: inv.createdAt,
+    paid: inv.paid || false,
+    paidAt: inv.paidAt,
   }));
 };
 
@@ -315,6 +319,13 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     total: dbInvoice.total,
     createdAt: dbInvoice.createdAt,
   };
+};
+
+export const updateInvoicePaidStatus = async (id: string, paid: boolean): Promise<void> => {
+  await db.updateInvoice(id, { 
+    paid, 
+    paidAt: paid ? new Date().toISOString() : undefined 
+  });
 };
 
 // Quotes
@@ -444,6 +455,7 @@ export const inventoryStorage = {
   getInvoices,
   addInvoice,
   createInvoice,
+  updateInvoicePaidStatus,
   getQuotes,
   addQuote,
   createQuote,

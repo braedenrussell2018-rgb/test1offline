@@ -1,40 +1,48 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
+import { getExpenses, getCategoryLabel, type Expense } from "@/lib/expense-storage";
+import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [pendingQuotesOpen, setPendingQuotesOpen] = useState(false);
   const [approvedQuotesOpen, setApprovedQuotesOpen] = useState(false);
+  const [paidInvoicesOpen, setPaidInvoicesOpen] = useState(false);
+  const [unpaidInvoicesOpen, setUnpaidInvoicesOpen] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [vendorPOsOpen, setVendorPOsOpen] = useState<Record<string, boolean>>({});
 
+  const loadData = async () => {
+    const [itemsData, invoicesData, quotesData, vendorsData, posData, expensesData] = await Promise.all([
+      inventoryStorage.getItems(),
+      inventoryStorage.getInvoices(),
+      inventoryStorage.getQuotes(),
+      getVendors(),
+      getPurchaseOrders(),
+      getExpenses()
+    ]);
+    setItems(itemsData);
+    setInvoices(invoicesData);
+    setQuotes(quotesData);
+    setVendors(vendorsData);
+    setPurchaseOrders(posData);
+    setExpenses(expensesData);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const [itemsData, invoicesData, quotesData, vendorsData, posData] = await Promise.all([
-        inventoryStorage.getItems(),
-        inventoryStorage.getInvoices(),
-        inventoryStorage.getQuotes(),
-        getVendors(),
-        getPurchaseOrders()
-      ]);
-      setItems(itemsData);
-      setInvoices(invoicesData);
-      setQuotes(quotesData);
-      setVendors(vendorsData);
-      setPurchaseOrders(posData);
-    };
     loadData();
   }, []);
 
@@ -65,6 +73,19 @@ const Accounting = () => {
   const approvedQuotes = quotes.filter(e => e.status === 'approved');
   const pendingQuotesValue = pendingQuotes.reduce((sum, q) => sum + q.total, 0);
   const approvedQuotesValue = approvedQuotes.reduce((sum, q) => sum + q.total, 0);
+
+  // Invoices - Paid vs Unpaid
+  const paidInvoices = invoices.filter(inv => inv.paid);
+  const unpaidInvoices = invoices.filter(inv => !inv.paid);
+  const paidInvoicesValue = paidInvoices.reduce((sum, inv) => sum + inv.total, 0);
+  const unpaidInvoicesValue = unpaidInvoices.reduce((sum, inv) => sum + inv.total, 0);
+
+  // Expenses
+  const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const expensesByCategory = expenses.reduce((acc, exp) => {
+    acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
+    return acc;
+  }, {} as Record<string, number>);
 
   // Salesman Statistics
   const salesmanStats = new Map<string, { revenue: number; invoiceCount: number; quoteCount: number }>();
@@ -97,7 +118,6 @@ const Accounting = () => {
 
   // Purchase Orders
   const totalPOValue = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
-  const pendingPOs = purchaseOrders.filter(po => po.status === 'pending');
 
   // Group POs by vendor
   const posByVendor = vendors.map(vendor => ({
@@ -122,6 +142,17 @@ const Accounting = () => {
   // Sale price value of available units
   const salePriceValue = availableItems.reduce((sum, item) => sum + (item.salePrice || 0), 0);
 
+  const handleInvoiceUpdated = () => {
+    loadData();
+    // Update selected invoice if it's still open
+    if (selectedInvoice) {
+      inventoryStorage.getInvoices().then(invoices => {
+        const updated = invoices.find(inv => inv.id === selectedInvoice.id);
+        if (updated) setSelectedInvoice(updated);
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
@@ -133,7 +164,7 @@ const Accounting = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -168,10 +199,21 @@ const Accounting = () => {
               </p>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+              <CreditCard className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">${totalExpenses.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">{expenses.length} expenses tracked</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
@@ -251,7 +293,97 @@ const Accounting = () => {
             </CardContent>
           </Card>
 
-          {/* Estimates Overview */}
+          {/* Invoice Tracker */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Invoice Tracker
+              </CardTitle>
+              <CardDescription>Paid vs Unpaid invoices</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Collapsible open={paidInvoicesOpen} onOpenChange={setPaidInvoicesOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="p-4 border rounded-lg bg-green-500/10 cursor-pointer hover:bg-green-500/20 transition-colors">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-green-700">Paid Invoices</span>
+                          {paidInvoicesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                        <Badge variant="default" className="bg-green-500">{paidInvoices.length}</Badge>
+                      </div>
+                      <div className="text-2xl font-bold text-green-700">${paidInvoicesValue.toFixed(2)}</div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="space-y-2 pl-4 max-h-48 overflow-y-auto">
+                      {paidInvoices.map((invoice) => (
+                        <div 
+                          key={invoice.id} 
+                          className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            setSelectedInvoice(invoice);
+                            setInvoicePreviewOpen(true);
+                          }}
+                        >
+                          <div>
+                            <div className="font-medium">{invoice.invoiceNumber}</div>
+                            <div className="text-xs text-muted-foreground">{invoice.customerName}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">${invoice.total.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{invoice.items.length} items</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Collapsible open={unpaidInvoicesOpen} onOpenChange={setUnpaidInvoicesOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="p-4 border rounded-lg bg-red-500/10 cursor-pointer hover:bg-red-500/20 transition-colors">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-red-700">Unpaid Invoices</span>
+                          {unpaidInvoicesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                        <Badge variant="destructive">{unpaidInvoices.length}</Badge>
+                      </div>
+                      <div className="text-2xl font-bold text-red-700">${unpaidInvoicesValue.toFixed(2)}</div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="space-y-2 pl-4 max-h-48 overflow-y-auto">
+                      {unpaidInvoices.map((invoice) => (
+                        <div 
+                          key={invoice.id} 
+                          className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            setSelectedInvoice(invoice);
+                            setInvoicePreviewOpen(true);
+                          }}
+                        >
+                          <div>
+                            <div className="font-medium">{invoice.invoiceNumber}</div>
+                            <div className="text-xs text-muted-foreground">{invoice.customerName}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">${invoice.total.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{invoice.items.length} items</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quotes Overview */}
           <Card>
             <CardHeader>
               <CardTitle>Quotes Overview</CardTitle>
@@ -334,6 +466,74 @@ const Accounting = () => {
             </CardContent>
           </Card>
 
+          {/* Expense Tracker */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Expense Tracker
+                </CardTitle>
+                <CardDescription>Track business expenses</CardDescription>
+              </div>
+              <AddExpenseDialog onExpenseAdded={loadData} />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 border rounded-lg bg-orange-500/10">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-orange-700">Total Expenses</span>
+                    <Badge variant="outline" className="border-orange-500 text-orange-700">{expenses.length}</Badge>
+                  </div>
+                  <div className="text-2xl font-bold text-orange-700">${totalExpenses.toFixed(2)}</div>
+                </div>
+
+                {/* Expenses by Category */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">By Category</h4>
+                  {Object.entries(expensesByCategory).map(([category, amount]) => (
+                    <div key={category} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm">
+                      <span>{getCategoryLabel(category)}</span>
+                      <span className="font-semibold">${amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recent Expenses */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Recent Expenses</h4>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {expenses.slice(0, 5).map((expense) => (
+                      <div key={expense.id} className="p-2 border rounded bg-background/50 text-sm">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{expense.employeeName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {getCategoryLabel(expense.category)} • {new Date(expense.expenseDate).toLocaleDateString()}
+                            </div>
+                            {expense.description && (
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                {expense.description}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">${expense.amount.toFixed(2)}</div>
+                            {expense.creditCardLast4 && (
+                              <div className="text-xs text-muted-foreground">
+                                •••• {expense.creditCardLast4}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Inventory Details */}
           <Card>
             <CardHeader>
@@ -389,7 +589,7 @@ const Accounting = () => {
                 <p className="text-center text-muted-foreground py-8">No invoices yet</p>
               ) : (
                 <div className="space-y-3">
-                  {invoices.slice(-5).reverse().map((invoice) => (
+                  {invoices.slice(0, 5).map((invoice) => (
                     <div 
                       key={invoice.id} 
                       className="flex justify-between items-center p-3 border rounded-lg bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -399,7 +599,14 @@ const Accounting = () => {
                       }}
                     >
                       <div>
-                        <div className="font-medium">{invoice.invoiceNumber}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{invoice.invoiceNumber}</span>
+                          {invoice.paid ? (
+                            <Badge variant="default" className="bg-green-500 text-xs">Paid</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">Unpaid</Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {new Date(invoice.createdAt).toLocaleDateString()}
                         </div>
@@ -543,6 +750,7 @@ const Accounting = () => {
         invoice={selectedInvoice}
         open={invoicePreviewOpen}
         onOpenChange={setInvoicePreviewOpen}
+        onInvoiceUpdated={handleInvoiceUpdated}
       />
     </div>
   );

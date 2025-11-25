@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt } from "lucide-react";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard } from "lucide-react";
 import { Person, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
+import { getExpensesByCustomerId, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { format } from "date-fns";
 
 interface PersonDetailDialogProps {
@@ -32,12 +33,16 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [editedPerson, setEditedPerson] = useState<Person>(person);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   useEffect(() => {
     const fetchRelatedData = async () => {
       if (open) {
-        const allQuotes = await inventoryStorage.getQuotes();
-        const allInvoices = await inventoryStorage.getInvoices();
+        const [allQuotes, allInvoices, personExpenses] = await Promise.all([
+          inventoryStorage.getQuotes(),
+          inventoryStorage.getInvoices(),
+          getExpensesByCustomerId(person.id)
+        ]);
 
         // Match by name (partial match), email, or phone
         const personQuotes = allQuotes.filter(
@@ -56,6 +61,7 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
 
         setQuotes(personQuotes);
         setInvoices(personInvoices);
+        setExpenses(personExpenses);
       }
     };
 
@@ -86,6 +92,8 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const sortedNotes = [...person.notes].sort((a, b) => 
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
+
+  const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -307,6 +315,70 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
             </CardContent>
           </Card>
 
+          {/* Expenses Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Expenses
+                <Badge variant="secondary" className="ml-2">
+                  {expenses.length}
+                </Badge>
+                {expenses.length > 0 && (
+                  <Badge variant="outline" className="ml-auto">
+                    Total: ${totalExpenses.toFixed(2)}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {expenses.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No expenses assigned to this contact.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {expenses.map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                    >
+                      <div>
+                        <p className="font-medium">{getCategoryLabel(expense.category)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(expense.expenseDate), 'MMM d, yyyy')} • {expense.employeeName}
+                        </p>
+                        {expense.description && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[250px]">
+                            {expense.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">${expense.amount.toFixed(2)}</p>
+                        {expense.creditCardLast4 && (
+                          <p className="text-xs text-muted-foreground">
+                            •••• {expense.creditCardLast4}
+                          </p>
+                        )}
+                        {expense.receiptUrl && (
+                          <a 
+                            href={expense.receiptUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline"
+                          >
+                            View Receipt
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Quotes Section */}
           <Card>
             <CardHeader>
@@ -373,7 +445,14 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                       className="flex items-center justify-between p-3 border rounded-lg bg-card"
                     >
                       <div>
-                        <p className="font-medium">Invoice {invoice.invoiceNumber}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">Invoice {invoice.invoiceNumber}</p>
+                          {invoice.paid ? (
+                            <Badge variant="default" className="bg-green-500 text-xs">Paid</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">Unpaid</Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(invoice.createdAt), 'MMM d, yyyy')}
                         </p>
