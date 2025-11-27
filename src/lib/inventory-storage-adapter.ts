@@ -17,6 +17,7 @@ export interface InventoryItem {
   soldDate?: string;
   invoiceId?: string;
   createdAt: string;
+  shelfLocation?: string;
 }
 
 export interface Invoice {
@@ -115,6 +116,7 @@ function convertItemFromDB(item: db.Item): InventoryItem {
     soldDate: item.dateSold,
     invoiceId: item.soldInInvoiceId,
     createdAt: new Date().toISOString(),
+    shelfLocation: item.shelfLocation,
   };
 }
 
@@ -136,8 +138,14 @@ function convertItemToDB(item: Partial<InventoryItem>): Partial<db.Item> {
     status: item.status!,
     soldInInvoiceId: item.invoiceId,
     dateSold: item.soldDate,
+    shelfLocation: item.shelfLocation,
   };
 }
+
+// Get unique shelf locations for autocomplete
+export const getUniqueShelfLocations = async (): Promise<string[]> => {
+  return db.getUniqueShelfLocations();
+};
 
 // Items
 export const getItems = async (): Promise<InventoryItem[]> => {
@@ -461,4 +469,5 @@ export const inventoryStorage = {
   createQuote,
   updateQuote,
   deleteQuote,
+  getUniqueShelfLocations,
 };

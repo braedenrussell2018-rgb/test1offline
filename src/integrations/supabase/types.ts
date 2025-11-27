@@ -163,6 +163,7 @@ export type Database = {
           part_number: string
           sale_price: number | null
           serial_number: string | null
+          shelf_location: string | null
           sold_in_invoice_id: string | null
           status: string
           updated_at: string | null
@@ -181,6 +182,7 @@ export type Database = {
           part_number: string
           sale_price?: number | null
           serial_number?: string | null
+          shelf_location?: string | null
           sold_in_invoice_id?: string | null
           status: string
           updated_at?: string | null
@@ -199,6 +201,7 @@ export type Database = {
           part_number?: string
           sale_price?: number | null
           serial_number?: string | null
+          shelf_location?: string | null
           sold_in_invoice_id?: string | null
           status?: string
           updated_at?: string | null

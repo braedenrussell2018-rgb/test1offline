@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage } from "@/lib/inventory-storage";
@@ -12,6 +13,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface AddItemDialogProps {
   onItemAdded: () => void;
 }
+
+const WARRANTY_OPTIONS = [
+  { value: "12", label: "1 Year" },
+  { value: "6", label: "6 Months" },
+  { value: "0", label: "No Warranty" },
+];
 
 export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
   const [open, setOpen] = useState(false);
@@ -25,7 +32,26 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
   const [warranty, setWarranty] = useState("");
   const [minReorderLevel, setMinReorderLevel] = useState("");
   const [maxReorderLevel, setMaxReorderLevel] = useState("");
+  const [shelfLocation, setShelfLocation] = useState("");
+  const [shelfLocations, setShelfLocations] = useState<string[]>([]);
+  const [showShelfSuggestions, setShowShelfSuggestions] = useState(false);
+  const shelfInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      loadShelfLocations();
+    }
+  }, [open]);
+
+  const loadShelfLocations = async () => {
+    try {
+      const locations = await inventoryStorage.getUniqueShelfLocations();
+      setShelfLocations(locations);
+    } catch (error) {
+      console.error("Error loading shelf locations:", error);
+    }
+  };
 
   const handleAddSerialNumber = () => {
     setSerialNumbers([...serialNumbers, '']);
@@ -42,6 +68,22 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
     updated[index] = value;
     setSerialNumbers(updated);
   };
+
+  const handleShelfKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" && shelfLocations.length > 0) {
+      e.preventDefault();
+      setShowShelfSuggestions(true);
+    }
+  };
+
+  const handleShelfSuggestionClick = (location: string) => {
+    setShelfLocation(location);
+    setShowShelfSuggestions(false);
+  };
+
+  const filteredShelfLocations = shelfLocations.filter(loc =>
+    loc.toLowerCase().includes(shelfLocation.toLowerCase())
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +175,8 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
     const serialsToAdd = nonEmptySerials.length > 0 ? nonEmptySerials : [''];
     let addedCount = 0;
 
+    const warrantyValue = warranty && warranty !== "0" ? `${warranty} months` : undefined;
+
     serialsToAdd.forEach((serial) => {
       inventoryStorage.addItem({
         partNumber: partNumber.trim(),
@@ -142,10 +186,11 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
         cost: costNum,
         weight: weightNum,
         volume: volumeNum,
-        warranty: warranty.trim() || undefined,
+        warranty: warrantyValue,
         minReorderLevel: minNum,
         maxReorderLevel: maxNum,
         status: 'available',
+        shelfLocation: shelfLocation.trim() || undefined,
       });
       addedCount++;
     });
@@ -165,6 +210,7 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
     setWarranty("");
     setMinReorderLevel("");
     setMaxReorderLevel("");
+    setShelfLocation("");
     setOpen(false);
     onItemAdded();
   };
@@ -304,14 +350,52 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="warranty">Warranty</Label>
-              <Input
-                id="warranty"
-                value={warranty}
-                onChange={(e) => setWarranty(e.target.value)}
-                placeholder="e.g., 1 year, 90 days"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="warranty">Warranty</Label>
+                <Select value={warranty} onValueChange={setWarranty}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select warranty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WARRANTY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 relative">
+                <Label htmlFor="shelfLocation">Shelf Location</Label>
+                <Input
+                  ref={shelfInputRef}
+                  id="shelfLocation"
+                  value={shelfLocation}
+                  onChange={(e) => {
+                    setShelfLocation(e.target.value);
+                    setShowShelfSuggestions(true);
+                  }}
+                  onKeyDown={handleShelfKeyDown}
+                  onFocus={() => setShowShelfSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowShelfSuggestions(false), 200)}
+                  placeholder="e.g., A1-01"
+                />
+                {showShelfSuggestions && filteredShelfLocations.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {filteredShelfLocations.map((loc) => (
+                      <button
+                        key={loc}
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                        onMouseDown={() => handleShelfSuggestionClick(loc)}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
