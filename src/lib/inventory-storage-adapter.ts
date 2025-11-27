@@ -265,6 +265,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     customerAddress: inv.customerAddress,
     shipToName: inv.shipToName,
     shipToAddress: inv.shipToAddress,
+    salesmanName: inv.salesmanName,
     items: inv.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
@@ -291,6 +292,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     customerAddress: invoice.customerAddress,
     shipToName: invoice.shipToName,
     shipToAddress: invoice.shipToAddress,
+    salesmanName: invoice.salesmanName,
     items: invoice.items.map(item => ({
       id: item.itemId,
       partNumber: item.partNumber,
@@ -314,6 +316,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     customerAddress: dbInvoice.customerAddress,
     shipToName: dbInvoice.shipToName,
     shipToAddress: dbInvoice.shipToAddress,
+    salesmanName: dbInvoice.salesmanName,
     items: dbInvoice.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
@@ -348,6 +351,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     customerAddress: quote.customerAddress,
     shipToName: quote.shipToName,
     shipToAddress: quote.shipToAddress,
+    salesmanName: quote.salesmanName,
     items: quote.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
@@ -373,6 +377,7 @@ export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<
     customerAddress: quote.customerAddress,
     shipToName: quote.shipToName,
     shipToAddress: quote.shipToAddress,
+    salesmanName: quote.salesmanName,
     items: quote.items.map(item => ({
       id: item.itemId,
       partNumber: item.partNumber,
@@ -396,6 +401,7 @@ export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<
     customerAddress: dbQuote.customerAddress,
     shipToName: dbQuote.shipToName,
     shipToAddress: dbQuote.shipToAddress,
+    salesmanName: dbQuote.salesmanName,
     items: dbQuote.items.map((item: any) => ({
       itemId: item.id,
       partNumber: item.partNumber,
