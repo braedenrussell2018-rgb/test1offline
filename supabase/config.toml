@@ -1,4 +1,7 @@
 project_id = "ojkwolcazuaeoqfsceeq"
 
 [functions.scan-business-card]
-verify_jwt = false
+verify_jwt = true
+
+[functions.scan-receipt]
+verify_jwt = true
