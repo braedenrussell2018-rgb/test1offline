@@ -89,6 +89,7 @@ export interface Note {
 export interface Person {
   id: string;
   companyId?: string;
+  userId?: string;
   name: string;
   jobTitle?: string;
   address?: string;
@@ -202,6 +203,7 @@ export const getPeople = async (): Promise<Person[]> => {
   return people.map(p => ({
     id: p.id,
     companyId: p.companyId,
+    userId: p.userId,
     name: p.name,
     jobTitle: p.jobTitle,
     address: p.address,
@@ -226,6 +228,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
   return {
     id: dbPerson.id,
     companyId: dbPerson.companyId,
+    userId: dbPerson.userId,
     name: dbPerson.name,
     jobTitle: dbPerson.jobTitle,
     address: dbPerson.address,

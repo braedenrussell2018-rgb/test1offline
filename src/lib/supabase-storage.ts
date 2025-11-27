@@ -29,6 +29,7 @@ export interface Person {
   id: string;
   name: string;
   companyId?: string;
+  userId?: string;
   jobTitle?: string;
   email?: string;
   phone?: string;
@@ -152,6 +153,7 @@ export const getPeople = async (): Promise<Person[]> => {
     id: row.id,
     name: row.name,
     companyId: row.company_id,
+    userId: row.user_id,
     jobTitle: row.job_title,
     email: row.email,
     phone: row.phone,
@@ -161,11 +163,15 @@ export const getPeople = async (): Promise<Person[]> => {
 };
 
 export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => {
+  // Get current user id
+  const { data: { user } } = await supabase.auth.getUser();
+  
   const { data, error } = await supabase
     .from("people")
     .insert({
       name: person.name,
       company_id: person.companyId,
+      user_id: user?.id,
       job_title: person.jobTitle,
       email: person.email,
       phone: person.phone,
@@ -180,6 +186,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     id: data.id,
     name: data.name,
     companyId: data.company_id,
+    userId: data.user_id,
     jobTitle: data.job_title,
     email: data.email,
     phone: data.phone,
