@@ -15,6 +15,7 @@ export interface Item {
   maxReorderLevel?: number;
   soldInInvoiceId?: string;
   dateSold?: string;
+  shelfLocation?: string;
 }
 
 export interface Company {
@@ -234,6 +235,7 @@ export const getItems = async (): Promise<Item[]> => {
     maxReorderLevel: row.max_reorder_level,
     soldInInvoiceId: row.sold_in_invoice_id,
     dateSold: row.date_sold,
+    shelfLocation: row.shelf_location,
   }));
 };
 
@@ -252,6 +254,7 @@ export const addItem = async (item: Omit<Item, "id">): Promise<Item> => {
       serial_number: item.serialNumber,
       min_reorder_level: item.minReorderLevel,
       max_reorder_level: item.maxReorderLevel,
+      shelf_location: item.shelfLocation,
     })
     .select()
     .single();
@@ -270,6 +273,7 @@ export const addItem = async (item: Omit<Item, "id">): Promise<Item> => {
     serialNumber: data.serial_number,
     minReorderLevel: data.min_reorder_level,
     maxReorderLevel: data.max_reorder_level,
+    shelfLocation: data.shelf_location,
   };
 };
 
@@ -290,10 +294,28 @@ export const updateItem = async (item: Item): Promise<void> => {
       max_reorder_level: item.maxReorderLevel,
       sold_in_invoice_id: item.soldInInvoiceId,
       date_sold: item.dateSold,
+      shelf_location: item.shelfLocation,
     })
     .eq("id", item.id);
 
   if (error) throw error;
+};
+
+// Get unique shelf locations for autocomplete
+export const getUniqueShelfLocations = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from("items")
+    .select("shelf_location")
+    .not("shelf_location", "is", null);
+
+  if (error) throw error;
+  const locations = new Set<string>();
+  (data || []).forEach(row => {
+    if (row.shelf_location) {
+      locations.add(row.shelf_location);
+    }
+  });
+  return Array.from(locations).sort();
 };
 
 export const deleteItem = async (id: string): Promise<void> => {
