@@ -1,5 +1,6 @@
 // Adapter layer that bridges the existing localStorage interfaces with the new database storage
 import * as db from "./supabase-storage";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface InventoryItem {
   id: string;
@@ -429,18 +430,13 @@ export const deleteQuote = async (id: string): Promise<void> => {
 export const getPersons = getPeople; // Alias for compatibility
 
 export const addNoteToPerson = async (personId: string, noteText: string): Promise<void> => {
-  const people = await getPeople();
-  const person = people.find(p => p.id === personId);
-  if (!person) throw new Error("Person not found");
+  // Use the security definer function to add notes (allows any authenticated user to add notes)
+  const { error } = await supabase.rpc('add_note_to_contact', {
+    p_person_id: personId,
+    p_note_text: noteText
+  });
   
-  const newNote = {
-    id: crypto.randomUUID(),
-    text: noteText,
-    timestamp: new Date().toISOString(),
-  };
-  
-  person.notes = [...person.notes, newNote];
-  await updatePerson(person);
+  if (error) throw error;
 };
 
 export const createInvoice = addInvoice; // Alias for compatibility
