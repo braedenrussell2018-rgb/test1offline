@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye } from "lucide-react";
+import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye, Search } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
@@ -24,6 +25,7 @@ function IndexContent() {
   const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -51,10 +53,30 @@ function IndexContent() {
   const totalInventoryValue = availableItems.reduce((sum, item) => sum + item.cost, 0);
   const totalRevenue = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
 
-  const filteredItems = items.filter(item => {
-    if (itemFilter === 'all') return true;
-    return item.status === itemFilter;
-  });
+  const filteredItems = useMemo(() => {
+    let filtered = items.filter(item => {
+      if (itemFilter === 'all') return true;
+      return item.status === itemFilter;
+    });
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.partNumber.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query) ||
+        (item.serialNumber && item.serialNumber.toLowerCase().includes(query)) ||
+        (item.shelfLocation && item.shelfLocation.toLowerCase().includes(query))
+      );
+    }
+
+    // Sort: available first, then sold
+    return filtered.sort((a, b) => {
+      if (a.status === 'available' && b.status === 'sold') return -1;
+      if (a.status === 'sold' && b.status === 'available') return 1;
+      return 0;
+    });
+  }, [items, itemFilter, searchQuery]);
 
   const handleInvoicePreview = (invoice: Invoice) => {
     setPreviewInvoice(invoice);
@@ -165,37 +187,48 @@ function IndexContent() {
           <TabsContent value="inventory" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>
-                      {itemFilter === 'all' ? 'All Items' : 
-                       itemFilter === 'available' ? 'Available Items' : 
-                       'Sold Items'}
-                    </CardTitle>
-                    <CardDescription>View and manage your inventory items</CardDescription>
+                <div className="flex flex-col gap-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle>
+                        {itemFilter === 'all' ? 'All Items' : 
+                         itemFilter === 'available' ? 'Available Items' : 
+                         'Sold Items'}
+                      </CardTitle>
+                      <CardDescription>View and manage your inventory items</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant={itemFilter === 'all' ? 'default' : 'outline'} 
+                        size="sm"
+                        onClick={() => setItemFilter('all')}
+                      >
+                        All ({items.length})
+                      </Button>
+                      <Button 
+                        variant={itemFilter === 'available' ? 'default' : 'outline'} 
+                        size="sm"
+                        onClick={() => setItemFilter('available')}
+                      >
+                        Available ({availableItems.length})
+                      </Button>
+                      <Button 
+                        variant={itemFilter === 'sold' ? 'default' : 'outline'} 
+                        size="sm"
+                        onClick={() => setItemFilter('sold')}
+                      >
+                        Sold ({soldItems.length})
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant={itemFilter === 'all' ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setItemFilter('all')}
-                    >
-                      All ({items.length})
-                    </Button>
-                    <Button 
-                      variant={itemFilter === 'available' ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setItemFilter('available')}
-                    >
-                      Available ({availableItems.length})
-                    </Button>
-                    <Button 
-                      variant={itemFilter === 'sold' ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setItemFilter('sold')}
-                    >
-                      Sold ({soldItems.length})
-                    </Button>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by part number, description, serial number, or shelf location..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
                 </div>
               </CardHeader>
@@ -244,7 +277,7 @@ function IndexContent() {
                             )}
                             {item.volume && (
                               <span className="text-muted-foreground">
-                                Volume: <span className="font-medium text-foreground">{item.volume} cu ft</span>
+                                Volume: <span className="font-medium text-foreground">{item.volume} cu yd</span>
                               </span>
                             )}
                             {item.warranty && (

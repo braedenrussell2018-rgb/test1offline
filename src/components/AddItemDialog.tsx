@@ -253,7 +253,7 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
                   onClick={handleAddSerialNumber}
                 >
                   <Plus className="mr-1 h-3 w-3" />
-                  Add Serial #
+                  Add additional item
                 </Button>
               </div>
               <div className="space-y-2">
@@ -337,7 +337,7 @@ export const AddItemDialog = ({ onItemAdded }: AddItemDialogProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="volume">Volume (cu ft)</Label>
+                <Label htmlFor="volume">Volume (cu yd)</Label>
                 <Input
                   id="volume"
                   type="number"
