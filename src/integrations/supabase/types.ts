@@ -483,7 +483,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_note_to_contact: {
+        Args: { p_note_text: string; p_person_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

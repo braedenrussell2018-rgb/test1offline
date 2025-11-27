@@ -17,6 +17,7 @@ import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check,
 import { Person, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
 import { getExpensesByCustomerId, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PersonDetailDialogProps {
   person: Person;
@@ -34,10 +35,17 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     const fetchRelatedData = async () => {
       if (open) {
+        // Get current user to check ownership
+        const { data: { user } } = await supabase.auth.getUser();
+        setCurrentUserId(user?.id || null);
+        setIsOwner(user?.id === person.userId);
+
         const [allQuotes, allInvoices, personExpenses] = await Promise.all([
           inventoryStorage.getQuotes(),
           inventoryStorage.getInvoices(),
@@ -109,12 +117,13 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                 {person.name}
               </DialogTitle>
             </div>
-            {!isEditing ? (
+            {isOwner && !isEditing && (
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
               </Button>
-            ) : (
+            )}
+            {isOwner && isEditing && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleCancelEdit}>
                   <X className="h-4 w-4 mr-1" />
