@@ -45,6 +45,7 @@ export interface Invoice {
   customerAddress?: string;
   shipToName?: string;
   shipToAddress?: string;
+  salesmanName?: string;
   items: Array<{
     id: string;
     partNumber: string;
@@ -70,6 +71,7 @@ export interface Quote {
   customerAddress?: string;
   shipToName?: string;
   shipToAddress?: string;
+  salesmanName?: string;
   items: Array<{
     id: string;
     partNumber: string;
@@ -344,6 +346,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     customerAddress: row.customer_address,
     shipToName: row.ship_to_name,
     shipToAddress: row.ship_to_address,
+    salesmanName: row.salesman_name,
     items: row.items as any[],
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
@@ -366,6 +369,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
       customer_address: invoice.customerAddress,
       ship_to_name: invoice.shipToName,
       ship_to_address: invoice.shipToAddress,
+      salesman_name: invoice.salesmanName,
       items: invoice.items,
       subtotal: invoice.subtotal,
       discount: invoice.discount,
@@ -385,6 +389,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
     customerAddress: data.customer_address,
     shipToName: data.ship_to_name,
     shipToAddress: data.ship_to_address,
+    salesmanName: data.salesman_name,
     items: data.items as any[],
     subtotal: Number(data.subtotal),
     discount: Number(data.discount),
@@ -423,6 +428,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     customerAddress: row.customer_address,
     shipToName: row.ship_to_name,
     shipToAddress: row.ship_to_address,
+    salesmanName: row.salesman_name,
     items: row.items as any[],
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
@@ -443,6 +449,7 @@ export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
       customer_address: quote.customerAddress,
       ship_to_name: quote.shipToName,
       ship_to_address: quote.shipToAddress,
+      salesman_name: quote.salesmanName,
       items: quote.items,
       subtotal: quote.subtotal,
       discount: quote.discount,
@@ -462,6 +469,7 @@ export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
     customerAddress: data.customer_address,
     shipToName: data.ship_to_name,
     shipToAddress: data.ship_to_address,
+    salesmanName: data.salesman_name,
     items: data.items as any[],
     subtotal: Number(data.subtotal),
     discount: Number(data.discount),
