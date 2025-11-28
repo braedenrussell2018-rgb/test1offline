@@ -222,7 +222,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     });
 
     // Mark items as sold
-    for (const [itemId, data] of selectedItems.entries()) {
+    for (const [itemId] of selectedItems.entries()) {
       await inventoryStorage.updateItem(itemId, {
         status: 'sold',
         soldDate: new Date().toISOString(),
