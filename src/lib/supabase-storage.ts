@@ -226,6 +226,7 @@ export const getItems = async (): Promise<Item[]> => {
   const { data, error } = await supabase
     .from("items")
     .select("*")
+    .neq("status", "sold")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
