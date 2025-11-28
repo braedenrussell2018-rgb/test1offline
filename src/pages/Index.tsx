@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye, Search } from "lucide-react";
+import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye, Search, Archive } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
@@ -173,6 +173,12 @@ function IndexContent() {
             <Button variant="outline" className="w-full">
               <FileEdit className="mr-2 h-4 w-4" />
               View Quotes
+            </Button>
+          </Link>
+          <Link to="/sold-items">
+            <Button variant="outline" className="w-full">
+              <Archive className="mr-2 h-4 w-4" />
+              Sold Items
             </Button>
           </Link>
         </div>
