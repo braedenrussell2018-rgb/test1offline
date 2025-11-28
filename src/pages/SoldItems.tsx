@@ -1,12 +1,11 @@
-import { useMemo } from "react";
+import { useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Package } from "lucide-react";
-import { InventoryItem } from "@/lib/inventory-storage";
+import { inventoryStorage, InventoryItem } from "@/lib/inventory-storage";
 import { format, parseISO, startOfMonth } from "date-fns";
-import { useSoldItems } from "@/hooks/useInventory";
 
 interface MonthGroup {
   month: string;
@@ -16,33 +15,40 @@ interface MonthGroup {
 }
 
 function SoldItemsContent() {
-  const { data: soldItems = [], isLoading } = useSoldItems();
+  const [monthGroups, setMonthGroups] = useState<MonthGroup[]>([]);
 
-  const monthGroups = useMemo(() => {
-    // Group by month
-    const grouped = new Map<string, InventoryItem[]>();
-    soldItems.forEach(item => {
-      if (item.soldDate) {
-        const monthKey = format(startOfMonth(parseISO(item.soldDate)), 'yyyy-MM');
-        if (!grouped.has(monthKey)) {
-          grouped.set(monthKey, []);
+  useEffect(() => {
+    const loadSoldItems = async () => {
+      const items = await inventoryStorage.getItems();
+      const soldItems = items.filter(item => item.status === 'sold' && item.soldDate);
+
+      // Group by month
+      const grouped = new Map<string, InventoryItem[]>();
+      soldItems.forEach(item => {
+        if (item.soldDate) {
+          const monthKey = format(startOfMonth(parseISO(item.soldDate)), 'yyyy-MM');
+          if (!grouped.has(monthKey)) {
+            grouped.set(monthKey, []);
+          }
+          grouped.get(monthKey)!.push(item);
         }
-        grouped.get(monthKey)!.push(item);
-      }
-    });
+      });
 
-    // Convert to array and sort by month (newest first)
-    const groups: MonthGroup[] = Array.from(grouped.entries())
-      .map(([monthKey, items]) => ({
-        month: format(parseISO(monthKey + '-01'), 'MMMM yyyy'),
-        monthKey,
-        items,
-        totalValue: items.reduce((sum, item) => sum + item.salePrice, 0),
-      }))
-      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+      // Convert to array and sort by month (newest first)
+      const groups: MonthGroup[] = Array.from(grouped.entries())
+        .map(([monthKey, items]) => ({
+          month: format(parseISO(monthKey + '-01'), 'MMMM yyyy'),
+          monthKey,
+          items,
+          totalValue: items.reduce((sum, item) => sum + item.salePrice, 0),
+        }))
+        .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
 
-    return groups;
-  }, [soldItems]);
+      setMonthGroups(groups);
+    };
+
+    loadSoldItems();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -63,15 +69,7 @@ function SoldItemsContent() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {isLoading ? (
-          <Card>
-            <CardContent className="py-12">
-              <p className="text-center text-muted-foreground">
-                Loading sold items...
-              </p>
-            </CardContent>
-          </Card>
-        ) : monthGroups.length === 0 ? (
+        {monthGroups.length === 0 ? (
           <Card>
             <CardContent className="py-12">
               <p className="text-center text-muted-foreground">

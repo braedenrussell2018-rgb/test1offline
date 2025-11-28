@@ -10,15 +10,12 @@ import { FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage, InventoryItem, Company, Person } from "@/lib/inventory-storage";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { INVENTORY_QUERY_KEY, SOLD_ITEMS_QUERY_KEY } from "@/hooks/useInventory";
 
 interface CreateInvoiceDialogProps {
   onInvoiceCreated: () => void;
 }
 
 export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogProps) => {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
@@ -225,17 +222,13 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     });
 
     // Mark items as sold
-    for (const [itemId] of selectedItems.entries()) {
+    for (const [itemId, data] of selectedItems.entries()) {
       await inventoryStorage.updateItem(itemId, {
         status: 'sold',
         soldDate: new Date().toISOString(),
         invoiceId: invoice.id,
       });
     }
-
-    // Invalidate queries to refresh both inventory and sold items lists
-    queryClient.invalidateQueries({ queryKey: INVENTORY_QUERY_KEY });
-    queryClient.invalidateQueries({ queryKey: SOLD_ITEMS_QUERY_KEY });
 
     toast({
       title: "Success",
