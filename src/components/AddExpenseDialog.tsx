@@ -12,11 +12,15 @@ import { inventoryStorage, Person } from "@/lib/inventory-storage";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AddExpenseDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onExpenseAdded: () => void;
 }
 
-export const AddExpenseDialog = ({ onExpenseAdded }: AddExpenseDialogProps) => {
-  const [open, setOpen] = useState(false);
+export const AddExpenseDialog = ({ open: controlledOpen, onOpenChange, onExpenseAdded }: AddExpenseDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [employeeName, setEmployeeName] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
   const [amount, setAmount] = useState("");

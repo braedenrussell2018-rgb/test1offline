@@ -94,6 +94,41 @@ export const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>): Pr
   };
 };
 
+export const updateExpense = async (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>): Promise<Expense> => {
+  const updateData: any = {};
+  
+  if (updates.employeeName !== undefined) updateData.employee_name = updates.employeeName;
+  if (updates.customerId !== undefined) updateData.customer_id = updates.customerId || null;
+  if (updates.amount !== undefined) updateData.amount = updates.amount;
+  if (updates.expenseDate !== undefined) updateData.expense_date = updates.expenseDate;
+  if (updates.category !== undefined) updateData.category = updates.category;
+  if (updates.description !== undefined) updateData.description = updates.description || null;
+  if (updates.receiptUrl !== undefined) updateData.receipt_url = updates.receiptUrl || null;
+  if (updates.creditCardLast4 !== undefined) updateData.credit_card_last4 = updates.creditCardLast4 || null;
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    employeeName: data.employee_name,
+    customerId: data.customer_id,
+    amount: Number(data.amount),
+    expenseDate: data.expense_date,
+    category: data.category,
+    description: data.description,
+    receiptUrl: data.receipt_url,
+    creditCardLast4: data.credit_card_last4,
+    createdAt: data.created_at || new Date().toISOString(),
+  };
+};
+
 export const deleteExpense = async (id: string): Promise<void> => {
   const { error } = await supabase.from('expenses').delete().eq('id', id);
   if (error) throw error;
