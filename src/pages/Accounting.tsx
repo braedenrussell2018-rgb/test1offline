@@ -87,35 +87,6 @@ const Accounting = () => {
     return acc;
   }, {} as Record<string, number>);
 
-  // Salesman Statistics
-  const salesmanStats = new Map<string, { revenue: number; invoiceCount: number; quoteCount: number }>();
-  
-  // Calculate invoice revenue and count per salesman
-  invoices.forEach(invoice => {
-    const salesman = invoice.salesmanName || 'Unassigned';
-    const current = salesmanStats.get(salesman) || { revenue: 0, invoiceCount: 0, quoteCount: 0 };
-    salesmanStats.set(salesman, {
-      revenue: current.revenue + invoice.total,
-      invoiceCount: current.invoiceCount + 1,
-      quoteCount: current.quoteCount,
-    });
-  });
-  
-  // Calculate quote count per salesman
-  quotes.forEach(quote => {
-    const salesman = quote.salesmanName || 'Unassigned';
-    const current = salesmanStats.get(salesman) || { revenue: 0, invoiceCount: 0, quoteCount: 0 };
-    salesmanStats.set(salesman, {
-      revenue: current.revenue,
-      invoiceCount: current.invoiceCount,
-      quoteCount: current.quoteCount + 1,
-    });
-  });
-
-  const salesmenArray = Array.from(salesmanStats.entries())
-    .map(([name, stats]) => ({ name, ...stats }))
-    .sort((a, b) => b.revenue - a.revenue);
-
   // Purchase Orders
   const totalPOValue = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
 
@@ -627,42 +598,6 @@ const Accounting = () => {
             </CardContent>
           </Card>
 
-          {/* Salesman Performance */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Salesman Performance</CardTitle>
-              <CardDescription>Revenue and activity by salesperson</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {salesmenArray.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No salesman data yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {salesmenArray.map((salesman) => (
-                    <div key={salesman.name} className="border rounded-lg p-4 bg-muted/20">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="font-semibold text-lg">{salesman.name}</div>
-                          <div className="flex gap-4 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {salesman.invoiceCount} {salesman.invoiceCount === 1 ? 'invoice' : 'invoices'}
-                            </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              {salesman.quoteCount} {salesman.quoteCount === 1 ? 'quote' : 'quotes'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-green-600">${salesman.revenue.toFixed(2)}</div>
-                          <div className="text-xs text-muted-foreground">Total Revenue</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* Vendors & Purchase Orders Section */}
