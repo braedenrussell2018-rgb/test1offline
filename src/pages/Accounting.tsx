@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
 import { getExpenses, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { FinancialReports } from "@/components/FinancialReports";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -682,6 +683,10 @@ const Accounting = () => {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="container mx-auto px-4 py-8">
+        <FinancialReports />
       </div>
 
       <InvoicePDFPreview

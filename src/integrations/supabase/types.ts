@@ -14,6 +14,135 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_transactions: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          reference_id: string | null
+          reference_type: string | null
+          transaction_date: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          transaction_date: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          transaction_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          parent_account_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          parent_account_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          account_type?: Database["public"]["Enums"]["account_type"]
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          parent_account_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_parent_account_id_fkey"
+            columns: ["parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_forecasts: {
+        Row: {
+          account_id: string
+          actual_amount: number | null
+          created_at: string | null
+          forecasted_amount: number
+          generated_by_ai: boolean | null
+          id: string
+          month: string
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          actual_amount?: number | null
+          created_at?: string | null
+          forecasted_amount: number
+          generated_by_ai?: boolean | null
+          id?: string
+          month: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          actual_amount?: number | null
+          created_at?: string | null
+          forecasted_amount?: number
+          generated_by_ai?: boolean | null
+          id?: string
+          month?: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_forecasts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
@@ -489,7 +618,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -616,6 +745,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_type: ["asset", "liability", "equity", "revenue", "expense"],
+    },
   },
 } as const
