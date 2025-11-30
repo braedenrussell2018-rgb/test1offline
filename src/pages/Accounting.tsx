@@ -455,7 +455,10 @@ const Accounting = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 border rounded-lg bg-orange-500/10">
+                <div 
+                  className="p-4 border rounded-lg bg-orange-500/10 cursor-pointer hover:bg-orange-500/20 transition-colors"
+                  onClick={() => window.location.href = '/expenses'}
+                >
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-orange-700">Total Expenses</span>
                     <Badge variant="outline" className="border-orange-500 text-orange-700">{expenses.length}</Badge>
