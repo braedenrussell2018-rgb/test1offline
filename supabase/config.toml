@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.scan-receipt]
 verify_jwt = true
+
+[functions.generate-budget-forecast]
+verify_jwt = true
