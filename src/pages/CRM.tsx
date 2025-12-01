@@ -562,6 +562,7 @@ const CRM = () => {
           open={mergeDuplicatesOpen}
           onOpenChange={setMergeDuplicatesOpen}
           persons={persons}
+          companies={companies}
           onMerged={handleRefresh}
         />
       </div>
