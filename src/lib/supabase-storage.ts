@@ -406,13 +406,24 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
   };
 };
 
-export const updateInvoice = async (id: string, updates: { paid?: boolean; paidAt?: string }): Promise<void> => {
+export const updateInvoice = async (id: string, updates: { paid?: boolean; paidAt?: string; salesmanName?: string }): Promise<void> => {
+  const updateData: Record<string, any> = {};
+  if (updates.paid !== undefined) updateData.paid = updates.paid;
+  if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt;
+  if (updates.salesmanName !== undefined) updateData.salesman_name = updates.salesmanName;
+
   const { error } = await supabase
     .from("invoices")
-    .update({
-      paid: updates.paid,
-      paid_at: updates.paidAt,
-    })
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) throw error;
+};
+
+export const updateQuoteSalesman = async (id: string, salesmanName: string): Promise<void> => {
+  const { error } = await supabase
+    .from("quotes")
+    .update({ salesman_name: salesmanName })
     .eq("id", id);
 
   if (error) throw error;
