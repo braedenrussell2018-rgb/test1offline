@@ -3,13 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Users, UserPlus } from "lucide-react";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
 import { PersonDetailDialog } from "@/components/PersonDetailDialog";
 import { QuotePDFPreview } from "@/components/QuotePDFPreview";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
+import { AssignSalesmanDialog } from "@/components/AssignSalesmanDialog";
+import { MergeDuplicatesDialog } from "@/components/MergeDuplicatesDialog";
 import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
 
 const CRM = () => {
@@ -26,6 +28,12 @@ const CRM = () => {
   const [quotePreviewOpen, setQuotePreviewOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [assignSalesmanOpen, setAssignSalesmanOpen] = useState(false);
+  const [assignSalesmanType, setAssignSalesmanType] = useState<"invoice" | "quote">("invoice");
+  const [assignSalesmanId, setAssignSalesmanId] = useState("");
+  const [assignSalesmanDocNumber, setAssignSalesmanDocNumber] = useState("");
+  const [assignSalesmanCurrent, setAssignSalesmanCurrent] = useState<string | undefined>();
+  const [mergeDuplicatesOpen, setMergeDuplicatesOpen] = useState(false);
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -70,6 +78,14 @@ const CRM = () => {
   const handleInvoicePreview = (invoice: Invoice) => {
     setPreviewInvoice(invoice);
     setInvoicePreviewOpen(true);
+  };
+
+  const handleAssignSalesman = (type: "invoice" | "quote", id: string, docNumber: string, currentSalesman?: string) => {
+    setAssignSalesmanType(type);
+    setAssignSalesmanId(id);
+    setAssignSalesmanDocNumber(docNumber);
+    setAssignSalesmanCurrent(currentSalesman);
+    setAssignSalesmanOpen(true);
   };
 
   const pendingQuotes = quotes.filter(q => q.status === 'pending');
@@ -206,6 +222,14 @@ const CRM = () => {
           >
             <Download className="mr-2 h-4 w-4" />
             Export Contacts
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setMergeDuplicatesOpen(true)}
+            disabled={persons.length < 2}
+          >
+            <Users className="mr-2 h-4 w-4" />
+            Find Duplicates
           </Button>
         </div>
 
@@ -379,7 +403,11 @@ const CRM = () => {
                             </Badge>
                           </div>
                         </div>
-                        <div className="border-t pt-3 mt-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                          <UserPlus className="h-3 w-3" />
+                          {quote.salesmanName || "No salesman assigned"}
+                        </div>
+                        <div className="border-t pt-3 mt-3 flex gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -387,6 +415,14 @@ const CRM = () => {
                           >
                             <Eye className="mr-2 h-4 w-4" />
                             Preview PDF
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAssignSalesman("quote", quote.id, quote.quoteNumber, quote.salesmanName)}
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Assign Salesman
                           </Button>
                         </div>
                       </div>
@@ -432,7 +468,11 @@ const CRM = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="border-t pt-3 mt-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                          <UserPlus className="h-3 w-3" />
+                          {invoice.salesmanName || "No salesman assigned"}
+                        </div>
+                        <div className="border-t pt-3 mt-3 flex gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -440,6 +480,14 @@ const CRM = () => {
                           >
                             <Eye className="mr-2 h-4 w-4" />
                             Preview PDF
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAssignSalesman("invoice", invoice.id, invoice.invoiceNumber, invoice.salesmanName)}
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Assign Salesman
                           </Button>
                         </div>
                       </div>
@@ -498,6 +546,23 @@ const CRM = () => {
           invoice={previewInvoice}
           open={invoicePreviewOpen}
           onOpenChange={setInvoicePreviewOpen}
+        />
+
+        <AssignSalesmanDialog
+          open={assignSalesmanOpen}
+          onOpenChange={setAssignSalesmanOpen}
+          type={assignSalesmanType}
+          id={assignSalesmanId}
+          documentNumber={assignSalesmanDocNumber}
+          currentSalesman={assignSalesmanCurrent}
+          onAssigned={handleRefresh}
+        />
+
+        <MergeDuplicatesDialog
+          open={mergeDuplicatesOpen}
+          onOpenChange={setMergeDuplicatesOpen}
+          persons={persons}
+          onMerged={handleRefresh}
         />
       </div>
     </div>
