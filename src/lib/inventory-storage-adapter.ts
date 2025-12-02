@@ -97,6 +97,7 @@ export interface Person {
   notes: Note[];
   email?: string;
   phone?: string;
+  excavatorLines?: string[];
   createdAt: string;
 }
 
@@ -211,6 +212,7 @@ export const getPeople = async (): Promise<Person[]> => {
     notes: p.notes.map(n => ({ id: crypto.randomUUID(), ...n })),
     email: p.email,
     phone: p.phone,
+    excavatorLines: p.excavatorLines || [],
     createdAt: new Date().toISOString(),
   }));
 };
@@ -224,6 +226,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
     phone: person.phone,
     address: person.address,
     notes: person.notes || [],
+    excavatorLines: person.excavatorLines || [],
   });
   
   return {
@@ -236,6 +239,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
     notes: dbPerson.notes.map(n => ({ id: crypto.randomUUID(), ...n })),
     email: dbPerson.email,
     phone: dbPerson.phone,
+    excavatorLines: dbPerson.excavatorLines || [],
     createdAt: new Date().toISOString(),
   };
 };
@@ -250,7 +254,13 @@ export const updatePerson = async (person: Person): Promise<void> => {
     phone: person.phone,
     address: person.address,
     notes: person.notes,
+    excavatorLines: person.excavatorLines || [],
   });
+};
+
+// Get unique excavator lines for autocomplete
+export const getUniqueExcavatorLines = async (): Promise<string[]> => {
+  return db.getUniqueExcavatorLines();
 };
 
 export const deletePerson = async (id: string): Promise<void> => {
@@ -475,4 +485,5 @@ export const inventoryStorage = {
   updateQuote,
   deleteQuote,
   getUniqueShelfLocations,
+  getUniqueExcavatorLines,
 };

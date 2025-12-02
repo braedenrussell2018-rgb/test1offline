@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { UserPlus, Upload, X, Plus, Scan } from "lucide-react";
 import { inventoryStorage, Note } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
@@ -44,9 +45,17 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
   const [companies, setCompanies] = useState<any[]>([]);
+  
+  // Excavator lines state
+  const [excavatorLines, setExcavatorLines] = useState<string[]>([]);
+  const [excavatorInput, setExcavatorInput] = useState("");
+  const [allExcavatorLines, setAllExcavatorLines] = useState<string[]>([]);
+  const [showExcavatorDropdown, setShowExcavatorDropdown] = useState(false);
+  const excavatorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inventoryStorage.getCompanies().then(setCompanies);
+    inventoryStorage.getUniqueExcavatorLines().then(setAllExcavatorLines);
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,6 +170,37 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     });
   };
 
+  // Excavator line handlers
+  const handleAddExcavatorLine = (line: string) => {
+    const trimmedLine = line.trim().toLowerCase();
+    if (trimmedLine && !excavatorLines.includes(trimmedLine)) {
+      setExcavatorLines([...excavatorLines, trimmedLine]);
+      // Add to allExcavatorLines if it's new
+      if (!allExcavatorLines.includes(trimmedLine)) {
+        setAllExcavatorLines([...allExcavatorLines, trimmedLine].sort());
+      }
+    }
+    setExcavatorInput("");
+    setShowExcavatorDropdown(false);
+  };
+
+  const handleRemoveExcavatorLine = (line: string) => {
+    setExcavatorLines(excavatorLines.filter(l => l !== line));
+  };
+
+  const handleExcavatorInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (excavatorInput.trim()) {
+        handleAddExcavatorLine(excavatorInput);
+      }
+    }
+  };
+
+  const filteredExcavatorLines = allExcavatorLines.filter(
+    line => line.toLowerCase().includes(excavatorInput.toLowerCase()) && !excavatorLines.includes(line)
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -190,6 +230,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       email: email || undefined,
       phone: phone || undefined,
       notes: notes ? [{ id: crypto.randomUUID(), text: notes, timestamp: new Date().toISOString() }] : [],
+      excavatorLines: excavatorLines,
     });
     
     toast({
@@ -209,6 +250,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     setBusinessCardPhoto("");
     setShowNewCompanyForm(false);
     setNewCompanyName("");
+    setExcavatorLines([]);
+    setExcavatorInput("");
     setOpen(false);
     onPersonAdded();
   };
@@ -345,6 +388,77 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                 placeholder="123 Main St, City, State 12345"
                 rows={2}
               />
+            </div>
+
+            {/* Excavator Line Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="excavatorLine">Excavator Line</Label>
+              <div className="relative">
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-background min-h-[42px]">
+                  {excavatorLines.map((line) => (
+                    <Badge 
+                      key={line} 
+                      variant="secondary" 
+                      className="flex items-center gap-1"
+                    >
+                      {line}
+                      <X 
+                        className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                        onClick={() => handleRemoveExcavatorLine(line)}
+                      />
+                    </Badge>
+                  ))}
+                  <Input
+                    ref={excavatorInputRef}
+                    id="excavatorLine"
+                    value={excavatorInput}
+                    onChange={(e) => {
+                      setExcavatorInput(e.target.value);
+                      setShowExcavatorDropdown(true);
+                    }}
+                    onFocus={() => setShowExcavatorDropdown(true)}
+                    onBlur={() => {
+                      // Delay hiding to allow click on dropdown items
+                      setTimeout(() => setShowExcavatorDropdown(false), 200);
+                    }}
+                    onKeyDown={handleExcavatorInputKeyDown}
+                    placeholder={excavatorLines.length === 0 ? "Type and press Enter..." : "Add more..."}
+                    className="border-0 shadow-none focus-visible:ring-0 flex-1 min-w-[120px] p-0 h-auto"
+                  />
+                </div>
+                
+                {/* Dropdown for suggestions */}
+                {showExcavatorDropdown && (excavatorInput || filteredExcavatorLines.length > 0) && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[150px] overflow-y-auto">
+                    {filteredExcavatorLines.map((line) => (
+                      <div
+                        key={line}
+                        className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleAddExcavatorLine(line);
+                        }}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                    {excavatorInput.trim() && !allExcavatorLines.includes(excavatorInput.trim().toLowerCase()) && (
+                      <div
+                        className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleAddExcavatorLine(excavatorInput);
+                        }}
+                      >
+                        Add "{excavatorInput.trim()}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Type a word and press Enter to add. Used for filtering contacts.
+              </p>
             </div>
 
             <div className="grid gap-2">
