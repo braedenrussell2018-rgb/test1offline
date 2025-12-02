@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard } from "lucide-react";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard, Tractor } from "lucide-react";
 import { Person, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
 import { getExpensesByCustomerId, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { format } from "date-fns";
@@ -37,6 +37,12 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  
+  // Excavator lines state for editing
+  const [allExcavatorLines, setAllExcavatorLines] = useState<string[]>([]);
+  const [excavatorInput, setExcavatorInput] = useState("");
+  const [showExcavatorDropdown, setShowExcavatorDropdown] = useState(false);
+  const excavatorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchRelatedData = async () => {
@@ -46,11 +52,14 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         setCurrentUserId(user?.id || null);
         setIsOwner(user?.id === person.userId);
 
-        const [allQuotes, allInvoices, personExpenses] = await Promise.all([
+        const [allQuotes, allInvoices, personExpenses, excavatorLines] = await Promise.all([
           inventoryStorage.getQuotes(),
           inventoryStorage.getInvoices(),
-          getExpensesByCustomerId(person.id)
+          getExpensesByCustomerId(person.id),
+          inventoryStorage.getUniqueExcavatorLines()
         ]);
+        
+        setAllExcavatorLines(excavatorLines);
 
         // Match by name (partial match), email, or phone
         const personQuotes = allQuotes.filter(
@@ -94,7 +103,41 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const handleCancelEdit = () => {
     setEditedPerson(person);
     setIsEditing(false);
+    setExcavatorInput("");
+    setShowExcavatorDropdown(false);
   };
+
+  // Excavator line handlers for editing
+  const handleAddExcavatorLine = (line: string) => {
+    const trimmedLine = line.trim().toLowerCase();
+    const currentLines = editedPerson.excavatorLines || [];
+    if (trimmedLine && !currentLines.includes(trimmedLine)) {
+      setEditedPerson({ ...editedPerson, excavatorLines: [...currentLines, trimmedLine] });
+      if (!allExcavatorLines.includes(trimmedLine)) {
+        setAllExcavatorLines([...allExcavatorLines, trimmedLine].sort());
+      }
+    }
+    setExcavatorInput("");
+    setShowExcavatorDropdown(false);
+  };
+
+  const handleRemoveExcavatorLine = (line: string) => {
+    const currentLines = editedPerson.excavatorLines || [];
+    setEditedPerson({ ...editedPerson, excavatorLines: currentLines.filter(l => l !== line) });
+  };
+
+  const handleExcavatorInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (excavatorInput.trim()) {
+        handleAddExcavatorLine(excavatorInput);
+      }
+    }
+  };
+
+  const filteredExcavatorLines = allExcavatorLines.filter(
+    line => line.toLowerCase().includes(excavatorInput.toLowerCase()) && !(editedPerson.excavatorLines || []).includes(line)
+  );
 
   // Sort notes by timestamp, newest first
   const sortedNotes = [...person.notes].sort((a, b) => 
@@ -192,6 +235,70 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                       rows={2}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-excavator-lines">Excavator Lines</Label>
+                    <div className="relative">
+                      <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-background min-h-[42px]">
+                        {(editedPerson.excavatorLines || []).map((line) => (
+                          <Badge 
+                            key={line} 
+                            variant="secondary" 
+                            className="flex items-center gap-1"
+                          >
+                            {line}
+                            <X 
+                              className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                              onClick={() => handleRemoveExcavatorLine(line)}
+                            />
+                          </Badge>
+                        ))}
+                        <Input
+                          ref={excavatorInputRef}
+                          id="edit-excavator-lines"
+                          value={excavatorInput}
+                          onChange={(e) => {
+                            setExcavatorInput(e.target.value);
+                            setShowExcavatorDropdown(true);
+                          }}
+                          onFocus={() => setShowExcavatorDropdown(true)}
+                          onBlur={() => {
+                            setTimeout(() => setShowExcavatorDropdown(false), 200);
+                          }}
+                          onKeyDown={handleExcavatorInputKeyDown}
+                          placeholder={(editedPerson.excavatorLines || []).length === 0 ? "Type and press Enter..." : "Add more..."}
+                          className="border-0 shadow-none focus-visible:ring-0 flex-1 min-w-[120px] p-0 h-auto"
+                        />
+                      </div>
+                      
+                      {showExcavatorDropdown && (excavatorInput || filteredExcavatorLines.length > 0) && (
+                        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[150px] overflow-y-auto">
+                          {filteredExcavatorLines.map((line) => (
+                            <div
+                              key={line}
+                              className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleAddExcavatorLine(line);
+                              }}
+                            >
+                              {line}
+                            </div>
+                          ))}
+                          {excavatorInput.trim() && !allExcavatorLines.includes(excavatorInput.trim().toLowerCase()) && (
+                            <div
+                              className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleAddExcavatorLine(excavatorInput);
+                              }}
+                            >
+                              Add "{excavatorInput.trim()}"
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -242,6 +349,22 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                         Address
                       </span>
                       <p>{person.address}</p>
+                    </div>
+                  )}
+                  
+                  {person.excavatorLines && person.excavatorLines.length > 0 && (
+                    <div>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Tractor className="h-3 w-3" />
+                        Excavator Lines
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {person.excavatorLines.map((line) => (
+                          <Badge key={line} variant="secondary">
+                            {line}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>

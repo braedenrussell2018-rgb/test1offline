@@ -35,6 +35,7 @@ export interface Person {
   phone?: string;
   address?: string;
   notes: Array<{ text: string; timestamp: string }>;
+  excavatorLines?: string[];
 }
 
 export interface Invoice {
@@ -159,6 +160,7 @@ export const getPeople = async (): Promise<Person[]> => {
     phone: row.phone,
     address: row.address,
     notes: (row.notes as Array<{ text: string; timestamp: string }>) || [],
+    excavatorLines: (row.excavator_lines as string[]) || [],
   }));
 };
 
@@ -177,6 +179,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
       phone: person.phone,
       address: person.address,
       notes: person.notes || [],
+      excavator_lines: person.excavatorLines || [],
     })
     .select()
     .single();
@@ -192,6 +195,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     phone: data.phone,
     address: data.address,
     notes: (data.notes as Array<{ text: string; timestamp: string }>) || [],
+    excavatorLines: (data.excavator_lines as string[]) || [],
   };
 };
 
@@ -206,10 +210,28 @@ export const updatePerson = async (person: Person): Promise<void> => {
       phone: person.phone,
       address: person.address,
       notes: person.notes,
+      excavator_lines: person.excavatorLines || [],
     })
     .eq("id", person.id);
 
   if (error) throw error;
+};
+
+// Get unique excavator lines for autocomplete
+export const getUniqueExcavatorLines = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from("people")
+    .select("excavator_lines");
+
+  if (error) throw error;
+  const lines = new Set<string>();
+  (data || []).forEach(row => {
+    const excavatorLines = row.excavator_lines as string[] | null;
+    if (excavatorLines) {
+      excavatorLines.forEach(line => lines.add(line));
+    }
+  });
+  return Array.from(lines).sort();
 };
 
 export const deletePerson = async (id: string): Promise<void> => {

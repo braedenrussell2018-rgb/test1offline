@@ -346,6 +346,7 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           email: string | null
+          excavator_lines: string[] | null
           id: string
           job_title: string | null
           name: string
@@ -359,6 +360,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           email?: string | null
+          excavator_lines?: string[] | null
           id?: string
           job_title?: string | null
           name: string
@@ -372,6 +374,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           email?: string | null
+          excavator_lines?: string[] | null
           id?: string
           job_title?: string | null
           name?: string
