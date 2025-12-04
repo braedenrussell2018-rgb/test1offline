@@ -160,13 +160,13 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                 {person.name}
               </DialogTitle>
             </div>
-            {isOwner && !isEditing && (
+            {currentUserId && !isEditing && (
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
               </Button>
             )}
-            {isOwner && isEditing && (
+            {currentUserId && isEditing && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleCancelEdit}>
                   <X className="h-4 w-4 mr-1" />
