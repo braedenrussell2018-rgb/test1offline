@@ -118,7 +118,7 @@ function convertItemFromDB(item: db.Item): InventoryItem {
     status: item.status,
     soldDate: item.dateSold,
     invoiceId: item.soldInInvoiceId,
-    createdAt: new Date().toISOString(),
+    createdAt: item.createdAt || new Date().toISOString(),
     shelfLocation: item.shelfLocation,
   };
 }

@@ -16,6 +16,7 @@ export interface Item {
   soldInInvoiceId?: string;
   dateSold?: string;
   shelfLocation?: string;
+  createdAt?: string;
 }
 
 export interface Company {
@@ -267,6 +268,7 @@ export const getItems = async (): Promise<Item[]> => {
     soldInInvoiceId: row.sold_in_invoice_id,
     dateSold: row.date_sold,
     shelfLocation: row.shelf_location,
+    createdAt: row.created_at,
   }));
 };
 
