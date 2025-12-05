@@ -47,6 +47,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const { toast } = useToast();
   const [companies, setCompanies] = useState<any[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [showNewBranchForm, setShowNewBranchForm] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
   
   // Excavator lines state
   const [excavatorLines, setExcavatorLines] = useState<string[]>([]);
@@ -65,11 +67,41 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     if (companyId) {
       inventoryStorage.getBranchesByCompany(companyId).then(setBranches);
       setBranchId(""); // Reset branch when company changes
+      setShowNewBranchForm(false);
+      setNewBranchName("");
     } else {
       setBranches([]);
       setBranchId("");
+      setShowNewBranchForm(false);
+      setNewBranchName("");
     }
   }, [companyId]);
+
+  const handleCreateNewBranch = async () => {
+    if (!newBranchName.trim() || !companyId) {
+      toast({
+        title: "Error",
+        description: "Branch name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newBranch = await inventoryStorage.addBranch({
+      companyId,
+      name: newBranchName.trim(),
+    });
+
+    setBranchId(newBranch.id);
+    setNewBranchName("");
+    setShowNewBranchForm(false);
+    setBranches([...branches, newBranch]);
+    
+    toast({
+      title: "Success",
+      description: "Branch created successfully",
+    });
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -265,6 +297,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     setBusinessCardPhoto("");
     setShowNewCompanyForm(false);
     setNewCompanyName("");
+    setShowNewBranchForm(false);
+    setNewBranchName("");
     setExcavatorLines([]);
     setExcavatorInput("");
     setOpen(false);
@@ -341,22 +375,59 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
               )}
             </div>
 
-            {/* Branch selector - only show if company is selected and has branches */}
-            {companyId && branches.length > 0 && (
+            {/* Branch selector - only show if company is selected */}
+            {companyId && (
               <div className="grid gap-2">
                 <Label htmlFor="branch">Branch</Label>
-                <Select value={branchId} onValueChange={setBranchId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a branch (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!showNewBranchForm ? (
+                  <div className="flex gap-2">
+                    <Select value={branchId} onValueChange={setBranchId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select a branch (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowNewBranchForm(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="New branch name"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      onClick={handleCreateNewBranch}
+                    >
+                      Create
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowNewBranchForm(false);
+                        setNewBranchName("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
