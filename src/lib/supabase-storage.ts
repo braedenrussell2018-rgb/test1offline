@@ -26,10 +26,18 @@ export interface Company {
   notes: Array<{ text: string; timestamp: string }>;
 }
 
+export interface Branch {
+  id: string;
+  companyId: string;
+  name: string;
+  address?: string;
+}
+
 export interface Person {
   id: string;
   name: string;
   companyId?: string;
+  branchId?: string;
   userId?: string;
   jobTitle?: string;
   email?: string;
@@ -143,6 +151,79 @@ export const deleteCompany = async (id: string): Promise<void> => {
   if (error) throw error;
 };
 
+// Branches
+export const getBranches = async (): Promise<Branch[]> => {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("*")
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(row => ({
+    id: row.id,
+    companyId: row.company_id,
+    name: row.name,
+    address: row.address,
+  }));
+};
+
+export const getBranchesByCompany = async (companyId: string): Promise<Branch[]> => {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(row => ({
+    id: row.id,
+    companyId: row.company_id,
+    name: row.name,
+    address: row.address,
+  }));
+};
+
+export const addBranch = async (branch: Omit<Branch, "id">): Promise<Branch> => {
+  const { data, error } = await supabase
+    .from("branches")
+    .insert({
+      company_id: branch.companyId,
+      name: branch.name,
+      address: branch.address,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return {
+    id: data.id,
+    companyId: data.company_id,
+    name: data.name,
+    address: data.address,
+  };
+};
+
+export const updateBranch = async (branch: Branch): Promise<void> => {
+  const { error } = await supabase
+    .from("branches")
+    .update({
+      name: branch.name,
+      address: branch.address,
+    })
+    .eq("id", branch.id);
+
+  if (error) throw error;
+};
+
+export const deleteBranch = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from("branches")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+};
+
 // People
 export const getPeople = async (): Promise<Person[]> => {
   const { data, error } = await supabase
@@ -155,6 +236,7 @@ export const getPeople = async (): Promise<Person[]> => {
     id: row.id,
     name: row.name,
     companyId: row.company_id,
+    branchId: row.branch_id,
     userId: row.user_id,
     jobTitle: row.job_title,
     email: row.email,
@@ -174,6 +256,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     .insert({
       name: person.name,
       company_id: person.companyId,
+      branch_id: person.branchId,
       user_id: user?.id,
       job_title: person.jobTitle,
       email: person.email,
@@ -190,6 +273,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     id: data.id,
     name: data.name,
     companyId: data.company_id,
+    branchId: data.branch_id,
     userId: data.user_id,
     jobTitle: data.job_title,
     email: data.email,
@@ -206,6 +290,7 @@ export const updatePerson = async (person: Person): Promise<void> => {
     .update({
       name: person.name,
       company_id: person.companyId,
+      branch_id: person.branchId,
       job_title: person.jobTitle,
       email: person.email,
       phone: person.phone,

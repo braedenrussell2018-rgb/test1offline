@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Building2, User, Mail, Phone, Briefcase, MapPin, Edit, X, Check } from "lucide-react";
-import { Company, Person, inventoryStorage } from "@/lib/inventory-storage";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Building2, User, Mail, Phone, Briefcase, MapPin, Edit, X, Check, Plus, GitBranch, Trash2 } from "lucide-react";
+import { Company, Person, Branch, inventoryStorage } from "@/lib/inventory-storage";
 
 interface CompanyDetailDialogProps {
   company: Company;
@@ -28,6 +28,16 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedCompany, setEditedCompany] = useState<Company>(company);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [isAddingBranch, setIsAddingBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchAddress, setNewBranchAddress] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      inventoryStorage.getBranchesByCompany(company.id).then(setBranches);
+    }
+  }, [open, company.id]);
 
   const handleSaveEdit = () => {
     inventoryStorage.updateCompany(editedCompany);
@@ -38,6 +48,33 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
   const handleCancelEdit = () => {
     setEditedCompany(company);
     setIsEditing(false);
+  };
+
+  const handleAddBranch = async () => {
+    if (!newBranchName.trim()) return;
+    
+    const newBranch = await inventoryStorage.addBranch({
+      companyId: company.id,
+      name: newBranchName.trim(),
+      address: newBranchAddress.trim() || undefined,
+    });
+    
+    setBranches([...branches, newBranch]);
+    setNewBranchName("");
+    setNewBranchAddress("");
+    setIsAddingBranch(false);
+    onUpdate();
+  };
+
+  const handleDeleteBranch = async (branchId: string) => {
+    await inventoryStorage.deleteBranch(branchId);
+    setBranches(branches.filter(b => b.id !== branchId));
+    onUpdate();
+  };
+
+  const getBranchName = (branchId?: string) => {
+    if (!branchId) return null;
+    return branches.find(b => b.id === branchId)?.name;
   };
 
   return (
@@ -117,6 +154,100 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
                     <span className="text-muted-foreground">Total Contacts</span>
                     <span>{persons.length}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Branches</span>
+                    <span>{branches.length}</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Branches Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <GitBranch className="h-5 w-5" />
+                Branches
+              </CardTitle>
+              {!isAddingBranch && (
+                <Button variant="outline" size="sm" onClick={() => setIsAddingBranch(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Branch
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isAddingBranch && (
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-branch-name">Branch Name *</Label>
+                    <Input
+                      id="new-branch-name"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      placeholder="e.g., Downtown Office"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-branch-address">Address</Label>
+                    <Textarea
+                      id="new-branch-address"
+                      value={newBranchAddress}
+                      onChange={(e) => setNewBranchAddress(e.target.value)}
+                      placeholder="Branch address"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingBranch(false);
+                        setNewBranchName("");
+                        setNewBranchAddress("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleAddBranch} disabled={!newBranchName.trim()}>
+                      Add Branch
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {branches.length === 0 && !isAddingBranch ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No branches yet. Add your first branch above.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {branches.map((branch) => (
+                    <div key={branch.id} className="flex items-start justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">{branch.name}</p>
+                        {branch.address && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            {branch.address}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {persons.filter(p => p.branchId === branch.id).length} contacts
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteBranch(branch.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -153,6 +284,12 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
                             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                               <Briefcase className="h-3 w-3" />
                               <span>{person.jobTitle}</span>
+                            </div>
+                          )}
+                          {getBranchName(person.branchId) && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                              <GitBranch className="h-3 w-3" />
+                              <span>{getBranchName(person.branchId)}</span>
                             </div>
                           )}
                           <div className="flex flex-wrap gap-3 mt-2">

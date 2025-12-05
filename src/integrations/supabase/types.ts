@@ -99,6 +99,41 @@ export type Database = {
           },
         ]
       }
+      branches: {
+        Row: {
+          address: string | null
+          company_id: string
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_forecasts: {
         Row: {
           account_id: string
@@ -343,6 +378,7 @@ export type Database = {
       people: {
         Row: {
           address: string | null
+          branch_id: string | null
           company_id: string | null
           created_at: string | null
           email: string | null
@@ -357,6 +393,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
           email?: string | null
@@ -371,6 +408,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
           email?: string | null
@@ -384,6 +422,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "people_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "people_company_id_fkey"
             columns: ["company_id"]

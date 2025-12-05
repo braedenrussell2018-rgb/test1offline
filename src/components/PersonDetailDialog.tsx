@@ -13,8 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard, Tractor } from "lucide-react";
-import { Person, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard, Tractor, GitBranch } from "lucide-react";
+import { Person, Branch, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
 import { getExpensesByCustomerId, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +44,7 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
   
   // Excavator lines state for editing
   const [allExcavatorLines, setAllExcavatorLines] = useState<string[]>([]);
@@ -52,14 +60,16 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         setCurrentUserId(user?.id || null);
         setIsOwner(user?.id === person.userId);
 
-        const [allQuotes, allInvoices, personExpenses, excavatorLines] = await Promise.all([
+        const [allQuotes, allInvoices, personExpenses, excavatorLines, companyBranches] = await Promise.all([
           inventoryStorage.getQuotes(),
           inventoryStorage.getInvoices(),
           getExpensesByCustomerId(person.id),
-          inventoryStorage.getUniqueExcavatorLines()
+          inventoryStorage.getUniqueExcavatorLines(),
+          person.companyId ? inventoryStorage.getBranchesByCompany(person.companyId) : Promise.resolve([]),
         ]);
         
         setAllExcavatorLines(excavatorLines);
+        setBranches(companyBranches);
 
         // Match by name (partial match), email, or phone
         const personQuotes = allQuotes.filter(
@@ -235,6 +245,27 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                       rows={2}
                     />
                   </div>
+                  {branches.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-branch">Branch</Label>
+                      <Select
+                        value={editedPerson.branchId || "none"}
+                        onValueChange={(value) => setEditedPerson({ ...editedPerson, branchId: value === "none" ? undefined : value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No branch</SelectItem>
+                          {branches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>
+                              {branch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="edit-excavator-lines">Excavator Lines</Label>
                     <div className="relative">
@@ -349,6 +380,16 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                         Address
                       </span>
                       <p>{person.address}</p>
+                    </div>
+                  )}
+                  
+                  {person.branchId && branches.find(b => b.id === person.branchId) && (
+                    <div>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <GitBranch className="h-3 w-3" />
+                        Branch
+                      </span>
+                      <p className="font-medium">{branches.find(b => b.id === person.branchId)?.name}</p>
                     </div>
                   )}
                   

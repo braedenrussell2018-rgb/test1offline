@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { UserPlus, Upload, X, Plus, Scan } from "lucide-react";
-import { inventoryStorage, Note } from "@/lib/inventory-storage";
+import { inventoryStorage, Note, Branch } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -34,6 +34,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -45,6 +46,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
   const [companies, setCompanies] = useState<any[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   
   // Excavator lines state
   const [excavatorLines, setExcavatorLines] = useState<string[]>([]);
@@ -57,6 +59,17 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     inventoryStorage.getCompanies().then(setCompanies);
     inventoryStorage.getUniqueExcavatorLines().then(setAllExcavatorLines);
   }, []);
+
+  // Load branches when company changes
+  useEffect(() => {
+    if (companyId) {
+      inventoryStorage.getBranchesByCompany(companyId).then(setBranches);
+      setBranchId(""); // Reset branch when company changes
+    } else {
+      setBranches([]);
+      setBranchId("");
+    }
+  }, [companyId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -224,6 +237,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
     inventoryStorage.addPerson({
       companyId,
+      branchId: branchId || undefined,
       name: `${firstName.trim()} ${lastName.trim()}`,
       jobTitle: jobTitle || undefined,
       address: address || undefined,
@@ -242,6 +256,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     setFirstName("");
     setLastName("");
     setCompanyId("");
+    setBranchId("");
     setJobTitle("");
     setAddress("");
     setNotes("");
@@ -325,6 +340,25 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                 </div>
               )}
             </div>
+
+            {/* Branch selector - only show if company is selected and has branches */}
+            {companyId && branches.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="branch">Branch</Label>
+                <Select value={branchId} onValueChange={setBranchId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a branch (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
