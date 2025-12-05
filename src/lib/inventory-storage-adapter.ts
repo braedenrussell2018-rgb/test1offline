@@ -81,6 +81,13 @@ export interface Company {
   createdAt: string;
 }
 
+export interface Branch {
+  id: string;
+  companyId: string;
+  name: string;
+  address?: string;
+}
+
 export interface Note {
   id: string;
   text: string;
@@ -90,6 +97,7 @@ export interface Note {
 export interface Person {
   id: string;
   companyId?: string;
+  branchId?: string;
   userId?: string;
   name: string;
   jobTitle?: string;
@@ -199,12 +207,34 @@ export const deleteCompany = async (id: string): Promise<void> => {
   await db.deleteCompany(id);
 };
 
+// Branches
+export const getBranches = async (): Promise<Branch[]> => {
+  return db.getBranches();
+};
+
+export const getBranchesByCompany = async (companyId: string): Promise<Branch[]> => {
+  return db.getBranchesByCompany(companyId);
+};
+
+export const addBranch = async (branch: Omit<Branch, "id">): Promise<Branch> => {
+  return db.addBranch(branch);
+};
+
+export const updateBranch = async (branch: Branch): Promise<void> => {
+  await db.updateBranch(branch);
+};
+
+export const deleteBranch = async (id: string): Promise<void> => {
+  await db.deleteBranch(id);
+};
+
 // People
 export const getPeople = async (): Promise<Person[]> => {
   const people = await db.getPeople();
   return people.map(p => ({
     id: p.id,
     companyId: p.companyId,
+    branchId: p.branchId,
     userId: p.userId,
     name: p.name,
     jobTitle: p.jobTitle,
@@ -221,6 +251,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
   const dbPerson = await db.addPerson({
     name: person.name,
     companyId: person.companyId,
+    branchId: person.branchId,
     jobTitle: person.jobTitle,
     email: person.email,
     phone: person.phone,
@@ -232,6 +263,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
   return {
     id: dbPerson.id,
     companyId: dbPerson.companyId,
+    branchId: dbPerson.branchId,
     userId: dbPerson.userId,
     name: dbPerson.name,
     jobTitle: dbPerson.jobTitle,
@@ -249,6 +281,7 @@ export const updatePerson = async (person: Person): Promise<void> => {
     id: person.id,
     name: person.name,
     companyId: person.companyId,
+    branchId: person.branchId,
     jobTitle: person.jobTitle,
     email: person.email,
     phone: person.phone,
@@ -469,6 +502,11 @@ export const inventoryStorage = {
   addCompany,
   updateCompany,
   deleteCompany,
+  getBranches,
+  getBranchesByCompany,
+  addBranch,
+  updateBranch,
+  deleteBranch,
   getPeople,
   getPersons,
   addPerson,
