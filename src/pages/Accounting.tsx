@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -135,16 +136,44 @@ const Accounting = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Key Metrics */}
+        {/* Key Metrics with Pie Charts */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Total Revenue with Paid/Unpaid pie */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">${totalRevenue.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">From {invoices.length} invoices</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-2xl font-bold text-green-600">${totalRevenue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">From {invoices.length} invoices</p>
+                </div>
+                {totalRevenue > 0 && (
+                  <div className="w-16 h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Paid', value: paidInvoicesValue },
+                            { name: 'Unpaid', value: unpaidInvoicesValue }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={12}
+                          outerRadius={28}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          <Cell fill="hsl(142, 76%, 36%)" />
+                          <Cell fill="hsl(0, 84%, 60%)" />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -172,6 +201,7 @@ const Accounting = () => {
             </CardContent>
           </Card>
 
+          {/* Total Expenses with Category pie */}
           <Card 
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => window.location.href = '/expenses'}
@@ -181,8 +211,33 @@ const Accounting = () => {
               <CreditCard className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">${totalExpenses.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">{expenses.length} expenses tracked</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-2xl font-bold text-orange-600">${totalExpenses.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">{expenses.length} expenses tracked</p>
+                </div>
+                {totalExpenses > 0 && (
+                  <div className="w-16 h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(expensesByCategory).map(([cat, val]) => ({ name: cat, value: val }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={12}
+                          outerRadius={28}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {Object.keys(expensesByCategory).map((_, index) => (
+                            <Cell key={index} fill={`hsl(${(index * 47) % 360}, 70%, 50%)`} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -211,25 +266,81 @@ const Accounting = () => {
             </CardContent>
           </Card>
 
+          {/* Shipping Revenue with pie showing vs total revenue */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Shipping Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Truck className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalShipping.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Shipping collected</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-2xl font-bold">${totalShipping.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">Shipping collected</p>
+                </div>
+                {(totalShipping > 0 || totalRevenue > 0) && (
+                  <div className="w-16 h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Shipping', value: totalShipping },
+                            { name: 'Product', value: totalRevenue - totalShipping }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={12}
+                          outerRadius={28}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          <Cell fill="hsl(217, 91%, 60%)" />
+                          <Cell fill="hsl(217, 91%, 80%)" />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
+          {/* Pending Quotes with pie showing pending vs approved */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending Quotes</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <FileText className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">{pendingQuotes.length} quotes</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-2xl font-bold">${pendingQuotesValue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">{pendingQuotes.length} quotes</p>
+                </div>
+                {(pendingQuotesValue > 0 || approvedQuotesValue > 0) && (
+                  <div className="w-16 h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Pending', value: pendingQuotesValue || 0.01 },
+                            { name: 'Approved', value: approvedQuotesValue }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={12}
+                          outerRadius={28}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          <Cell fill="hsl(45, 93%, 47%)" />
+                          <Cell fill="hsl(142, 76%, 36%)" />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
