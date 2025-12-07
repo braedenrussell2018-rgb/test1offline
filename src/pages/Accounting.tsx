@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -11,6 +10,7 @@ import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "
 import { getExpenses, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { FinancialReports } from "@/components/FinancialReports";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
