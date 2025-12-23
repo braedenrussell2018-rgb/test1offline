@@ -28,7 +28,7 @@ interface DuplicateResult {
 
 // Simple in-memory device registry (will reset on function cold start)
 // For production, you'd want to use a database table
-const deviceRegistry = new Map<string, { deviceName: string; lastSeen: Date; networkId: string }>();
+const deviceRegistry = new Map<string, { deviceName: string; lastSeen: Date; networkId: string; userId: string }>();
 
 function findDuplicates(incoming: any[], existing: any[], type: string, matchFields: string[]): DuplicateResult[] {
   const duplicates: DuplicateResult[] = [];
@@ -71,18 +71,40 @@ serve(async (req) => {
   }
 
   try {
-    // Use anon key for this public sync function
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+      console.error("Missing Supabase configuration");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
+
+    // Check for authorization header - if present, validate the user
+    const authHeader = req.headers.get("Authorization");
+    let userId: string | null = null;
+
+    if (authHeader) {
+      // Create client with user's token to verify auth
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await userClient.auth.getUser();
+      if (!authError && user) {
+        userId = user.id;
+        console.log("User authenticated:", userId);
+      } else {
+        console.log("Auth header present but invalid, proceeding as anonymous");
+      }
+    } else {
+      console.log("No auth header, proceeding as anonymous device sync");
+    }
+
+    // Use service role for data operations
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const payload: SyncPayload = await req.json();
@@ -98,7 +120,10 @@ serve(async (req) => {
           deviceName,
           lastSeen: new Date(),
           networkId,
+          userId: userId || "anonymous",
         });
+        
+        console.log(`Device registered: ${deviceId} (${deviceName}) by user: ${userId || "anonymous"}`);
         
         return new Response(
           JSON.stringify({ success: true, message: "Device registered" }),
@@ -124,6 +149,8 @@ serve(async (req) => {
           deviceRegistry.get(deviceId)!.lastSeen = now;
         }
 
+        console.log(`Device discovery: ${deviceId} found ${nearbyDevices.length} nearby devices`);
+
         return new Response(
           JSON.stringify({ devices: nearbyDevices }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -137,6 +164,8 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        console.log(`Sync request from device: ${deviceId}, user: ${userId || "anonymous"}`);
 
         const duplicates: DuplicateResult[] = [];
         const syncResults = {
@@ -177,6 +206,7 @@ serve(async (req) => {
 
         // If duplicates found, return them for user review
         if (duplicates.length > 0) {
+          console.log(`Found ${duplicates.length} duplicates for device: ${deviceId}`);
           return new Response(
             JSON.stringify({ 
               status: "duplicates_found",
@@ -205,6 +235,8 @@ serve(async (req) => {
           if (!error) syncResults.vendors.added = data.vendors.length;
         }
 
+        console.log(`Sync completed for device: ${deviceId}`, syncResults);
+
         return new Response(
           JSON.stringify({ 
             status: "synced",
@@ -217,6 +249,7 @@ serve(async (req) => {
 
       case "unregister": {
         deviceRegistry.delete(deviceId);
+        console.log(`Device unregistered: ${deviceId}`);
         return new Response(
           JSON.stringify({ success: true, message: "Device unregistered" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
