@@ -26,52 +26,59 @@ export function AppMenuBar() {
   };
 
   return (
-    <div className="border-b bg-card">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between gap-4">
-          <Menubar className="border-0 bg-transparent">
-            <MenubarMenu>
-              <NavLink to="/">
-                <MenubarTrigger className="cursor-pointer">Inventory</MenubarTrigger>
-              </NavLink>
-            </MenubarMenu>
-            <MenubarMenu>
-              <NavLink to="/crm">
-                <MenubarTrigger className="cursor-pointer">CRM</MenubarTrigger>
-              </NavLink>
-            </MenubarMenu>
-            <MenubarMenu>
-              <NavLink to="/accounting">
-                <MenubarTrigger className="cursor-pointer">Accounting</MenubarTrigger>
-              </NavLink>
-            </MenubarMenu>
-            <MenubarMenu>
-              <NavLink to="/sync">
-                <MenubarTrigger className="cursor-pointer flex items-center gap-1">
-                  <RefreshCw className="h-4 w-4" />
-                  Sync
-                </MenubarTrigger>
-              </NavLink>
-            </MenubarMenu>
-            <MenubarMenu>
-              <NavLink to="/install">
-                <MenubarTrigger className="cursor-pointer flex items-center gap-1">
-                  <Download className="h-4 w-4" />
-                  Install
-                </MenubarTrigger>
-              </NavLink>
-            </MenubarMenu>
-          </Menubar>
-          <div className="flex items-center gap-2">
-            <GlobalSearch />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+    <div className="w-full overflow-x-hidden">
+      {/* Dark navy banner */}
+      <div className="w-full h-8 bg-[hsl(220,60%,15%)]" />
+      
+      {/* Menu bar */}
+      <div className="border-b bg-card w-full">
+        <div className="px-2 sm:px-4 w-full">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <Menubar className="border-0 bg-transparent flex-wrap h-auto">
+              <MenubarMenu>
+                <NavLink to="/">
+                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Inventory</MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+              <MenubarMenu>
+                <NavLink to="/crm">
+                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">CRM</MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+              <MenubarMenu>
+                <NavLink to="/accounting">
+                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Accounting</MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+              <MenubarMenu>
+                <NavLink to="/sync">
+                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                    <RefreshCw className="h-5 w-5" strokeWidth={3} />
+                    Sync
+                  </MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+              <MenubarMenu>
+                <NavLink to="/install">
+                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                    <Download className="h-5 w-5" strokeWidth={3} />
+                    Install
+                  </MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+            </Menubar>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <GlobalSearch />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="px-2"
+              >
+                <LogOut className="h-5 w-5" strokeWidth={3} />
+                <span className="hidden sm:inline ml-2">Sign Out</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

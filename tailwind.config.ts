@@ -65,6 +65,7 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "navy-banner": "hsl(220, 60%, 15%)",
       },
       borderRadius: {
         lg: "var(--radius)",
