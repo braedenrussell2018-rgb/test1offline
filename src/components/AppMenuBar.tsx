@@ -2,7 +2,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut, RefreshCw } from "lucide-react";
+import { LogOut, RefreshCw, Download } from "lucide-react";
 import {
   Menubar,
   MenubarMenu,
@@ -50,6 +50,14 @@ export function AppMenuBar() {
                 <MenubarTrigger className="cursor-pointer flex items-center gap-1">
                   <RefreshCw className="h-4 w-4" />
                   Sync
+                </MenubarTrigger>
+              </NavLink>
+            </MenubarMenu>
+            <MenubarMenu>
+              <NavLink to="/install">
+                <MenubarTrigger className="cursor-pointer flex items-center gap-1">
+                  <Download className="h-4 w-4" />
+                  Install
                 </MenubarTrigger>
               </NavLink>
             </MenubarMenu>
