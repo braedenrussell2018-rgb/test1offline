@@ -2,7 +2,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 import {
   Menubar,
   MenubarMenu,
@@ -43,6 +43,14 @@ export function AppMenuBar() {
             <MenubarMenu>
               <NavLink to="/accounting">
                 <MenubarTrigger className="cursor-pointer">Accounting</MenubarTrigger>
+              </NavLink>
+            </MenubarMenu>
+            <MenubarMenu>
+              <NavLink to="/sync">
+                <MenubarTrigger className="cursor-pointer flex items-center gap-1">
+                  <RefreshCw className="h-4 w-4" />
+                  Sync
+                </MenubarTrigger>
               </NavLink>
             </MenubarMenu>
           </Menubar>
