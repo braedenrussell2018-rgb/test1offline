@@ -73,9 +73,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseAnonKey) {
       console.error("Missing Supabase configuration");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
@@ -83,29 +82,32 @@ serve(async (req) => {
       );
     }
 
-    // Check for authorization header - if present, validate the user
+    // SECURITY: Require authentication for all sync operations
     const authHeader = req.headers.get("Authorization");
-    let userId: string | null = null;
-
-    if (authHeader) {
-      // Create client with user's token to verify auth
-      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: authHeader } }
-      });
-
-      const { data: { user }, error: authError } = await userClient.auth.getUser();
-      if (!authError && user) {
-        userId = user.id;
-        console.log("User authenticated:", userId);
-      } else {
-        console.log("Auth header present but invalid, proceeding as anonymous");
-      }
-    } else {
-      console.log("No auth header, proceeding as anonymous device sync");
+    if (!authHeader) {
+      console.log("Sync request rejected: No authorization header");
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Use service role for data operations
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Create client with user's token to verify auth and use RLS
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      console.log("Sync request rejected: Invalid authentication token");
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = user.id;
+    console.log("User authenticated:", userId);
 
     const payload: SyncPayload = await req.json();
     const { action, deviceId, deviceName, data } = payload;
@@ -120,10 +122,10 @@ serve(async (req) => {
           deviceName,
           lastSeen: new Date(),
           networkId,
-          userId: userId || "anonymous",
+          userId,
         });
         
-        console.log(`Device registered: ${deviceId} (${deviceName}) by user: ${userId || "anonymous"}`);
+        console.log(`Device registered: ${deviceId} (${deviceName}) by user: ${userId}`);
         
         return new Response(
           JSON.stringify({ success: true, message: "Device registered" }),
@@ -132,14 +134,14 @@ serve(async (req) => {
       }
 
       case "discover": {
-        // Find devices on the same network
+        // Find devices on the same network AND same user (security: don't expose other users' devices)
         const nearbyDevices: { deviceId: string; deviceName: string }[] = [];
         const now = new Date();
         
         for (const [id, info] of deviceRegistry.entries()) {
-          // Only show devices on same network, active in last 5 minutes, and not self
+          // Only show devices on same network, same user, active in last 5 minutes, and not self
           const minutesAgo = (now.getTime() - info.lastSeen.getTime()) / 1000 / 60;
-          if (info.networkId === networkId && id !== deviceId && minutesAgo < 5) {
+          if (info.networkId === networkId && info.userId === userId && id !== deviceId && minutesAgo < 5) {
             nearbyDevices.push({ deviceId: id, deviceName: info.deviceName });
           }
         }
@@ -149,7 +151,7 @@ serve(async (req) => {
           deviceRegistry.get(deviceId)!.lastSeen = now;
         }
 
-        console.log(`Device discovery: ${deviceId} found ${nearbyDevices.length} nearby devices`);
+        console.log(`Device discovery: ${deviceId} found ${nearbyDevices.length} nearby devices for user: ${userId}`);
 
         return new Response(
           JSON.stringify({ devices: nearbyDevices }),
@@ -165,7 +167,7 @@ serve(async (req) => {
           );
         }
 
-        console.log(`Sync request from device: ${deviceId}, user: ${userId || "anonymous"}`);
+        console.log(`Sync request from device: ${deviceId}, user: ${userId}`);
 
         const duplicates: DuplicateResult[] = [];
         const syncResults = {
@@ -175,12 +177,13 @@ serve(async (req) => {
           vendors: { added: 0, updated: 0 },
         };
 
-        // Fetch existing data
+        // SECURITY: Use userClient (with RLS) instead of service role
+        // This ensures the user can only access data they're authorized to see
         const [companiesRes, peopleRes, itemsRes, vendorsRes] = await Promise.all([
-          supabaseClient.from("companies").select("*"),
-          supabaseClient.from("people").select("*"),
-          supabaseClient.from("items").select("*"),
-          supabaseClient.from("vendors").select("*"),
+          userClient.from("companies").select("*"),
+          userClient.from("people").select("*"),
+          userClient.from("items").select("*"),
+          userClient.from("vendors").select("*"),
         ]);
 
         const existingData = {
@@ -217,39 +220,66 @@ serve(async (req) => {
           );
         }
 
-        // No duplicates - proceed with upsert
+        // SECURITY: Sync only ADDS or UPDATES data - never deletes
+        // This prevents one user's deletion from affecting other users
+        // Deletions are handled locally and require explicit confirmation before sync
         if (data.companies?.length) {
-          const { error } = await supabaseClient.from("companies").upsert(data.companies, { onConflict: "id" });
-          if (!error) syncResults.companies.added = data.companies.length;
+          const { error } = await userClient.from("companies").upsert(data.companies, { onConflict: "id" });
+          if (error) {
+            console.error("Companies sync error:", error.message);
+          } else {
+            syncResults.companies.added = data.companies.length;
+          }
         }
         if (data.people?.length) {
-          const { error } = await supabaseClient.from("people").upsert(data.people, { onConflict: "id" });
-          if (!error) syncResults.people.added = data.people.length;
+          const { error } = await userClient.from("people").upsert(data.people, { onConflict: "id" });
+          if (error) {
+            console.error("People sync error:", error.message);
+          } else {
+            syncResults.people.added = data.people.length;
+          }
         }
         if (data.items?.length) {
-          const { error } = await supabaseClient.from("items").upsert(data.items, { onConflict: "id" });
-          if (!error) syncResults.items.added = data.items.length;
+          const { error } = await userClient.from("items").upsert(data.items, { onConflict: "id" });
+          if (error) {
+            console.error("Items sync error:", error.message);
+          } else {
+            syncResults.items.added = data.items.length;
+          }
         }
         if (data.vendors?.length) {
-          const { error } = await supabaseClient.from("vendors").upsert(data.vendors, { onConflict: "id" });
-          if (!error) syncResults.vendors.added = data.vendors.length;
+          const { error } = await userClient.from("vendors").upsert(data.vendors, { onConflict: "id" });
+          if (error) {
+            console.error("Vendors sync error:", error.message);
+          } else {
+            syncResults.vendors.added = data.vendors.length;
+          }
         }
 
-        console.log(`Sync completed for device: ${deviceId}`, syncResults);
+        console.log(`Sync completed for device: ${deviceId}, user: ${userId}`, syncResults);
 
         return new Response(
           JSON.stringify({ 
             status: "synced",
             results: syncResults,
-            message: "Data synced successfully"
+            message: "Data synced successfully. Note: Deletions are not synced to protect other users' data."
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       case "unregister": {
+        // Only allow unregistering own devices
+        const existingDevice = deviceRegistry.get(deviceId);
+        if (existingDevice && existingDevice.userId !== userId) {
+          return new Response(
+            JSON.stringify({ error: "Cannot unregister another user's device" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
         deviceRegistry.delete(deviceId);
-        console.log(`Device unregistered: ${deviceId}`);
+        console.log(`Device unregistered: ${deviceId} by user: ${userId}`);
         return new Response(
           JSON.stringify({ success: true, message: "Device unregistered" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

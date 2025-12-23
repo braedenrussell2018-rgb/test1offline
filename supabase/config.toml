@@ -1,4 +1,13 @@
 project_id = "eyuzakziwgkaogiqfhro"
 
 [functions.sync-data]
-verify_jwt = false
+verify_jwt = true
+
+[functions.generate-budget-forecast]
+verify_jwt = true
+
+[functions.scan-receipt]
+verify_jwt = true
+
+[functions.scan-business-card]
+verify_jwt = true
