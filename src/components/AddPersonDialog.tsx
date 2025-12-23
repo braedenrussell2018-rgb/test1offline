@@ -20,10 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Upload, X, Plus, Scan } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff } from "lucide-react";
 import { inventoryStorage, Note, Branch } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useBusinessCardScanner } from "@/hooks/useBusinessCardScanner";
 
 interface AddPersonDialogProps {
   onPersonAdded: () => void;
@@ -43,8 +44,8 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [businessCardPhoto, setBusinessCardPhoto] = useState<string>("");
   const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
-  const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
+  const { scanBusinessCard, isScanning, scanProgress, isOnline } = useBusinessCardScanner();
   const [companies, setCompanies] = useState<any[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [showNewBranchForm, setShowNewBranchForm] = useState(false);
@@ -128,25 +129,12 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       return;
     }
 
-    setIsScanning(true);
     try {
-      const { data, error } = await supabase.functions.invoke('scan-business-card', {
-        body: { imageData: businessCardPhoto }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      const { contactInfo } = data;
+      const result = await scanBusinessCard(businessCardPhoto);
       
       // Auto-fill the form fields
-      if (contactInfo.name) {
-        const nameParts = contactInfo.name.trim().split(/\s+/);
+      if (result.name) {
+        const nameParts = result.name.trim().split(/\s+/);
         if (nameParts.length > 0) {
           setFirstName(nameParts[0]);
           if (nameParts.length > 1) {
@@ -155,30 +143,32 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
         }
       }
       
-        if (contactInfo.company) {
+      if (result.company) {
         // Try to find existing company
         const companiesData = await inventoryStorage.getCompanies();
         const existingCompany = companiesData.find(
-          c => c.name.toLowerCase() === contactInfo.company.toLowerCase()
+          c => c.name.toLowerCase() === result.company!.toLowerCase()
         );
         
         if (existingCompany) {
           setCompanyId(existingCompany.id);
         } else {
           // Set up new company creation
-          setNewCompanyName(contactInfo.company);
+          setNewCompanyName(result.company);
           setShowNewCompanyForm(true);
         }
       }
       
-      if (contactInfo.jobTitle) setJobTitle(contactInfo.jobTitle);
-      if (contactInfo.email) setEmail(contactInfo.email);
-      if (contactInfo.phone) setPhone(contactInfo.phone);
-      if (contactInfo.address) setAddress(contactInfo.address);
+      if (result.jobTitle) setJobTitle(result.jobTitle);
+      if (result.email) setEmail(result.email);
+      if (result.phone) setPhone(result.phone);
+      if (result.address) setAddress(result.address);
 
       toast({
-        title: "Success",
-        description: "Business card scanned successfully!",
+        title: result.isAIEnhanced ? "Scan complete" : "Offline scan complete",
+        description: result.isAIEnhanced 
+          ? "Business card scanned with AI enhancement!" 
+          : "Basic text extracted. AI enhancement available when online.",
       });
     } catch (error) {
       console.error('Error scanning business card:', error);
@@ -187,8 +177,6 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
         description: error instanceof Error ? error.message : "Failed to scan business card",
         variant: "destructive",
       });
-    } finally {
-      setIsScanning(false);
     }
   };
 
@@ -578,7 +566,22 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="businessCard">Business Card Photo</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="businessCard">Business Card Photo</Label>
+                <div className="flex items-center gap-1 text-xs">
+                  {isOnline ? (
+                    <>
+                      <Wifi className="h-3 w-3 text-green-500" />
+                      <span className="text-muted-foreground">Online</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3 text-yellow-500" />
+                      <span className="text-muted-foreground">Offline</span>
+                    </>
+                  )}
+                </div>
+              </div>
               {businessCardPhoto ? (
                 <div className="space-y-2">
                   <div className="relative">
@@ -597,6 +600,14 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  {isScanning && scanProgress > 0 && (
+                    <div className="space-y-1">
+                      <Progress value={scanProgress} className="h-2" />
+                      <p className="text-xs text-muted-foreground text-center">
+                        Extracting text... {scanProgress}%
+                      </p>
+                    </div>
+                  )}
                   <Button
                     type="button"
                     variant="default"
@@ -605,8 +616,17 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                     disabled={isScanning}
                   >
                     <Scan className="mr-2 h-4 w-4" />
-                    {isScanning ? "Scanning..." : "Scan Business Card with AI"}
+                    {isScanning 
+                      ? "Scanning..." 
+                      : isOnline 
+                        ? "Scan with AI" 
+                        : "Scan Offline"}
                   </Button>
+                  {!isOnline && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Basic text extraction. AI enhancement when online.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full">
