@@ -26,6 +26,12 @@ interface DuplicateResult {
   field: string;
 }
 
+interface DeletionInfo {
+  type: string;
+  id: string;
+  name: string;
+}
+
 interface SyncData {
   companies?: any[];
   people?: any[];
@@ -70,6 +76,7 @@ export function useDeviceSync() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateResult[]>([]);
+  const [deletedByOthers, setDeletedByOthers] = useState<DeletionInfo[]>([]);
   const [pendingData, setPendingData] = useState<SyncData | null>(null);
   const [online, setOnline] = useState(isOnline());
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -254,6 +261,7 @@ export function useDeviceSync() {
 
     setIsSyncing(true);
     setDuplicates([]);
+    setDeletedByOthers([]);
     
     try {
       const data = dataToSync || await fetchLocalData();
@@ -267,9 +275,20 @@ export function useDeviceSync() {
 
       if (result.status === "duplicates_found") {
         setDuplicates(result.duplicates);
+        if (result.deletedByOthers?.length) {
+          setDeletedByOthers(result.deletedByOthers);
+        }
         setPendingData(data);
         toast.warning(`Found ${result.duplicates.length} potential duplicate(s)`);
-        return { status: "duplicates", duplicates: result.duplicates };
+        return { status: "duplicates", duplicates: result.duplicates, deletedByOthers: result.deletedByOthers };
+      }
+
+      if (result.status === "synced_with_deletions") {
+        setDeletedByOthers(result.deletedByOthers || []);
+        toast.info(`Sync complete. ${result.deletedByOthers?.length || 0} item(s) were deleted by another user.`);
+        // Cache the synced data locally
+        await cacheDataForOffline();
+        return { status: "synced_with_deletions", results: result.results, deletedByOthers: result.deletedByOthers };
       }
 
       // Cache the synced data locally
@@ -285,6 +304,62 @@ export function useDeviceSync() {
       setIsSyncing(false);
     }
   }, [deviceId, deviceName, online, cacheDataForOffline]);
+
+  const confirmDeletions = useCallback(async (idsToDelete: DeletionInfo[]) => {
+    if (!online) {
+      toast.error("You're offline. Cannot confirm deletions.");
+      return false;
+    }
+
+    try {
+      // Group by type
+      const deletionIds: { companies?: string[]; people?: string[]; items?: string[]; vendors?: string[] } = {};
+      
+      for (const item of idsToDelete) {
+        if (item.type === "company") {
+          if (!deletionIds.companies) deletionIds.companies = [];
+          deletionIds.companies.push(item.id);
+        } else if (item.type === "person") {
+          if (!deletionIds.people) deletionIds.people = [];
+          deletionIds.people.push(item.id);
+        } else if (item.type === "item") {
+          if (!deletionIds.items) deletionIds.items = [];
+          deletionIds.items.push(item.id);
+        } else if (item.type === "vendor") {
+          if (!deletionIds.vendors) deletionIds.vendors = [];
+          deletionIds.vendors.push(item.id);
+        }
+      }
+
+      // Notify the server
+      await callSyncFunction({
+        action: "confirm_deletions",
+        deviceId,
+        deviceName,
+        deletionIds,
+      });
+
+      // Remove from local offline storage
+      // The items won't be re-uploaded on next sync since they're no longer in local data
+      setDeletedByOthers([]);
+      
+      // Refresh cache to remove deleted items
+      await cacheDataForOffline();
+
+      toast.success(`${idsToDelete.length} item(s) removed from your local data.`);
+      return true;
+    } catch (error) {
+      console.error("Failed to confirm deletions:", error);
+      toast.error("Failed to process deletions.");
+      return false;
+    }
+  }, [deviceId, deviceName, online, cacheDataForOffline]);
+
+  const dismissDeletions = useCallback(() => {
+    // User chooses to keep their local copies - do nothing, just clear the list
+    setDeletedByOthers([]);
+    toast.info("Keeping your local copies. They may be re-uploaded on next sync.");
+  }, []);
 
   const resolveDuplicate = useCallback((index: number, action: "keep_existing" | "keep_incoming" | "keep_both") => {
     setDuplicates(prev => {
@@ -385,10 +460,13 @@ export function useDeviceSync() {
     isSyncing,
     isCaching,
     duplicates,
+    deletedByOthers,
     discoverDevices,
     syncData,
     resolveDuplicate,
     confirmSync,
+    confirmDeletions,
+    dismissDeletions,
     online,
     lastSync,
     pendingChanges,

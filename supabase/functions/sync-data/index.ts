@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 interface SyncPayload {
-  action: "register" | "discover" | "sync" | "unregister";
+  action: "register" | "discover" | "sync" | "unregister" | "confirm_deletions";
   deviceId: string;
   deviceName: string;
   data?: {
@@ -17,6 +17,12 @@ interface SyncPayload {
     items?: any[];
     vendors?: any[];
   };
+  deletionIds?: {
+    companies?: string[];
+    people?: string[];
+    items?: string[];
+    vendors?: string[];
+  };
 }
 
 interface DuplicateResult {
@@ -24,6 +30,13 @@ interface DuplicateResult {
   incoming: any;
   existing: any;
   field: string;
+}
+
+interface DeletionInfo {
+  type: string;
+  id: string;
+  name: string;
+  deletedAt?: string;
 }
 
 // Simple in-memory device registry (will reset on function cold start)
@@ -110,7 +123,7 @@ serve(async (req) => {
     console.log("User authenticated:", userId);
 
     const payload: SyncPayload = await req.json();
-    const { action, deviceId, deviceName, data } = payload;
+    const { action, deviceId, deviceName, data, deletionIds } = payload;
 
     // Get network identifier from request (simplified - uses IP-based grouping)
     const clientIP = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
@@ -170,6 +183,7 @@ serve(async (req) => {
         console.log(`Sync request from device: ${deviceId}, user: ${userId}`);
 
         const duplicates: DuplicateResult[] = [];
+        const deletedByOthers: DeletionInfo[] = [];
         const syncResults = {
           companies: { added: 0, updated: 0 },
           people: { added: 0, updated: 0 },
@@ -193,6 +207,58 @@ serve(async (req) => {
           vendors: vendorsRes.data || [],
         };
 
+        // Detect items that exist locally but not in the database (deleted by others)
+        const existingCompanyIds = new Set(existingData.companies.map((c: any) => c.id));
+        const existingPeopleIds = new Set(existingData.people.map((p: any) => p.id));
+        const existingItemIds = new Set(existingData.items.map((i: any) => i.id));
+        const existingVendorIds = new Set(existingData.vendors.map((v: any) => v.id));
+
+        // Check what the user has locally that no longer exists in the database
+        if (data.companies?.length) {
+          for (const company of data.companies) {
+            if (!existingCompanyIds.has(company.id)) {
+              deletedByOthers.push({
+                type: "company",
+                id: company.id,
+                name: company.name || "Unknown Company",
+              });
+            }
+          }
+        }
+        if (data.people?.length) {
+          for (const person of data.people) {
+            if (!existingPeopleIds.has(person.id)) {
+              deletedByOthers.push({
+                type: "person",
+                id: person.id,
+                name: person.name || "Unknown Person",
+              });
+            }
+          }
+        }
+        if (data.items?.length) {
+          for (const item of data.items) {
+            if (!existingItemIds.has(item.id)) {
+              deletedByOthers.push({
+                type: "item",
+                id: item.id,
+                name: item.description || item.part_number || "Unknown Item",
+              });
+            }
+          }
+        }
+        if (data.vendors?.length) {
+          for (const vendor of data.vendors) {
+            if (!existingVendorIds.has(vendor.id)) {
+              deletedByOthers.push({
+                type: "vendor",
+                id: vendor.id,
+                name: vendor.name || "Unknown Vendor",
+              });
+            }
+          }
+        }
+
         // Check for duplicates
         if (data.companies?.length) {
           duplicates.push(...findDuplicates(data.companies, existingData.companies, "company", ["name"]));
@@ -214,6 +280,7 @@ serve(async (req) => {
             JSON.stringify({ 
               status: "duplicates_found",
               duplicates,
+              deletedByOthers,
               message: `Found ${duplicates.length} potential duplicate(s). Please review.`
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -221,48 +288,85 @@ serve(async (req) => {
         }
 
         // SECURITY: Sync only ADDS or UPDATES data - never deletes
-        // This prevents one user's deletion from affecting other users
-        // Deletions are handled locally and require explicit confirmation before sync
-        if (data.companies?.length) {
-          const { error } = await userClient.from("companies").upsert(data.companies, { onConflict: "id" });
+        // Filter out items that were deleted by others (don't re-create them)
+        const deletedCompanyIds = new Set(deletedByOthers.filter(d => d.type === "company").map(d => d.id));
+        const deletedPeopleIds = new Set(deletedByOthers.filter(d => d.type === "person").map(d => d.id));
+        const deletedItemIds = new Set(deletedByOthers.filter(d => d.type === "item").map(d => d.id));
+        const deletedVendorIds = new Set(deletedByOthers.filter(d => d.type === "vendor").map(d => d.id));
+
+        const companiesToSync = data.companies?.filter((c: any) => !deletedCompanyIds.has(c.id)) || [];
+        const peopleToSync = data.people?.filter((p: any) => !deletedPeopleIds.has(p.id)) || [];
+        const itemsToSync = data.items?.filter((i: any) => !deletedItemIds.has(i.id)) || [];
+        const vendorsToSync = data.vendors?.filter((v: any) => !deletedVendorIds.has(v.id)) || [];
+
+        if (companiesToSync.length) {
+          const { error } = await userClient.from("companies").upsert(companiesToSync, { onConflict: "id" });
           if (error) {
             console.error("Companies sync error:", error.message);
           } else {
-            syncResults.companies.added = data.companies.length;
+            syncResults.companies.added = companiesToSync.length;
           }
         }
-        if (data.people?.length) {
-          const { error } = await userClient.from("people").upsert(data.people, { onConflict: "id" });
+        if (peopleToSync.length) {
+          const { error } = await userClient.from("people").upsert(peopleToSync, { onConflict: "id" });
           if (error) {
             console.error("People sync error:", error.message);
           } else {
-            syncResults.people.added = data.people.length;
+            syncResults.people.added = peopleToSync.length;
           }
         }
-        if (data.items?.length) {
-          const { error } = await userClient.from("items").upsert(data.items, { onConflict: "id" });
+        if (itemsToSync.length) {
+          const { error } = await userClient.from("items").upsert(itemsToSync, { onConflict: "id" });
           if (error) {
             console.error("Items sync error:", error.message);
           } else {
-            syncResults.items.added = data.items.length;
+            syncResults.items.added = itemsToSync.length;
           }
         }
-        if (data.vendors?.length) {
-          const { error } = await userClient.from("vendors").upsert(data.vendors, { onConflict: "id" });
+        if (vendorsToSync.length) {
+          const { error } = await userClient.from("vendors").upsert(vendorsToSync, { onConflict: "id" });
           if (error) {
             console.error("Vendors sync error:", error.message);
           } else {
-            syncResults.vendors.added = data.vendors.length;
+            syncResults.vendors.added = vendorsToSync.length;
           }
         }
 
         console.log(`Sync completed for device: ${deviceId}, user: ${userId}`, syncResults);
 
+        // If there are items deleted by others, inform the user
+        if (deletedByOthers.length > 0) {
+          return new Response(
+            JSON.stringify({ 
+              status: "synced_with_deletions",
+              results: syncResults,
+              deletedByOthers,
+              message: `Data synced. ${deletedByOthers.length} item(s) were deleted by another user. Review them below.`
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ 
             status: "synced",
             results: syncResults,
-            message: "Data synced successfully. Note: Deletions are not synced to protect other users' data."
+            message: "Data synced successfully."
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      case "confirm_deletions": {
+        // User has confirmed they want to delete these items locally
+        // This action just acknowledges the deletion confirmation
+        // The actual local deletion happens on the client side
+        console.log(`User ${userId} confirmed deletions for device: ${deviceId}`, deletionIds);
+        
+        return new Response(
+          JSON.stringify({ 
+            status: "deletions_confirmed",
+            message: "Deletions confirmed. You can now remove these items from your local data."
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

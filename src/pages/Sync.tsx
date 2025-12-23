@@ -19,7 +19,9 @@ import {
   Edit2,
   Download,
   Clock,
-  CloudOff
+  CloudOff,
+  Trash2,
+  ShieldAlert
 } from "lucide-react";
 
 export default function Sync() {
@@ -32,10 +34,13 @@ export default function Sync() {
     isSyncing,
     isCaching,
     duplicates,
+    deletedByOthers,
     discoverDevices,
     syncData,
     resolveDuplicate,
     confirmSync,
+    confirmDeletions,
+    dismissDeletions,
     online,
     lastSync,
     pendingChanges,
@@ -357,6 +362,62 @@ export default function Sync() {
                   : "Confirm Sync"
                 }
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Deleted by Others Review */}
+        {deletedByOthers.length > 0 && (
+          <Card className="border-red-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <ShieldAlert className="h-5 w-5" />
+                Items Deleted by Others ({deletedByOthers.length})
+              </CardTitle>
+              <CardDescription>
+                These items were deleted by another user. Choose what to do with your local copies.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[250px] pr-4">
+                <div className="space-y-2">
+                  {deletedByOthers.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <div>
+                          <span className="font-medium">{item.name}</span>
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {item.type}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <Separator className="my-4" />
+
+              <div className="flex gap-2">
+                <Button 
+                  className="flex-1" 
+                  variant="destructive"
+                  onClick={() => confirmDeletions(deletedByOthers)}
+                  disabled={isSyncing}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete My Copies Too
+                </Button>
+                <Button 
+                  className="flex-1" 
+                  variant="outline"
+                  onClick={dismissDeletions}
+                  disabled={isSyncing}
+                >
+                  Keep My Copies
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
