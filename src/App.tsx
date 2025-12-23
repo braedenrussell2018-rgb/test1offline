@@ -13,6 +13,7 @@ import Expenses from "./pages/Expenses";
 import CRM from "./pages/CRM";
 import Accounting from "./pages/Accounting";
 import Auth from "./pages/Auth";
+import Sync from "./pages/Sync";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/sold-items" element={<ProtectedRoute><SoldItems /></ProtectedRoute>} />
             <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
             <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
+            <Route path="/sync" element={<ProtectedRoute><Sync /></ProtectedRoute>} />
             <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
