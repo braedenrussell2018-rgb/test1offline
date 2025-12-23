@@ -10,12 +10,16 @@ import {
   Smartphone, 
   RefreshCw, 
   Wifi, 
+  WifiOff,
   Check, 
   X, 
   AlertTriangle,
   ArrowLeftRight,
   Loader2,
-  Edit2
+  Edit2,
+  Download,
+  Clock,
+  CloudOff
 } from "lucide-react";
 
 export default function Sync() {
@@ -26,24 +30,67 @@ export default function Sync() {
     nearbyDevices,
     isDiscovering,
     isSyncing,
+    isCaching,
     duplicates,
     discoverDevices,
     syncData,
     resolveDuplicate,
     confirmSync,
+    online,
+    lastSync,
+    pendingChanges,
+    cacheDataForOffline,
   } = useDeviceSync();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(deviceName);
 
   const handleSaveName = () => {
-    updateDeviceName(tempName);
+    if (tempName.trim()) {
+      updateDeviceName(tempName.trim());
+    }
     setIsEditingName(false);
+  };
+
+  const formatLastSync = (dateString: string | null) => {
+    if (!dateString) return "Never";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch {
+      return "Unknown";
+    }
   };
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-2xl">
       <div className="space-y-6">
+        {/* Connection Status */}
+        <Card className={online ? "border-green-500/50" : "border-destructive/50"}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {online ? (
+                  <>
+                    <Wifi className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-green-600">Online</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-5 w-5 text-destructive" />
+                    <span className="font-medium text-destructive">Offline</span>
+                  </>
+                )}
+              </div>
+              {pendingChanges > 0 && (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                  {pendingChanges} pending change{pendingChanges > 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* This Device */}
         <Card>
           <CardHeader>
@@ -64,18 +111,26 @@ export default function Sync() {
                     onChange={(e) => setTempName(e.target.value)}
                     className="flex-1"
                     placeholder="Device name"
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                    autoFocus
                   />
                   <Button size="sm" onClick={handleSaveName}>
                     <Check className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setIsEditingName(false)}>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    setTempName(deviceName);
+                    setIsEditingName(false);
+                  }}>
                     <X className="h-4 w-4" />
                   </Button>
                 </>
               ) : (
                 <>
                   <span className="font-medium text-lg">{deviceName}</span>
-                  <Button size="sm" variant="ghost" onClick={() => setIsEditingName(true)}>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setTempName(deviceName);
+                    setIsEditingName(true);
+                  }}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
                 </>
@@ -84,6 +139,50 @@ export default function Sync() {
             <p className="text-xs text-muted-foreground font-mono">
               ID: {deviceId.slice(0, 20)}...
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Offline Cache */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Offline Data
+            </CardTitle>
+            <CardDescription>
+              Cache data for offline use
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>Last cached: {formatLastSync(lastSync)}</span>
+              </div>
+            </div>
+            <Button 
+              className="w-full" 
+              variant="outline"
+              onClick={cacheDataForOffline}
+              disabled={isCaching || !online}
+            >
+              {isCaching ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Caching...
+                </>
+              ) : !online ? (
+                <>
+                  <CloudOff className="h-4 w-4 mr-2" />
+                  Offline - Cannot Cache
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Data for Offline
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 
@@ -104,7 +203,7 @@ export default function Sync() {
                 variant="outline" 
                 size="sm" 
                 onClick={discoverDevices}
-                disabled={isDiscovering}
+                disabled={isDiscovering || !online}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isDiscovering ? "animate-spin" : ""}`} />
                 Scan
@@ -112,7 +211,13 @@ export default function Sync() {
             </div>
           </CardHeader>
           <CardContent>
-            {nearbyDevices.length === 0 ? (
+            {!online ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <WifiOff className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p>You're offline</p>
+                <p className="text-sm mt-1">Connect to a network to discover devices</p>
+              </div>
+            ) : nearbyDevices.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Wifi className="h-12 w-12 mx-auto mb-4 opacity-30" />
                 <p>No devices found on this network</p>
@@ -153,12 +258,17 @@ export default function Sync() {
               className="w-full" 
               size="lg"
               onClick={() => syncData()}
-              disabled={isSyncing}
+              disabled={isSyncing || !online}
             >
               {isSyncing ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   Syncing...
+                </>
+              ) : !online ? (
+                <>
+                  <CloudOff className="h-5 w-5 mr-2" />
+                  Offline - Cannot Sync
                 </>
               ) : (
                 <>
@@ -172,9 +282,9 @@ export default function Sync() {
 
         {/* Duplicates Review */}
         {duplicates.length > 0 && (
-          <Card className="border-warning">
+          <Card className="border-amber-500">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-warning">
+              <CardTitle className="flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-5 w-5" />
                 Duplicates Found ({duplicates.length})
               </CardTitle>

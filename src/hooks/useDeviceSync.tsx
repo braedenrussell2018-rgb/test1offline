@@ -1,6 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  initOfflineDB,
+  saveToOffline,
+  getFromOffline,
+  cacheAllData,
+  getSyncQueue,
+  clearSyncQueue,
+  setMetadata,
+  getMetadata,
+  isOnline,
+  onConnectionChange,
+} from "@/lib/offline-storage";
 
 interface Device {
   deviceId: string;
@@ -23,23 +35,32 @@ interface SyncData {
 
 // Generate or retrieve device ID
 const getDeviceId = (): string => {
-  let deviceId = localStorage.getItem("device_sync_id");
-  if (!deviceId) {
-    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem("device_sync_id", deviceId);
+  try {
+    let deviceId = localStorage.getItem("device_sync_id");
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("device_sync_id", deviceId);
+    }
+    return deviceId;
+  } catch (e) {
+    // Fallback if localStorage is not available
+    return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-  return deviceId;
 };
 
 // Generate device name
 const getDeviceName = (): string => {
-  let deviceName = localStorage.getItem("device_sync_name");
-  if (!deviceName) {
-    const platform = /iPad|iPhone|iPod/.test(navigator.userAgent) ? "iOS Device" : "Device";
-    deviceName = `${platform} ${Date.now().toString(36).toUpperCase().slice(-4)}`;
-    localStorage.setItem("device_sync_name", deviceName);
+  try {
+    let deviceName = localStorage.getItem("device_sync_name");
+    if (!deviceName) {
+      const platform = /iPad|iPhone|iPod/.test(navigator.userAgent) ? "iOS Device" : "Device";
+      deviceName = `${platform} ${Date.now().toString(36).toUpperCase().slice(-4)}`;
+      localStorage.setItem("device_sync_name", deviceName);
+    }
+    return deviceName;
+  } catch (e) {
+    return "Unknown Device";
   }
-  return deviceName;
 };
 
 export function useDeviceSync() {
@@ -50,16 +71,81 @@ export function useDeviceSync() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateResult[]>([]);
   const [pendingData, setPendingData] = useState<SyncData | null>(null);
+  const [online, setOnline] = useState(isOnline());
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [pendingChanges, setPendingChanges] = useState(0);
+  const [isCaching, setIsCaching] = useState(false);
+
+  // Initialize offline DB on mount
+  useEffect(() => {
+    initOfflineDB().catch((err) => {
+      console.error("Failed to initialize offline DB:", err);
+    });
+
+    // Load last sync time
+    getMetadata<string>("lastSync").then(setLastSync).catch(console.error);
+
+    // Load pending changes count
+    getSyncQueue().then((queue) => setPendingChanges(queue.length)).catch(console.error);
+
+    // Listen for connection changes
+    const unsubscribe = onConnectionChange((isOnline) => {
+      setOnline(isOnline);
+      if (isOnline) {
+        toast.success("Back online!");
+        // Auto-sync pending changes when coming back online
+        processPendingChanges();
+      } else {
+        toast.warning("You're offline. Changes will be saved locally.");
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const processPendingChanges = async () => {
+    try {
+      const queue = await getSyncQueue();
+      if (queue.length === 0) return;
+
+      for (const item of queue) {
+        try {
+          if (item.action === "insert" || item.action === "update") {
+            await supabase.from(item.store).upsert(item.data, { onConflict: "id" });
+          } else if (item.action === "delete") {
+            await supabase.from(item.store).delete().eq("id", item.data.id);
+          }
+        } catch (err) {
+          console.error(`Failed to sync item ${item.id}:`, err);
+        }
+      }
+
+      await clearSyncQueue();
+      setPendingChanges(0);
+      toast.success("Pending changes synced!");
+    } catch (err) {
+      console.error("Failed to process pending changes:", err);
+    }
+  };
 
   const callSyncFunction = async (payload: any) => {
-    const { data, error } = await supabase.functions.invoke("sync-data", {
-      body: payload,
-    });
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-data", {
+        body: payload,
+      });
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
+      return data;
+    } catch (err) {
+      console.error("Failed to call sync function:", err);
+      throw err;
+    }
   };
 
   const register = useCallback(async () => {
+    if (!online) return;
     try {
       await callSyncFunction({
         action: "register",
@@ -69,9 +155,10 @@ export function useDeviceSync() {
     } catch (error) {
       console.error("Failed to register device:", error);
     }
-  }, [deviceId, deviceName]);
+  }, [deviceId, deviceName, online]);
 
   const unregister = useCallback(async () => {
+    if (!online) return;
     try {
       await callSyncFunction({
         action: "unregister",
@@ -81,9 +168,14 @@ export function useDeviceSync() {
     } catch (error) {
       console.error("Failed to unregister device:", error);
     }
-  }, [deviceId, deviceName]);
+  }, [deviceId, deviceName, online]);
 
   const discoverDevices = useCallback(async () => {
+    if (!online) {
+      toast.error("You're offline. Cannot discover devices.");
+      return;
+    }
+
     setIsDiscovering(true);
     try {
       const result = await callSyncFunction({
@@ -94,29 +186,72 @@ export function useDeviceSync() {
       setNearbyDevices(result.devices || []);
     } catch (error) {
       console.error("Failed to discover devices:", error);
-      toast.error("Failed to discover nearby devices");
+      // Don't show toast for every discovery failure
     } finally {
       setIsDiscovering(false);
     }
-  }, [deviceId, deviceName]);
+  }, [deviceId, deviceName, online]);
 
   const fetchLocalData = async (): Promise<SyncData> => {
+    // Try to get data from Supabase first, fall back to offline storage
+    if (online) {
+      try {
+        const [companies, people, items, vendors] = await Promise.all([
+          supabase.from("companies").select("*"),
+          supabase.from("people").select("*"),
+          supabase.from("items").select("*"),
+          supabase.from("vendors").select("*"),
+        ]);
+
+        return {
+          companies: companies.data || [],
+          people: people.data || [],
+          items: items.data || [],
+          vendors: vendors.data || [],
+        };
+      } catch (err) {
+        console.error("Failed to fetch from Supabase, using offline data:", err);
+      }
+    }
+
+    // Fall back to offline storage
     const [companies, people, items, vendors] = await Promise.all([
-      supabase.from("companies").select("*"),
-      supabase.from("people").select("*"),
-      supabase.from("items").select("*"),
-      supabase.from("vendors").select("*"),
+      getFromOffline("companies"),
+      getFromOffline("people"),
+      getFromOffline("items"),
+      getFromOffline("vendors"),
     ]);
 
-    return {
-      companies: companies.data || [],
-      people: people.data || [],
-      items: items.data || [],
-      vendors: vendors.data || [],
-    };
+    return { companies, people, items, vendors };
   };
 
+  const cacheDataForOffline = useCallback(async () => {
+    setIsCaching(true);
+    try {
+      const result = await cacheAllData(supabase);
+      if (result.success) {
+        setLastSync(new Date().toISOString());
+        toast.success("Data cached for offline use!");
+        return true;
+      } else {
+        toast.error("Failed to cache data: " + result.error);
+        return false;
+      }
+    } catch (err) {
+      console.error("Failed to cache data:", err);
+      toast.error("Failed to cache data for offline use");
+      return false;
+    } finally {
+      setIsCaching(false);
+    }
+  }, []);
+
   const syncData = useCallback(async (dataToSync?: SyncData) => {
+    if (!online) {
+      toast.error("You're offline. Cannot sync to other devices.");
+      return { status: "offline" };
+    }
+
     setIsSyncing(true);
     setDuplicates([]);
     
@@ -137,16 +272,19 @@ export function useDeviceSync() {
         return { status: "duplicates", duplicates: result.duplicates };
       }
 
+      // Cache the synced data locally
+      await cacheDataForOffline();
+
       toast.success("Data synced successfully!");
       return { status: "success", results: result.results };
     } catch (error) {
       console.error("Sync failed:", error);
-      toast.error("Failed to sync data");
+      toast.error("Failed to sync data. Please try again.");
       return { status: "error", error };
     } finally {
       setIsSyncing(false);
     }
-  }, [deviceId, deviceName]);
+  }, [deviceId, deviceName, online, cacheDataForOffline]);
 
   const resolveDuplicate = useCallback((index: number, action: "keep_existing" | "keep_incoming" | "keep_both") => {
     setDuplicates(prev => {
@@ -159,35 +297,42 @@ export function useDeviceSync() {
       // Data will be synced with the incoming version
     } else if (action === "keep_existing") {
       // Remove the incoming item from pending data
-      // This is a simplified version - in production you'd filter by ID
     }
-    // keep_both - both records stay, no action needed
+    // keep_both - both records stay
   }, [pendingData]);
 
   const confirmSync = useCallback(async () => {
     if (!pendingData) return;
+    if (!online) {
+      toast.error("You're offline. Cannot complete sync.");
+      return;
+    }
     
-    // Clear duplicates and force sync
     setDuplicates([]);
-    
-    // For now, we'll do a simple upsert ignoring duplicates
     setIsSyncing(true);
+    
     try {
       const data = pendingData;
       
       // Upsert all data
+      const promises = [];
       if (data.companies?.length) {
-        await supabase.from("companies").upsert(data.companies, { onConflict: "id" });
+        promises.push(supabase.from("companies").upsert(data.companies, { onConflict: "id" }));
       }
       if (data.people?.length) {
-        await supabase.from("people").upsert(data.people, { onConflict: "id" });
+        promises.push(supabase.from("people").upsert(data.people, { onConflict: "id" }));
       }
       if (data.items?.length) {
-        await supabase.from("items").upsert(data.items, { onConflict: "id" });
+        promises.push(supabase.from("items").upsert(data.items, { onConflict: "id" }));
       }
       if (data.vendors?.length) {
-        await supabase.from("vendors").upsert(data.vendors, { onConflict: "id" });
+        promises.push(supabase.from("vendors").upsert(data.vendors, { onConflict: "id" }));
       }
+
+      await Promise.all(promises);
+
+      // Cache the synced data locally
+      await cacheDataForOffline();
 
       toast.success("Data synced successfully!");
       setPendingData(null);
@@ -197,29 +342,39 @@ export function useDeviceSync() {
     } finally {
       setIsSyncing(false);
     }
-  }, [pendingData]);
+  }, [pendingData, online, cacheDataForOffline]);
 
   const updateDeviceName = useCallback((newName: string) => {
     setDeviceName(newName);
-    localStorage.setItem("device_sync_name", newName);
+    try {
+      localStorage.setItem("device_sync_name", newName);
+    } catch (e) {
+      console.error("Failed to save device name:", e);
+    }
   }, []);
 
   // Register on mount, unregister on unmount
   useEffect(() => {
-    register();
+    if (online) {
+      register();
+    }
     return () => {
-      unregister();
+      if (online) {
+        unregister();
+      }
     };
-  }, [register, unregister]);
+  }, [register, unregister, online]);
 
-  // Periodic discovery while on sync page
+  // Periodic discovery while on sync page (only when online)
   useEffect(() => {
+    if (!online) return;
+
     const interval = setInterval(() => {
       discoverDevices();
-    }, 10000); // Every 10 seconds
+    }, 15000); // Every 15 seconds
 
     return () => clearInterval(interval);
-  }, [discoverDevices]);
+  }, [discoverDevices, online]);
 
   return {
     deviceId,
@@ -228,10 +383,15 @@ export function useDeviceSync() {
     nearbyDevices,
     isDiscovering,
     isSyncing,
+    isCaching,
     duplicates,
     discoverDevices,
     syncData,
     resolveDuplicate,
     confirmSync,
+    online,
+    lastSync,
+    pendingChanges,
+    cacheDataForOffline,
   };
 }
