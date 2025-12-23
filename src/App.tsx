@@ -14,6 +14,7 @@ import CRM from "./pages/CRM";
 import Accounting from "./pages/Accounting";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,7 +35,9 @@ const App = () => (
             <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
             <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
             <Route path="/sync" element={<ProtectedRoute><Sync /></ProtectedRoute>} />
+            <Route path="/install" element={<Install />} />
             <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
