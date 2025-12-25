@@ -12,6 +12,7 @@ import { QuotePDFPreview } from "@/components/QuotePDFPreview";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { AssignSalesmanDialog } from "@/components/AssignSalesmanDialog";
 import { MergeDuplicatesDialog } from "@/components/MergeDuplicatesDialog";
+import { ContactsMapDialog } from "@/components/ContactsMapDialog";
 import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
 
 const CRM = () => {
@@ -231,6 +232,11 @@ const CRM = () => {
             <Users className="mr-2 h-4 w-4" />
             Find Duplicates
           </Button>
+          <ContactsMapDialog 
+            companies={companies} 
+            persons={persons} 
+            onRefresh={handleRefresh} 
+          />
         </div>
 
         {/* Tabs */}
