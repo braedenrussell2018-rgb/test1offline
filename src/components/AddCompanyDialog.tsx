@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,9 +23,10 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name.trim()) {
@@ -37,17 +38,37 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
       return;
     }
 
-    inventoryStorage.addCompany(name, address);
-    
-    toast({
-      title: "Success",
-      description: "Company added successfully",
-    });
-    
-    setName("");
-    setAddress("");
-    setOpen(false);
-    onCompanyAdded();
+    if (!address.trim()) {
+      toast({
+        title: "Error",
+        description: "Address is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await inventoryStorage.addCompany(name, address);
+      
+      toast({
+        title: "Success",
+        description: "Company added successfully",
+      });
+      
+      setName("");
+      setAddress("");
+      setOpen(false);
+      onCompanyAdded();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add company",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,17 +98,23 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">Address *</Label>
               <Input
                 id="address"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="123 Main St, City, State, ZIP"
               />
+              <p className="text-xs text-muted-foreground">
+                Enter a complete street address for map display
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit">Add Company</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Company
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

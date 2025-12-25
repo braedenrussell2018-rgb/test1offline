@@ -9,13 +9,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MapPin, Building2, User, X, Loader2, AlertCircle } from "lucide-react";
 import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ContactsMapDialogProps {
   companies: Company[];
@@ -31,14 +32,13 @@ interface GeocodedLocation {
   persons: Person[];
 }
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
-
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [locations, setLocations] = useState<GeocodedLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeocodedLocation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -49,13 +49,29 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     return company?.name || "Unknown Company";
   }, [companies]);
 
+  // Fetch Mapbox token from edge function
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
+        if (error) throw error;
+        setMapboxToken(data?.token || null);
+      } catch (err) {
+        console.error('Failed to fetch Mapbox token:', err);
+        setMapboxToken(null);
+      } finally {
+        setTokenLoading(false);
+      }
+    };
+    fetchToken();
+  }, []);
+
   // Geocode addresses when dialog opens
   useEffect(() => {
-    if (!open || !MAPBOX_TOKEN) return;
+    if (!open || !mapboxToken) return;
 
     const geocodeAddresses = async () => {
       setIsLoading(true);
-      setError(null);
       
       // Collect all unique addresses
       const addressMap = new Map<string, { companies: Company[]; persons: Person[] }>();
@@ -91,7 +107,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
       for (const [address, data] of addressMap) {
         try {
           const response = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxToken}&limit=1`
           );
           const result = await response.json();
           
@@ -115,11 +131,11 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     };
 
     geocodeAddresses();
-  }, [open, companies, persons]);
+  }, [open, companies, persons, mapboxToken]);
 
   // Initialize map when locations are ready
   useEffect(() => {
-    if (!open || !mapContainer.current || !MAPBOX_TOKEN || locations.length === 0) return;
+    if (!open || !mapContainer.current || !mapboxToken || locations.length === 0) return;
 
     // Clean up existing map
     if (map.current) {
@@ -128,7 +144,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     }
     markersRef.current = [];
 
-    mapboxgl.accessToken = MAPBOX_TOKEN;
+    mapboxgl.accessToken = mapboxToken;
 
     // Calculate bounds
     const bounds = new mapboxgl.LngLatBounds();
@@ -176,14 +192,23 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
         map.current = null;
       }
     };
-  }, [locations, open]);
+  }, [locations, open, mapboxToken]);
 
   const totalAddresses = new Set([
     ...companies.filter(c => c.address?.trim()).map(c => c.address!.trim().toLowerCase()),
     ...persons.filter(p => p.address?.trim()).map(p => p.address!.trim().toLowerCase()),
   ]).size;
 
-  if (!MAPBOX_TOKEN) {
+  if (tokenLoading) {
+    return (
+      <Button variant="outline" disabled>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Map
+      </Button>
+    );
+  }
+
+  if (!mapboxToken) {
     return (
       <Button variant="outline" disabled>
         <MapPin className="mr-2 h-4 w-4" />

@@ -255,13 +255,13 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     .from("people")
     .insert({
       name: person.name,
-      company_id: person.companyId,
-      branch_id: person.branchId,
+      company_id: person.companyId || null, // Convert empty string to null
+      branch_id: person.branchId || null, // Convert empty string to null
       user_id: user?.id,
-      job_title: person.jobTitle,
-      email: person.email,
-      phone: person.phone,
-      address: person.address,
+      job_title: person.jobTitle || null,
+      email: person.email || null,
+      phone: person.phone || null,
+      address: person.address || null,
       notes: person.notes || [],
       excavator_lines: person.excavatorLines || [],
     })
@@ -289,12 +289,12 @@ export const updatePerson = async (person: Person): Promise<void> => {
     .from("people")
     .update({
       name: person.name,
-      company_id: person.companyId,
-      branch_id: person.branchId,
-      job_title: person.jobTitle,
-      email: person.email,
-      phone: person.phone,
-      address: person.address,
+      company_id: person.companyId || null, // Convert empty string to null
+      branch_id: person.branchId || null, // Convert empty string to null
+      job_title: person.jobTitle || null,
+      email: person.email || null,
+      phone: person.phone || null,
+      address: person.address || null,
       notes: person.notes,
       excavator_lines: person.excavatorLines || [],
     })
