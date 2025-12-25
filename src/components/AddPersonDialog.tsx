@@ -21,10 +21,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff } from "lucide-react";
+import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { inventoryStorage, Note, Branch } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessCardScanner } from "@/hooks/useBusinessCardScanner";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 interface AddPersonDialogProps {
   onPersonAdded: () => void;
@@ -234,7 +235,15 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
     line => line.toLowerCase().includes(excavatorInput.toLowerCase()) && !excavatorLines.includes(line)
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAddressValid, setIsAddressValid] = useState(false);
+
+  const handleAddressChange = (value: string, isValid: boolean) => {
+    setAddress(value);
+    setIsAddressValid(isValid);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!firstName.trim() || !lastName.trim()) {
@@ -255,42 +264,55 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       return;
     }
 
-    inventoryStorage.addPerson({
-      companyId,
-      branchId: branchId || undefined,
-      name: `${firstName.trim()} ${lastName.trim()}`,
-      jobTitle: jobTitle || undefined,
-      address: address || undefined,
-      email: email || undefined,
-      phone: phone || undefined,
-      notes: notes ? [{ id: crypto.randomUUID(), text: notes, timestamp: new Date().toISOString() }] : [],
-      excavatorLines: excavatorLines,
-    });
-    
-    toast({
-      title: "Success",
-      description: "Contact added successfully",
-    });
-    
-    // Reset form
-    setFirstName("");
-    setLastName("");
-    setCompanyId("");
-    setBranchId("");
-    setJobTitle("");
-    setAddress("");
-    setNotes("");
-    setEmail("");
-    setPhone("");
-    setBusinessCardPhoto("");
-    setShowNewCompanyForm(false);
-    setNewCompanyName("");
-    setShowNewBranchForm(false);
-    setNewBranchName("");
-    setExcavatorLines([]);
-    setExcavatorInput("");
-    setOpen(false);
-    onPersonAdded();
+    setIsSubmitting(true);
+    try {
+      await inventoryStorage.addPerson({
+        companyId,
+        branchId: branchId || undefined,
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        jobTitle: jobTitle || undefined,
+        address: address || undefined,
+        email: email || undefined,
+        phone: phone || undefined,
+        notes: notes ? [{ id: crypto.randomUUID(), text: notes, timestamp: new Date().toISOString() }] : [],
+        excavatorLines: excavatorLines,
+      });
+      
+      toast({
+        title: "Success",
+        description: "Contact added successfully",
+      });
+      
+      // Reset form
+      setFirstName("");
+      setLastName("");
+      setCompanyId("");
+      setBranchId("");
+      setJobTitle("");
+      setAddress("");
+      setNotes("");
+      setEmail("");
+      setPhone("");
+      setBusinessCardPhoto("");
+      setShowNewCompanyForm(false);
+      setNewCompanyName("");
+      setShowNewBranchForm(false);
+      setNewBranchName("");
+      setExcavatorLines([]);
+      setExcavatorInput("");
+      setIsAddressValid(false);
+      setOpen(false);
+      onPersonAdded();
+    } catch (error) {
+      console.error("Error adding contact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add contact",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -474,12 +496,10 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
             <div className="grid gap-2">
               <Label htmlFor="address">Address</Label>
-              <Textarea
-                id="address"
+              <AddressAutocomplete
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="123 Main St, City, State 12345"
-                rows={2}
+                onChange={handleAddressChange}
+                placeholder="Start typing an address..."
               />
             </div>
 
@@ -653,7 +673,10 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit">Add Person</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Person
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

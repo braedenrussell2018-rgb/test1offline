@@ -567,8 +567,6 @@ const CRM = () => {
         <MergeDuplicatesDialog
           open={mergeDuplicatesOpen}
           onOpenChange={setMergeDuplicatesOpen}
-          persons={persons}
-          companies={companies}
           onMerged={handleRefresh}
         />
       </div>
