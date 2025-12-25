@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,13 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Person, Company, inventoryStorage } from "@/lib/inventory-storage";
-import { Users, Merge, Mail, Phone, Building2, MapPin } from "lucide-react";
+import { Users, Merge, Mail, Phone, Building2, MapPin, Loader2 } from "lucide-react";
 
 interface MergeDuplicatesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  persons: Person[];
-  companies: Company[];
   onMerged: () => void;
 }
 
@@ -170,13 +168,36 @@ function findCompanyDuplicates(companies: Company[]): DuplicateGroup<Company>[] 
 export function MergeDuplicatesDialog({
   open,
   onOpenChange,
-  persons,
-  companies,
   onMerged,
 }: MergeDuplicatesDialogProps) {
   const [selectedPersonGroups, setSelectedPersonGroups] = useState<Map<string, string[]>>(new Map());
   const [selectedCompanyGroups, setSelectedCompanyGroups] = useState<Map<string, string[]>>(new Map());
   const [isMerging, setIsMerging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [persons, setPersons] = useState<Person[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+
+  // Fetch fresh data when dialog opens
+  useEffect(() => {
+    if (open) {
+      setIsLoading(true);
+      Promise.all([
+        inventoryStorage.getPersons(),
+        inventoryStorage.getCompanies(),
+      ])
+        .then(([personsData, companiesData]) => {
+          setPersons(personsData);
+          setCompanies(companiesData);
+        })
+        .catch((error) => {
+          console.error("Error loading data:", error);
+          toast.error("Failed to load data");
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [open]);
 
   const personDuplicates = useMemo(() => findPersonDuplicates(persons), [persons]);
   const companyDuplicates = useMemo(() => findCompanyDuplicates(companies), [companies]);
@@ -305,6 +326,11 @@ export function MergeDuplicatesDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
         <Tabs defaultValue="contacts" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="contacts" className="flex items-center gap-2">
@@ -434,6 +460,7 @@ export function MergeDuplicatesDialog({
             </ScrollArea>
           </TabsContent>
         </Tabs>
+        )}
 
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

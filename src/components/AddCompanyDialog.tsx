@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Loader2 } from "lucide-react";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 interface AddCompanyDialogProps {
   onCompanyAdded: () => void;
@@ -23,8 +24,14 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [isAddressValid, setIsAddressValid] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const handleAddressChange = (value: string, isValid: boolean) => {
+    setAddress(value);
+    setIsAddressValid(isValid);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +54,15 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
       return;
     }
 
+    if (!isAddressValid) {
+      toast({
+        title: "Error",
+        description: "Please select a valid address from the suggestions",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await inventoryStorage.addCompany(name, address);
@@ -58,6 +74,7 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
       
       setName("");
       setAddress("");
+      setIsAddressValid(false);
       setOpen(false);
       onCompanyAdded();
     } catch (error) {
@@ -99,15 +116,12 @@ export function AddCompanyDialog({ onCompanyAdded }: AddCompanyDialogProps) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="address">Address *</Label>
-              <Input
-                id="address"
+              <AddressAutocomplete
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="123 Main St, City, State, ZIP"
+                onChange={handleAddressChange}
+                placeholder="Start typing an address..."
+                required
               />
-              <p className="text-xs text-muted-foreground">
-                Enter a complete street address for map display
-              </p>
             </div>
           </div>
           <DialogFooter>
