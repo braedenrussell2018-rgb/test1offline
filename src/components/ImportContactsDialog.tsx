@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, AlertTriangle, Building2, Users, Mail, Phone, MapPin, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { inventoryStorage } from "@/lib/inventory-storage";
+import { inventoryStorage, Company } from "@/lib/inventory-storage";
 import * as XLSX from "xlsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ImportContactsDialogProps {
   onContactsImported: () => void;
@@ -23,13 +24,18 @@ interface ParsedContact {
   jobTitle?: string;
   valid: boolean;
   errors: string[];
+  warnings: string[];
+  isDuplicate: boolean;
+  isNewCompany: boolean;
 }
 
 export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialogProps) => {
   const [open, setOpen] = useState(false);
   const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([]);
+  const [existingCompanies, setExistingCompanies] = useState<Company[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [previewTab, setPreviewTab] = useState("all");
   const { toast } = useToast();
 
   const downloadTemplate = () => {
@@ -63,8 +69,13 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     });
   };
 
-  const validateContact = async (item: any, existingPersons: { name: string; email?: string }[]): Promise<ParsedContact> => {
+  const validateContact = async (
+    item: any, 
+    existingPersons: { name: string; email?: string }[],
+    companies: Company[]
+  ): Promise<ParsedContact> => {
     const errors: string[] = [];
+    const warnings: string[] = [];
     
     const name = String(item.Name || item.name || item["Full Name"] || item["First Name"] || "").trim();
     const lastName = String(item["Last Name"] || item.lastName || "").trim();
@@ -76,21 +87,44 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     const companyName = String(item.Company || item.company || item["Company Name"] || item.CompanyName || "").trim() || undefined;
     const jobTitle = String(item.JobTitle || item.jobTitle || item["Job Title"] || item.Title || item.title || "").trim() || undefined;
 
+    let isDuplicate = false;
+    let isNewCompany = false;
+
+    // Required field validation
     if (!fullName) {
-      errors.push("Missing name");
+      errors.push("Missing name (required)");
     }
 
     // Check for duplicate by name or email
     if (fullName && existingPersons.some(p => p.name.toLowerCase() === fullName.toLowerCase())) {
-      errors.push("Contact with this name already exists");
+      errors.push("Duplicate: Contact with this name already exists");
+      isDuplicate = true;
     }
     if (email && existingPersons.some(p => p.email?.toLowerCase() === email.toLowerCase())) {
-      errors.push("Contact with this email already exists");
+      errors.push("Duplicate: Contact with this email already exists");
+      isDuplicate = true;
     }
 
     // Basic email validation
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.push("Invalid email format");
+    }
+
+    // Check for missing optional fields (warnings)
+    if (!email) warnings.push("No email");
+    if (!phone) warnings.push("No phone");
+    if (!address) warnings.push("No address");
+    if (!companyName) warnings.push("No company");
+    if (!jobTitle) warnings.push("No job title");
+
+    // Check if company exists
+    if (companyName) {
+      const existingCompany = companies.find(
+        c => c.name.toLowerCase() === companyName.toLowerCase()
+      );
+      if (!existingCompany) {
+        isNewCompany = true;
+      }
     }
 
     return {
@@ -102,6 +136,9 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       jobTitle,
       valid: errors.length === 0,
       errors,
+      warnings,
+      isDuplicate,
+      isNewCompany,
     };
   };
 
@@ -128,28 +165,28 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
         return;
       }
 
-      // Get existing persons for duplicate checking
-      const existingPersons = await inventoryStorage.getPersons();
+      // Get existing data for validation
+      const [existingPersons, companies] = await Promise.all([
+        inventoryStorage.getPersons(),
+        inventoryStorage.getCompanies()
+      ]);
+      
+      setExistingCompanies(companies);
       const existingForCheck = existingPersons.map(p => ({ name: p.name, email: p.email }));
 
-      const validated = await Promise.all(jsonData.map((item) => validateContact(item, existingForCheck)));
+      const validated = await Promise.all(
+        jsonData.map((item) => validateContact(item, existingForCheck, companies))
+      );
       setParsedContacts(validated);
+      setPreviewTab("all");
 
       const validCount = validated.filter(item => item.valid).length;
       const invalidCount = validated.length - validCount;
 
-      if (invalidCount > 0) {
-        toast({
-          title: "Validation Complete",
-          description: `${validCount} valid contacts, ${invalidCount} contacts with errors`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Validation Complete",
-          description: `All ${validCount} contacts are valid and ready to import`,
-        });
-      }
+      toast({
+        title: "File Loaded",
+        description: `${validated.length} contacts found. Review the preview below.`,
+      });
     } catch (error) {
       console.error("Error parsing file:", error);
       toast({
@@ -178,11 +215,8 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     setIsImporting(true);
 
     try {
-      // Get existing companies
-      let companies = await inventoryStorage.getCompanies();
-      
-      // Track new companies created during import
-      const createdCompanies = new Map<string, string>(); // companyName -> companyId
+      let companies = [...existingCompanies];
+      const createdCompanies = new Map<string, string>();
       let newCompaniesCount = 0;
       
       for (const contact of validContacts) {
@@ -191,11 +225,9 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
         if (contact.companyName) {
           const companyNameLower = contact.companyName.toLowerCase();
           
-          // Check if we already created this company in this import session
           if (createdCompanies.has(companyNameLower)) {
             companyId = createdCompanies.get(companyNameLower);
           } else {
-            // Try to find existing company
             const matchingCompany = companies.find(
               c => c.name.toLowerCase() === companyNameLower
             );
@@ -203,11 +235,10 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
             if (matchingCompany) {
               companyId = matchingCompany.id;
             } else {
-              // Create new company
               const newCompany = await inventoryStorage.addCompany(contact.companyName);
               companyId = newCompany.id;
               createdCompanies.set(companyNameLower, companyId);
-              companies = [...companies, newCompany]; // Add to local list
+              companies = [...companies, newCompany];
               newCompaniesCount++;
             }
           }
@@ -249,13 +280,133 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     }
   };
 
-  const validCount = parsedContacts.filter(item => item.valid).length;
-  const invalidCount = parsedContacts.length - validCount;
+  // Compute statistics
+  const stats = useMemo(() => {
+    const valid = parsedContacts.filter(c => c.valid);
+    const invalid = parsedContacts.filter(c => !c.valid);
+    const duplicates = parsedContacts.filter(c => c.isDuplicate);
+    const missingInfo = parsedContacts.filter(c => c.valid && c.warnings.length > 0);
+    const newCompanies = [...new Set(
+      parsedContacts
+        .filter(c => c.isNewCompany && c.companyName)
+        .map(c => c.companyName!.toLowerCase())
+    )];
+    
+    return {
+      total: parsedContacts.length,
+      valid: valid.length,
+      invalid: invalid.length,
+      duplicates: duplicates.length,
+      missingInfo: missingInfo.length,
+      newCompanies,
+    };
+  }, [parsedContacts]);
+
+  // Filter contacts based on tab
+  const filteredContacts = useMemo(() => {
+    switch (previewTab) {
+      case "valid":
+        return parsedContacts.filter(c => c.valid);
+      case "errors":
+        return parsedContacts.filter(c => !c.valid);
+      case "duplicates":
+        return parsedContacts.filter(c => c.isDuplicate);
+      case "missing":
+        return parsedContacts.filter(c => c.valid && c.warnings.length > 0);
+      case "new-companies":
+        return parsedContacts.filter(c => c.isNewCompany);
+      default:
+        return parsedContacts;
+    }
+  }, [parsedContacts, previewTab]);
+
+  const renderContactCard = (contact: ParsedContact, index: number) => (
+    <div
+      key={index}
+      className={`p-3 border rounded-lg ${
+        !contact.valid 
+          ? 'bg-destructive/5 border-destructive/20' 
+          : contact.warnings.length > 0
+            ? 'bg-warning/5 border-warning/20'
+            : 'bg-success/5 border-success/20'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="font-medium">{contact.name || "(missing name)"}</span>
+            {contact.valid ? (
+              <Badge variant="default" className="bg-success text-success-foreground">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Valid
+              </Badge>
+            ) : (
+              <Badge variant="destructive">
+                <XCircle className="h-3 w-3 mr-1" />
+                Invalid
+              </Badge>
+            )}
+            {contact.isDuplicate && (
+              <Badge variant="outline" className="border-destructive text-destructive">
+                <Users className="h-3 w-3 mr-1" />
+                Duplicate
+              </Badge>
+            )}
+            {contact.isNewCompany && contact.companyName && (
+              <Badge variant="outline" className="border-primary text-primary">
+                <Building2 className="h-3 w-3 mr-1" />
+                New Company
+              </Badge>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+            <div className={`flex items-center gap-1 ${contact.email ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+              <Mail className="h-3 w-3" />
+              {contact.email || "No email"}
+            </div>
+            <div className={`flex items-center gap-1 ${contact.phone ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+              <Phone className="h-3 w-3" />
+              {contact.phone || "No phone"}
+            </div>
+            <div className={`flex items-center gap-1 ${contact.companyName ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+              <Building2 className="h-3 w-3" />
+              {contact.companyName || "No company"}
+            </div>
+            <div className={`flex items-center gap-1 ${contact.jobTitle ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+              <Briefcase className="h-3 w-3" />
+              {contact.jobTitle || "No job title"}
+            </div>
+            {contact.address && (
+              <div className="flex items-center gap-1 text-foreground sm:col-span-2">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{contact.address}</span>
+              </div>
+            )}
+          </div>
+          
+          {contact.errors.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {contact.errors.map((error, errorIndex) => (
+                <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
+                  <XCircle className="h-3 w-3 flex-shrink-0" />
+                  {error}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       setOpen(isOpen);
-      if (!isOpen) setParsedContacts([]);
+      if (!isOpen) {
+        setParsedContacts([]);
+        setPreviewTab("all");
+      }
     }}>
       <DialogTrigger asChild>
         <Button variant="outline">
@@ -263,118 +414,137 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
           Import Contacts
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Import Contacts</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Upload Excel with columns: <strong>Name</strong> (required) + Email, Phone, Address, Company, JobTitle (optional)
-            </AlertDescription>
-          </Alert>
-
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={downloadTemplate}
-              className="flex-1"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download Template
-            </Button>
-            
-            <Label htmlFor="contacts-file-upload" className="flex-1">
-              <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground">
-                <Upload className="mr-2 h-4 w-4" />
-                {isProcessing ? "Processing..." : "Choose Excel File"}
-              </div>
-              <input
-                id="contacts-file-upload"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileUpload}
-                disabled={isProcessing}
-                className="sr-only"
-              />
-            </Label>
-          </div>
-
-          {parsedContacts.length > 0 && (
+          {parsedContacts.length === 0 ? (
             <>
-              <div className="flex gap-4 p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span className="text-sm">
-                    <strong>{validCount}</strong> Valid
-                  </span>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Upload Excel with columns: <strong>Name</strong> (required) + Email, Phone, Address, Company, JobTitle (optional)
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={downloadTemplate}
+                  className="flex-1"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Template
+                </Button>
+                
+                <Label htmlFor="contacts-file-upload" className="flex-1">
+                  <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground">
+                    <Upload className="mr-2 h-4 w-4" />
+                    {isProcessing ? "Processing..." : "Choose Excel File"}
+                  </div>
+                  <input
+                    id="contacts-file-upload"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    disabled={isProcessing}
+                    className="sr-only"
+                  />
+                </Label>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Summary Statistics */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="p-3 bg-muted rounded-lg text-center">
+                  <div className="text-2xl font-bold">{stats.total}</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  <span className="text-sm">
-                    <strong>{invalidCount}</strong> Invalid
-                  </span>
+                <div className="p-3 bg-success/10 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-success">{stats.valid}</div>
+                  <div className="text-xs text-muted-foreground">Valid</div>
+                </div>
+                <div className="p-3 bg-destructive/10 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-destructive">{stats.invalid}</div>
+                  <div className="text-xs text-muted-foreground">Errors</div>
+                </div>
+                <div className="p-3 bg-warning/10 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-warning">{stats.duplicates}</div>
+                  <div className="text-xs text-muted-foreground">Duplicates</div>
+                </div>
+                <div className="p-3 bg-primary/10 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-primary">{stats.newCompanies.length}</div>
+                  <div className="text-xs text-muted-foreground">New Companies</div>
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 border rounded-lg">
-                <div className="p-4 space-y-2">
-                  {parsedContacts.map((contact, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 border rounded-lg ${
-                        contact.valid ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{contact.name || "(missing)"}</span>
-                            <Badge variant={contact.valid ? "default" : "destructive"}>
-                              {contact.valid ? "Valid" : "Invalid"}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground space-y-1">
-                            {contact.email && <p>Email: {contact.email}</p>}
-                            {contact.phone && <p>Phone: {contact.phone}</p>}
-                            {contact.companyName && <p>Company: {contact.companyName}</p>}
-                            {contact.jobTitle && <p>Job Title: {contact.jobTitle}</p>}
-                          </div>
-                          {contact.errors.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              {contact.errors.map((error, errorIndex) => (
-                                <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
-                                  <XCircle className="h-3 w-3" />
-                                  {error}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+              {/* New Companies Preview */}
+              {stats.newCompanies.length > 0 && (
+                <Alert>
+                  <Building2 className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>{stats.newCompanies.length} new {stats.newCompanies.length === 1 ? 'company' : 'companies'}</strong> will be created: {stats.newCompanies.join(", ")}
+                  </AlertDescription>
+                </Alert>
+              )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              {/* Filter Tabs */}
+              <Tabs value={previewTab} onValueChange={setPreviewTab} className="flex-1 flex flex-col overflow-hidden">
+                <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
+                  <TabsTrigger value="all">All ({stats.total})</TabsTrigger>
+                  <TabsTrigger value="valid">Valid ({stats.valid})</TabsTrigger>
+                  <TabsTrigger value="errors">Errors ({stats.invalid})</TabsTrigger>
+                  <TabsTrigger value="duplicates">Duplicates ({stats.duplicates})</TabsTrigger>
+                  <TabsTrigger value="missing">Missing Info ({stats.missingInfo})</TabsTrigger>
+                  <TabsTrigger value="new-companies">New Co. ({stats.newCompanies.length})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value={previewTab} className="flex-1 overflow-hidden mt-2">
+                  <ScrollArea className="h-full border rounded-lg">
+                    <div className="p-4 space-y-2">
+                      {filteredContacts.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                          No contacts in this category
+                        </p>
+                      ) : (
+                        filteredContacts.map((contact, index) => renderContactCard(contact, index))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+
+              <div className="flex flex-col sm:flex-row justify-between gap-2 pt-2 border-t">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setParsedContacts([])}
                 >
-                  Clear
+                  Upload Different File
                 </Button>
-                <Button
-                  onClick={handleImport}
-                  disabled={validCount === 0 || isImporting}
-                >
-                  {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Import {validCount} {validCount === 1 ? 'Contact' : 'Contacts'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setOpen(false);
+                      setParsedContacts([]);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleImport}
+                    disabled={stats.valid === 0 || isImporting}
+                  >
+                    {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Import {stats.valid} {stats.valid === 1 ? 'Contact' : 'Contacts'}
+                  </Button>
+                </div>
               </div>
             </>
           )}
