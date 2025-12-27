@@ -178,17 +178,39 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     setIsImporting(true);
 
     try {
-      // Get companies to match by name
-      const companies = await inventoryStorage.getCompanies();
+      // Get existing companies
+      let companies = await inventoryStorage.getCompanies();
+      
+      // Track new companies created during import
+      const createdCompanies = new Map<string, string>(); // companyName -> companyId
+      let newCompaniesCount = 0;
       
       for (const contact of validContacts) {
-        // Try to find matching company by name
         let companyId: string | undefined;
+        
         if (contact.companyName) {
-          const matchingCompany = companies.find(
-            c => c.name.toLowerCase() === contact.companyName!.toLowerCase()
-          );
-          companyId = matchingCompany?.id;
+          const companyNameLower = contact.companyName.toLowerCase();
+          
+          // Check if we already created this company in this import session
+          if (createdCompanies.has(companyNameLower)) {
+            companyId = createdCompanies.get(companyNameLower);
+          } else {
+            // Try to find existing company
+            const matchingCompany = companies.find(
+              c => c.name.toLowerCase() === companyNameLower
+            );
+            
+            if (matchingCompany) {
+              companyId = matchingCompany.id;
+            } else {
+              // Create new company
+              const newCompany = await inventoryStorage.addCompany(contact.companyName);
+              companyId = newCompany.id;
+              createdCompanies.set(companyNameLower, companyId);
+              companies = [...companies, newCompany]; // Add to local list
+              newCompaniesCount++;
+            }
+          }
         }
 
         await inventoryStorage.addPerson({
@@ -203,9 +225,13 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
         });
       }
 
+      const companiesMessage = newCompaniesCount > 0 
+        ? ` and created ${newCompaniesCount} new ${newCompaniesCount === 1 ? 'company' : 'companies'}`
+        : '';
+      
       toast({
         title: "Success",
-        description: `Imported ${validContacts.length} contacts`,
+        description: `Imported ${validContacts.length} contacts${companiesMessage}`,
       });
 
       setParsedContacts([]);
