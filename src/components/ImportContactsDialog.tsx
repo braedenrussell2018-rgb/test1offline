@@ -69,6 +69,25 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     });
   };
 
+  // Helper to separate first and last name from a full name
+  const parseFullName = (fullName: string): string => {
+    if (!fullName) return "";
+    
+    // Already has proper spacing, return as-is
+    const trimmed = fullName.trim();
+    
+    // If no spaces, try to separate camelCase or PascalCase (e.g., "JohnDoe" -> "John Doe")
+    if (!trimmed.includes(" ")) {
+      // Check for camelCase pattern
+      const camelCaseSplit = trimmed.replace(/([a-z])([A-Z])/g, "$1 $2");
+      if (camelCaseSplit !== trimmed) {
+        return camelCaseSplit;
+      }
+    }
+    
+    return trimmed;
+  };
+
   const validateContact = async (
     item: any, 
     existingPersons: { name: string; email?: string }[],
@@ -77,15 +96,72 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     const errors: string[] = [];
     const warnings: string[] = [];
     
-    const name = String(item.Name || item.name || item["Full Name"] || item["First Name"] || "").trim();
-    const lastName = String(item["Last Name"] || item.lastName || "").trim();
-    const fullName = lastName ? `${name} ${lastName}` : name;
+    // Support multiple name column formats including Pipedrive-style "Person - Name"
+    const rawName = String(
+      item["Person - Name"] || 
+      item.Name || 
+      item.name || 
+      item["Full Name"] || 
+      item["First Name"] || 
+      ""
+    ).trim();
     
-    const email = String(item.Email || item.email || item["Email Address"] || "").trim() || undefined;
-    const phone = String(item.Phone || item.phone || item["Phone Number"] || item.PhoneNumber || "").trim() || undefined;
-    const address = String(item.Address || item.address || "").trim() || undefined;
-    const companyName = String(item.Company || item.company || item["Company Name"] || item.CompanyName || "").trim() || undefined;
-    const jobTitle = String(item.JobTitle || item.jobTitle || item["Job Title"] || item.Title || item.title || "").trim() || undefined;
+    const lastName = String(item["Last Name"] || item.lastName || "").trim();
+    const fullName = lastName ? `${parseFullName(rawName)} ${lastName}` : parseFullName(rawName);
+    
+    // Support multiple email column formats (work, home, other)
+    const email = String(
+      item["Person - Email - Work"] ||
+      item["Person - Email - Home"] ||
+      item["Person - Email - Other"] ||
+      item.Email || 
+      item.email || 
+      item["Email Address"] || 
+      ""
+    ).trim() || undefined;
+    
+    // Support multiple phone column formats (work, home, mobile, other) - take first non-empty
+    const phoneRaw = String(
+      item["Person - Phone - Work"] ||
+      item["Person - Phone - Mobile"] ||
+      item["Person - Phone - Home"] ||
+      item["Person - Phone - Other"] ||
+      item.Phone || 
+      item.phone || 
+      item["Phone Number"] || 
+      item.PhoneNumber || 
+      ""
+    ).trim();
+    // Handle comma-separated phone numbers (take first one)
+    const phone = phoneRaw.split(",")[0].trim() || undefined;
+    
+    // Support state/address column
+    const address = String(
+      item["Person - State"] ||
+      item.Address || 
+      item.address || 
+      ""
+    ).trim() || undefined;
+    
+    // Support organization/company columns
+    const companyName = String(
+      item["Organization - Name"] ||
+      item["Person - Organization"] ||
+      item.Company || 
+      item.company || 
+      item["Company Name"] || 
+      item.CompanyName || 
+      ""
+    ).trim() || undefined;
+    
+    const jobTitle = String(
+      item.JobTitle || 
+      item.jobTitle || 
+      item["Job Title"] || 
+      item.Title || 
+      item.title || 
+      ""
+    ).trim() || undefined;
 
     let isDuplicate = false;
     let isNewCompany = false;
