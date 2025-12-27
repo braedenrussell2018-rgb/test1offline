@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, AlertTriangle, Building2, Users, Mail, Phone, MapPin, Briefcase } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, Building2, Users, Mail, Phone, MapPin, Briefcase, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage, Company } from "@/lib/inventory-storage";
 import * as XLSX from "xlsx";
@@ -36,6 +37,8 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [previewTab, setPreviewTab] = useState("all");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<Partial<ParsedContact>>({});
   const { toast } = useToast();
 
   const downloadTemplate = () => {
@@ -396,85 +399,208 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     }
   }, [parsedContacts, previewTab]);
 
-  const renderContactCard = (contact: ParsedContact, index: number) => (
-    <div
-      key={index}
-      className={`p-3 border rounded-lg ${
-        !contact.valid 
-          ? 'bg-destructive/5 border-destructive/20' 
-          : contact.warnings.length > 0
-            ? 'bg-warning/5 border-warning/20'
-            : 'bg-success/5 border-success/20'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="font-medium">{contact.name || "(missing name)"}</span>
-            {contact.valid ? (
-              <Badge variant="default" className="bg-success text-success-foreground">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Valid
-              </Badge>
-            ) : (
-              <Badge variant="destructive">
-                <XCircle className="h-3 w-3 mr-1" />
-                Invalid
-              </Badge>
-            )}
-            {contact.isDuplicate && (
-              <Badge variant="outline" className="border-destructive text-destructive">
-                <Users className="h-3 w-3 mr-1" />
-                Duplicate
-              </Badge>
-            )}
-            {contact.isNewCompany && contact.companyName && (
-              <Badge variant="outline" className="border-primary text-primary">
-                <Building2 className="h-3 w-3 mr-1" />
-                New Company
-              </Badge>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
-            <div className={`flex items-center gap-1 ${contact.email ? 'text-foreground' : 'text-muted-foreground italic'}`}>
-              <Mail className="h-3 w-3" />
-              {contact.email || "No email"}
+  // Find the original index in parsedContacts for a filtered contact
+  const getOriginalIndex = (contact: ParsedContact): number => {
+    return parsedContacts.findIndex(c => c === contact);
+  };
+
+  // Open edit dialog for a contact
+  const handleEditContact = (contact: ParsedContact, originalIndex: number) => {
+    setEditingIndex(originalIndex);
+    setEditForm({
+      name: contact.name,
+      email: contact.email || "",
+      phone: contact.phone || "",
+      address: contact.address || "",
+      companyName: contact.companyName || "",
+      jobTitle: contact.jobTitle || "",
+    });
+  };
+
+  // Save edited contact and revalidate
+  const handleSaveEdit = async () => {
+    if (editingIndex === null) return;
+    
+    const existingPersons = await inventoryStorage.getPersons();
+    const existingForCheck = existingPersons.map(p => ({ name: p.name, email: p.email }));
+    
+    // Revalidate with new data
+    const updatedContact = await revalidateContact(
+      {
+        name: editForm.name || "",
+        email: editForm.email,
+        phone: editForm.phone,
+        address: editForm.address,
+        companyName: editForm.companyName,
+        jobTitle: editForm.jobTitle,
+      },
+      existingForCheck,
+      existingCompanies
+    );
+    
+    const newContacts = [...parsedContacts];
+    newContacts[editingIndex] = updatedContact;
+    setParsedContacts(newContacts);
+    setEditingIndex(null);
+    setEditForm({});
+    
+    toast({
+      title: "Contact Updated",
+      description: updatedContact.valid ? "Contact is now valid" : "Contact still has errors",
+    });
+  };
+
+  // Revalidate a contact after editing
+  const revalidateContact = async (
+    data: { name: string; email?: string; phone?: string; address?: string; companyName?: string; jobTitle?: string },
+    existingPersons: { name: string; email?: string }[],
+    companies: Company[]
+  ): Promise<ParsedContact> => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    const name = data.name.trim();
+    const email = data.email?.trim() || undefined;
+    const phone = data.phone?.trim() || undefined;
+    const address = data.address?.trim() || undefined;
+    const companyName = data.companyName?.trim() || undefined;
+    const jobTitle = data.jobTitle?.trim() || undefined;
+
+    let isDuplicate = false;
+    let isNewCompany = false;
+
+    if (!name) {
+      errors.push("Missing name (required)");
+    }
+
+    if (name && existingPersons.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      errors.push("Duplicate: Contact with this name already exists");
+      isDuplicate = true;
+    }
+    if (email && existingPersons.some(p => p.email?.toLowerCase() === email.toLowerCase())) {
+      errors.push("Duplicate: Contact with this email already exists");
+      isDuplicate = true;
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push("Invalid email format");
+    }
+
+    if (!email) warnings.push("No email");
+    if (!phone) warnings.push("No phone");
+    if (!address) warnings.push("No address");
+    if (!companyName) warnings.push("No company");
+    if (!jobTitle) warnings.push("No job title");
+
+    if (companyName) {
+      const existingCompany = companies.find(
+        c => c.name.toLowerCase() === companyName.toLowerCase()
+      );
+      if (!existingCompany) {
+        isNewCompany = true;
+      }
+    }
+
+    return {
+      name,
+      email,
+      phone,
+      address,
+      companyName,
+      jobTitle,
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      isDuplicate,
+      isNewCompany,
+    };
+  };
+
+  const renderContactCard = (contact: ParsedContact, filteredIndex: number) => {
+    const originalIndex = getOriginalIndex(contact);
+    
+    return (
+      <div
+        key={filteredIndex}
+        onClick={() => handleEditContact(contact, originalIndex)}
+        className={`p-3 border rounded-lg cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${
+          !contact.valid 
+            ? 'bg-destructive/5 border-destructive/20' 
+            : contact.warnings.length > 0
+              ? 'bg-warning/5 border-warning/20'
+              : 'bg-success/5 border-success/20'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="font-medium">{contact.name || "(missing name)"}</span>
+              {contact.valid ? (
+                <Badge variant="default" className="bg-success text-success-foreground">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Valid
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Invalid
+                </Badge>
+              )}
+              {contact.isDuplicate && (
+                <Badge variant="outline" className="border-destructive text-destructive">
+                  <Users className="h-3 w-3 mr-1" />
+                  Duplicate
+                </Badge>
+              )}
+              {contact.isNewCompany && contact.companyName && (
+                <Badge variant="outline" className="border-primary text-primary">
+                  <Building2 className="h-3 w-3 mr-1" />
+                  New Company
+                </Badge>
+              )}
             </div>
-            <div className={`flex items-center gap-1 ${contact.phone ? 'text-foreground' : 'text-muted-foreground italic'}`}>
-              <Phone className="h-3 w-3" />
-              {contact.phone || "No phone"}
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+              <div className={`flex items-center gap-1 ${contact.email ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+                <Mail className="h-3 w-3" />
+                {contact.email || "No email"}
+              </div>
+              <div className={`flex items-center gap-1 ${contact.phone ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+                <Phone className="h-3 w-3" />
+                {contact.phone || "No phone"}
+              </div>
+              <div className={`flex items-center gap-1 ${contact.companyName ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+                <Building2 className="h-3 w-3" />
+                {contact.companyName || "No company"}
+              </div>
+              <div className={`flex items-center gap-1 ${contact.jobTitle ? 'text-foreground' : 'text-muted-foreground italic'}`}>
+                <Briefcase className="h-3 w-3" />
+                {contact.jobTitle || "No job title"}
+              </div>
+              {contact.address && (
+                <div className="flex items-center gap-1 text-foreground sm:col-span-2">
+                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{contact.address}</span>
+                </div>
+              )}
             </div>
-            <div className={`flex items-center gap-1 ${contact.companyName ? 'text-foreground' : 'text-muted-foreground italic'}`}>
-              <Building2 className="h-3 w-3" />
-              {contact.companyName || "No company"}
-            </div>
-            <div className={`flex items-center gap-1 ${contact.jobTitle ? 'text-foreground' : 'text-muted-foreground italic'}`}>
-              <Briefcase className="h-3 w-3" />
-              {contact.jobTitle || "No job title"}
-            </div>
-            {contact.address && (
-              <div className="flex items-center gap-1 text-foreground sm:col-span-2">
-                <MapPin className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{contact.address}</span>
+            
+            {contact.errors.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {contact.errors.map((error, errorIndex) => (
+                  <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
+                    <XCircle className="h-3 w-3 flex-shrink-0" />
+                    {error}
+                  </p>
+                ))}
               </div>
             )}
           </div>
-          
-          {contact.errors.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {contact.errors.map((error, errorIndex) => (
-                <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
-                  <XCircle className="h-3 w-3 flex-shrink-0" />
-                  {error}
-                </p>
-              ))}
-            </div>
-          )}
+          <Pencil className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -579,15 +705,20 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
                   <TabsTrigger value="new-companies">New Co. ({stats.newCompanies.length})</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value={previewTab} className="flex-1 overflow-hidden mt-2">
-                  <ScrollArea className="h-full border rounded-lg">
+                <TabsContent value={previewTab} className="flex-1 overflow-hidden mt-2 min-h-0">
+                  <ScrollArea className="h-[300px] border rounded-lg">
                     <div className="p-4 space-y-2">
                       {filteredContacts.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8">
                           No contacts in this category
                         </p>
                       ) : (
-                        filteredContacts.map((contact, index) => renderContactCard(contact, index))
+                        <>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Click on any contact to edit
+                          </p>
+                          {filteredContacts.map((contact, index) => renderContactCard(contact, index))}
+                        </>
                       )}
                     </div>
                   </ScrollArea>
@@ -626,6 +757,88 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
           )}
         </div>
       </DialogContent>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={editingIndex !== null} onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setEditingIndex(null);
+          setEditForm({});
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name *</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name || ""}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="Full name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editForm.email || ""}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                value={editForm.phone || ""}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="Phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-company">Company</Label>
+              <Input
+                id="edit-company"
+                value={editForm.companyName || ""}
+                onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
+                placeholder="Company name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-job-title">Job Title</Label>
+              <Input
+                id="edit-job-title"
+                value={editForm.jobTitle || ""}
+                onChange={(e) => setEditForm({ ...editForm, jobTitle: e.target.value })}
+                placeholder="Job title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-address">Address</Label>
+              <Input
+                id="edit-address"
+                value={editForm.address || ""}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                placeholder="Address"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => {
+              setEditingIndex(null);
+              setEditForm({});
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };
