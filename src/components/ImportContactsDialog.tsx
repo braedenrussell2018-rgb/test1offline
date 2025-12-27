@@ -10,7 +10,6 @@ import * as XLSX from "xlsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ImportContactsDialogProps {
   onContactsImported: () => void;
@@ -660,32 +659,67 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
             </>
           ) : (
             <>
-              {/* Summary Statistics */}
+              {/* Clickable Summary Statistics */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                <div className="p-3 bg-muted rounded-lg text-center">
+                <button
+                  onClick={() => setPreviewTab("all")}
+                  className={`p-3 rounded-lg text-center transition-all ${
+                    previewTab === "all" 
+                      ? "bg-muted ring-2 ring-primary" 
+                      : "bg-muted hover:bg-muted/80"
+                  }`}
+                >
                   <div className="text-2xl font-bold">{stats.total}</div>
                   <div className="text-xs text-muted-foreground">Total</div>
-                </div>
-                <div className="p-3 bg-success/10 rounded-lg text-center">
+                </button>
+                <button
+                  onClick={() => setPreviewTab("valid")}
+                  className={`p-3 rounded-lg text-center transition-all ${
+                    previewTab === "valid" 
+                      ? "bg-success/20 ring-2 ring-success" 
+                      : "bg-success/10 hover:bg-success/20"
+                  }`}
+                >
                   <div className="text-2xl font-bold text-success">{stats.valid}</div>
                   <div className="text-xs text-muted-foreground">Valid</div>
-                </div>
-                <div className="p-3 bg-destructive/10 rounded-lg text-center">
+                </button>
+                <button
+                  onClick={() => setPreviewTab("errors")}
+                  className={`p-3 rounded-lg text-center transition-all ${
+                    previewTab === "errors" 
+                      ? "bg-destructive/20 ring-2 ring-destructive" 
+                      : "bg-destructive/10 hover:bg-destructive/20"
+                  }`}
+                >
                   <div className="text-2xl font-bold text-destructive">{stats.invalid}</div>
                   <div className="text-xs text-muted-foreground">Errors</div>
-                </div>
-                <div className="p-3 bg-warning/10 rounded-lg text-center">
+                </button>
+                <button
+                  onClick={() => setPreviewTab("duplicates")}
+                  className={`p-3 rounded-lg text-center transition-all ${
+                    previewTab === "duplicates" 
+                      ? "bg-warning/20 ring-2 ring-warning" 
+                      : "bg-warning/10 hover:bg-warning/20"
+                  }`}
+                >
                   <div className="text-2xl font-bold text-warning">{stats.duplicates}</div>
                   <div className="text-xs text-muted-foreground">Duplicates</div>
-                </div>
-                <div className="p-3 bg-primary/10 rounded-lg text-center">
+                </button>
+                <button
+                  onClick={() => setPreviewTab("new-companies")}
+                  className={`p-3 rounded-lg text-center transition-all ${
+                    previewTab === "new-companies" 
+                      ? "bg-primary/20 ring-2 ring-primary" 
+                      : "bg-primary/10 hover:bg-primary/20"
+                  }`}
+                >
                   <div className="text-2xl font-bold text-primary">{stats.newCompanies.length}</div>
                   <div className="text-xs text-muted-foreground">New Companies</div>
-                </div>
+                </button>
               </div>
 
               {/* New Companies Preview */}
-              {stats.newCompanies.length > 0 && (
+              {stats.newCompanies.length > 0 && previewTab === "new-companies" && (
                 <Alert>
                   <Building2 className="h-4 w-4" />
                   <AlertDescription>
@@ -694,36 +728,25 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
                 </Alert>
               )}
 
-              {/* Filter Tabs */}
-              <Tabs value={previewTab} onValueChange={setPreviewTab} className="flex-1 flex flex-col overflow-hidden">
-                <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
-                  <TabsTrigger value="all">All ({stats.total})</TabsTrigger>
-                  <TabsTrigger value="valid">Valid ({stats.valid})</TabsTrigger>
-                  <TabsTrigger value="errors">Errors ({stats.invalid})</TabsTrigger>
-                  <TabsTrigger value="duplicates">Duplicates ({stats.duplicates})</TabsTrigger>
-                  <TabsTrigger value="missing">Missing Info ({stats.missingInfo})</TabsTrigger>
-                  <TabsTrigger value="new-companies">New Co. ({stats.newCompanies.length})</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value={previewTab} className="flex-1 overflow-hidden mt-2 min-h-0">
-                  <ScrollArea className="h-[300px] border rounded-lg">
-                    <div className="p-4 space-y-2">
-                      {filteredContacts.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-8">
-                          No contacts in this category
+              {/* Contact List */}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ScrollArea className="h-[350px] border rounded-lg">
+                  <div className="p-4 space-y-2 pb-8">
+                    {filteredContacts.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">
+                        No contacts in this category
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Click on any contact to edit
                         </p>
-                      ) : (
-                        <>
-                          <p className="text-xs text-muted-foreground mb-2">
-                            Click on any contact to edit
-                          </p>
-                          {filteredContacts.map((contact, index) => renderContactCard(contact, index))}
-                        </>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-              </Tabs>
+                        {filteredContacts.map((contact, index) => renderContactCard(contact, index))}
+                      </>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
 
               <div className="flex flex-col sm:flex-row justify-between gap-2 pt-2 border-t">
                 <Button
