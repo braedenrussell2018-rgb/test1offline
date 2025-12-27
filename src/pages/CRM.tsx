@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Users, UserPlus } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus } from "lucide-react";
+import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
@@ -224,6 +225,7 @@ const CRM = () => {
             <Download className="mr-2 h-4 w-4" />
             Export Contacts
           </Button>
+          <ImportContactsDialog onContactsImported={handleRefresh} />
           <Button 
             variant="outline" 
             onClick={() => setMergeDuplicatesOpen(true)}
