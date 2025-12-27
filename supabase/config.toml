@@ -1,7 +1,7 @@
 project_id = "eyuzakziwgkaogiqfhro"
 
 [functions.sync-data]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-budget-forecast]
 verify_jwt = true
