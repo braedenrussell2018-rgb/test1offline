@@ -103,11 +103,13 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
       }
 
       const geocodedLocations: GeocodedLocation[] = [];
+      const failedAddresses: string[] = [];
       
       for (const [address, data] of addressMap) {
         try {
+          // Use more lenient search types and fuzzy matching
           const response = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxToken}&limit=1`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxToken}&limit=1&fuzzyMatch=true&types=address,place,locality,neighborhood,postcode,region`
           );
           const result = await response.json();
           
@@ -120,10 +122,17 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               companies: data.companies,
               persons: data.persons,
             });
+          } else {
+            failedAddresses.push(address);
           }
         } catch (err) {
           console.error(`Failed to geocode: ${address}`, err);
+          failedAddresses.push(address);
         }
+      }
+      
+      if (failedAddresses.length > 0) {
+        console.log(`Could not geocode ${failedAddresses.length} addresses:`, failedAddresses);
       }
       
       setLocations(geocodedLocations);
