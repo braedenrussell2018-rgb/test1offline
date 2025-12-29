@@ -69,6 +69,9 @@
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "^1.2.0",
     "xlsx": "^0.18.5",
+    "y-indexeddb": "^9.0.12",
+    "y-webrtc": "^10.3.0",
+    "yjs": "^13.6.28",
     "zod": "^3.25.76"
   },
   "devDependencies": {
