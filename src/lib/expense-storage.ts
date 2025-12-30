@@ -158,9 +158,12 @@ export const getExpensesByCustomerId = async (customerId: string): Promise<Expen
 };
 
 export const uploadReceipt = async (file: File): Promise<string> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
   const fileExt = file.name.split('.').pop();
   const fileName = `${crypto.randomUUID()}.${fileExt}`;
-  const filePath = `receipts/${fileName}`;
+  const filePath = `${user.id}/${fileName}`;
 
   const { error } = await supabase.storage
     .from('receipts')
@@ -168,11 +171,31 @@ export const uploadReceipt = async (file: File): Promise<string> => {
 
   if (error) throw error;
 
-  const { data } = supabase.storage
+  // Use signed URL instead of public URL for security
+  const { data: signedData, error: signError } = await supabase.storage
     .from('receipts')
-    .getPublicUrl(filePath);
+    .createSignedUrl(filePath, 86400); // 24 hours expiry
 
-  return data.publicUrl;
+  if (signError) throw signError;
+
+  return signedData.signedUrl;
+};
+
+// Helper to get a fresh signed URL for viewing receipts
+export const getReceiptSignedUrl = async (receiptPath: string): Promise<string> => {
+  // Extract the path from a full URL if needed
+  let path = receiptPath;
+  if (receiptPath.includes('/storage/v1/object/')) {
+    const match = receiptPath.match(/receipts\/(.+)$/);
+    if (match) path = match[1];
+  }
+  
+  const { data, error } = await supabase.storage
+    .from('receipts')
+    .createSignedUrl(path, 3600); // 1 hour for viewing
+  
+  if (error) throw error;
+  return data.signedUrl;
 };
 
 export const scanReceipt = async (imageBase64: string): Promise<{
