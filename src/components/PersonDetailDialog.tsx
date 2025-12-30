@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard, Tractor, GitBranch } from "lucide-react";
+import { User, Mail, Phone, MapPin, Briefcase, StickyNote, Plus, Edit, X, Check, FileText, Receipt, CreditCard, Tractor, GitBranch, MessageSquare, Play, Pause, Clock } from "lucide-react";
 import { Person, Branch, inventoryStorage, Note, Quote, Invoice } from "@/lib/inventory-storage";
 import { getExpensesByCustomerId, getCategoryLabel, type Expense } from "@/lib/expense-storage";
 import { format } from "date-fns";
@@ -42,9 +42,20 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [conversations, setConversations] = useState<{
+    id: string;
+    transcript: string;
+    summary?: string;
+    key_points?: string[];
+    created_at: string;
+    duration_seconds?: number;
+    audio_url?: string;
+  }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   
   // Excavator lines state for editing
   const [allExcavatorLines, setAllExcavatorLines] = useState<string[]>([]);
@@ -60,16 +71,31 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
         setCurrentUserId(user?.id || null);
         setIsOwner(user?.id === person.userId);
 
-        const [allQuotes, allInvoices, personExpenses, excavatorLines, companyBranches] = await Promise.all([
+        const [allQuotes, allInvoices, personExpenses, excavatorLines, companyBranches, personConversations] = await Promise.all([
           inventoryStorage.getQuotes(),
           inventoryStorage.getInvoices(),
           getExpensesByCustomerId(person.id),
           inventoryStorage.getUniqueExcavatorLines(),
           person.companyId ? inventoryStorage.getBranchesByCompany(person.companyId) : Promise.resolve([]),
+          supabase
+            .from("ai_conversations")
+            .select("id, transcript, summary, key_points, created_at, duration_seconds, audio_url")
+            .eq("contact_id", person.id)
+            .order("created_at", { ascending: false }),
         ]);
         
         setAllExcavatorLines(excavatorLines);
         setBranches(companyBranches);
+        
+        if (personConversations.data) {
+          setConversations(personConversations.data.map(c => ({
+            ...c,
+            key_points: Array.isArray(c.key_points) ? c.key_points as string[] : [],
+            summary: c.summary || undefined,
+            duration_seconds: c.duration_seconds || undefined,
+            audio_url: c.audio_url || undefined,
+          })));
+        }
 
         // Match by name (partial match), email, or phone
         const personQuotes = allQuotes.filter(
@@ -94,6 +120,50 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
 
     fetchRelatedData();
   }, [open, person]);
+  
+  // Cleanup audio player on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+    };
+  }, []);
+  
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const playAudio = (conversationId: string, audioUrl: string) => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+
+    if (playingAudioId === conversationId) {
+      setPlayingAudioId(null);
+      return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audioPlayerRef.current = audio;
+    
+    audio.onended = () => {
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+    
+    audio.onerror = () => {
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+
+    audio.play();
+    setPlayingAudioId(conversationId);
+  };
 
   const handleAddNote = () => {
     if (newNote.trim()) {
@@ -481,6 +551,89 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: 
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(note.timestamp), 'MMM d, yyyy h:mm a')}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* AI Conversations Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Recorded Conversations
+                <Badge variant="secondary" className="ml-2">
+                  {conversations.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {conversations.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No recorded conversations with this contact.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {conversations.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className="p-3 border rounded-lg bg-card space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">
+                            {format(new Date(conv.created_at), 'MMM d, yyyy h:mm a')}
+                          </p>
+                          {conv.duration_seconds && (
+                            <Badge variant="outline" className="text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {formatDuration(conv.duration_seconds)}
+                            </Badge>
+                          )}
+                        </div>
+                        {conv.audio_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => playAudio(conv.id, conv.audio_url!)}
+                          >
+                            {playingAudioId === conv.id ? (
+                              <Pause className="h-4 w-4" />
+                            ) : (
+                              <Play className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {conv.summary && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Summary</p>
+                          <p className="text-sm">{conv.summary}</p>
+                        </div>
+                      )}
+                      
+                      {conv.key_points && conv.key_points.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Key Points</p>
+                          <ul className="text-sm list-disc list-inside">
+                            {conv.key_points.map((point, i) => (
+                              <li key={i} className="text-muted-foreground">{point}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          View transcript
+                        </summary>
+                        <p className="mt-2 p-2 bg-muted/50 rounded text-xs whitespace-pre-wrap">
+                          {conv.transcript}
+                        </p>
+                      </details>
                     </div>
                   ))}
                 </div>
