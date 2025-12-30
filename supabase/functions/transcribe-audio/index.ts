@@ -42,7 +42,7 @@ serve(async (req) => {
   }
 
   try {
-    const { audio, userOpenAIKey } = await req.json();
+    const { audio } = await req.json();
     
     if (!audio) {
       throw new Error('No audio data provided');
@@ -50,53 +50,42 @@ serve(async (req) => {
 
     console.log("Received audio for transcription, length:", audio.length);
 
-    // For transcription, we need OpenAI's Whisper API
-    // Lovable AI doesn't support audio transcription directly
-    // So we'll use OpenAI if user provides key, otherwise use Lovable AI for a simpler approach
+    // Use shared OpenAI API key for Whisper transcription
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     
-    // If user has OpenAI key, use Whisper
-    if (userOpenAIKey) {
-      const binaryAudio = processBase64Chunks(audio);
-      
-      const formData = new FormData();
-      const blob = new Blob([binaryAudio.buffer as ArrayBuffer], { type: 'audio/webm' });
-      formData.append('file', blob, 'audio.webm');
-      formData.append('model', 'whisper-1');
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${userOpenAIKey}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Whisper API error:", response.status, errorText);
-        throw new Error(`Transcription API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("Transcription successful");
-
-      return new Response(
-        JSON.stringify({ text: result.text }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Without OpenAI key, we'll use ElevenLabs if connected, or return an error
-      // For now, return a helpful message
-      return new Response(
-        JSON.stringify({ 
-          error: "Voice transcription requires an OpenAI API key. Please add your key in Settings to enable voice recording.",
-          needsApiKey: true 
-        }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
+      throw new Error("OpenAI API key not configured");
     }
+
+    const binaryAudio = processBase64Chunks(audio);
+    
+    const formData = new FormData();
+    const blob = new Blob([binaryAudio.buffer as ArrayBuffer], { type: 'audio/webm' });
+    formData.append('file', blob, 'audio.webm');
+    formData.append('model', 'whisper-1');
+    
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Whisper API error:", response.status, errorText);
+      throw new Error(`Transcription API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log("Transcription successful");
+
+    return new Response(
+      JSON.stringify({ text: result.text }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error("Transcription error:", error);
