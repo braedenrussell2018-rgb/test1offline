@@ -121,7 +121,8 @@ If you can extract contact info from the conversation, include it in suggestedNe
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      let conversationContext = 'No conversations available.';
+      let conversationContext = '';
+      let hasCompanyData = false;
       
       if (conversationIds && conversationIds.length > 0) {
         // Fetch conversations for context
@@ -136,15 +137,29 @@ If you can extract contact info from the conversation, include it in suggestedNe
         }
 
         if (conversations && conversations.length > 0) {
+          hasCompanyData = true;
           conversationContext = conversations.map((c: any, i: number) => 
             `[Conversation ${i + 1} - ${new Date(c.created_at).toLocaleDateString()}]\nSummary: ${c.summary || 'No summary'}\nKey Points: ${JSON.stringify(c.key_points || [])}\nTranscript: ${c.transcript}`
           ).join('\n\n---\n\n');
         }
       }
 
-      const systemPrompt = `You are a helpful sales assistant AI with access to past conversation recordings. 
-Answer questions based on the provided conversation history. Be specific and cite relevant conversations when applicable.
-If the information isn't in the conversations, say so clearly.`;
+      // First, try to answer from company data
+      const systemPromptWithData = `You are a helpful sales assistant AI with access to past conversation recordings and general knowledge.
+
+IMPORTANT: You must ALWAYS start your response with a source indicator:
+- If the answer comes from the conversation history provided, start with: "📁 **Source: Company Database**\\n\\n"
+- If you need to use general knowledge or web information, start with: "🌐 **Source: General Knowledge / Web**\\n\\n"
+- If you use both, start with: "📁🌐 **Source: Company Database & General Knowledge**\\n\\n"
+
+When answering:
+1. First check if the conversation history contains relevant information
+2. If it does, answer from that data and cite which conversation(s)
+3. If the information isn't in conversations, use your general knowledge to help
+4. Be clear about what information came from where
+
+${hasCompanyData ? `COMPANY CONVERSATION HISTORY:
+${conversationContext}` : 'No company conversation history available.'}`;
 
       console.log("Sending question to AI...");
 
@@ -157,8 +172,8 @@ If the information isn't in the conversations, say so clearly.`;
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `CONVERSATION HISTORY:\n${conversationContext}\n\nQUESTION: ${question}` }
+            { role: "system", content: systemPromptWithData },
+            { role: "user", content: question }
           ],
         }),
       });
@@ -166,6 +181,21 @@ If the information isn't in the conversations, say so clearly.`;
       if (!response.ok) {
         const errorText = await response.text();
         console.error("AI API error:", response.status, errorText);
+        
+        // Handle rate limits
+        if (response.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (response.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted. Please add more credits." }), {
+            status: 402,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
         throw new Error(`AI API error: ${response.status}`);
       }
 
