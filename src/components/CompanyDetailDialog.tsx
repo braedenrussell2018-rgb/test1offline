@@ -13,8 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, User, Mail, Phone, Briefcase, MapPin, Edit, X, Check, Plus, GitBranch, Trash2 } from "lucide-react";
+import { Building2, User, Mail, Phone, Briefcase, MapPin, Edit, X, Check, Plus, GitBranch, Trash2, MessageSquare, Clock, Play } from "lucide-react";
 import { Company, Person, Branch, inventoryStorage } from "@/lib/inventory-storage";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Conversation {
+  id: string;
+  transcript: string;
+  summary: string | null;
+  contact_id: string | null;
+  created_at: string;
+  duration_seconds: number | null;
+  audio_url: string | null;
+}
 
 interface CompanyDetailDialogProps {
   company: Company;
@@ -32,12 +43,61 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
   const [isAddingBranch, setIsAddingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [newBranchAddress, setNewBranchAddress] = useState("");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       inventoryStorage.getBranchesByCompany(company.id).then(setBranches);
+      fetchConversations();
     }
   }, [open, company.id]);
+
+  const fetchConversations = async () => {
+    if (persons.length === 0) return;
+    
+    setLoadingConversations(true);
+    try {
+      const contactIds = persons.map(p => p.id);
+      const { data, error } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .in('contact_id', contactIds)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setConversations(data || []);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  const formatDuration = (seconds: number | null) => {
+    if (!seconds) return 'Unknown';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getContactName = (contactId: string | null) => {
+    if (!contactId) return 'Unknown';
+    const person = persons.find(p => p.id === contactId);
+    return person?.name || 'Unknown';
+  };
+
+  const playAudio = (audioUrl: string) => {
+    if (playingAudio === audioUrl) {
+      setPlayingAudio(null);
+      return;
+    }
+    const audio = new Audio(audioUrl);
+    audio.play();
+    setPlayingAudio(audioUrl);
+    audio.onended = () => setPlayingAudio(null);
+  };
 
   const handleSaveEdit = () => {
     inventoryStorage.updateCompany(editedCompany);
@@ -317,6 +377,73 @@ export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate,
               </div>
             )}
           </div>
+
+          {/* Conversations Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageSquare className="h-5 w-5" />
+                Conversations
+                <Badge variant="secondary" className="ml-2">
+                  {conversations.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingConversations ? (
+                <p className="text-center text-muted-foreground py-4">Loading conversations...</p>
+              ) : conversations.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No conversations recorded with contacts at this company.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {conversations.map((conv) => (
+                    <div key={conv.id} className="p-3 border rounded-lg space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{getContactName(conv.contact_id)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(conv.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {conv.summary && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {conv.summary}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {conv.duration_seconds && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {formatDuration(conv.duration_seconds)}
+                            </div>
+                          )}
+                          {conv.audio_url && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => playAudio(conv.audio_url!)}
+                            >
+                              <Play className={`h-4 w-4 ${playingAudio === conv.audio_url ? 'text-primary' : ''}`} />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {!conv.summary && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {conv.transcript.substring(0, 150)}...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </DialogContent>
     </Dialog>
