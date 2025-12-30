@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare } from "lucide-react";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
@@ -15,6 +15,7 @@ import { AssignSalesmanDialog } from "@/components/AssignSalesmanDialog";
 import { MergeDuplicatesDialog } from "@/components/MergeDuplicatesDialog";
 import { ContactsMapDialog } from "@/components/ContactsMapDialog";
 import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
+import { supabase } from "@/integrations/supabase/client";
 
 const CRM = () => {
   const [activeTab, setActiveTab] = useState(() => {
@@ -36,6 +37,7 @@ const CRM = () => {
   const [assignSalesmanDocNumber, setAssignSalesmanDocNumber] = useState("");
   const [assignSalesmanCurrent, setAssignSalesmanCurrent] = useState<string | undefined>();
   const [mergeDuplicatesOpen, setMergeDuplicatesOpen] = useState(false);
+  const [conversationCounts, setConversationCounts] = useState<Record<string, number>>({});
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -55,6 +57,21 @@ const CRM = () => {
       setPersons(personsData);
       setQuotes(quotesData);
       setInvoices(invoicesData);
+      
+      // Load conversation counts per contact
+      const { data: conversations } = await supabase
+        .from("ai_conversations")
+        .select("contact_id");
+      
+      if (conversations) {
+        const counts: Record<string, number> = {};
+        conversations.forEach(c => {
+          if (c.contact_id) {
+            counts[c.contact_id] = (counts[c.contact_id] || 0) + 1;
+          }
+        });
+        setConversationCounts(counts);
+      }
     };
     loadData();
   }, [refreshKey]);
@@ -359,12 +376,20 @@ const CRM = () => {
                                   </div>
                                 )}
                               </div>
-                              {person.notes.length > 0 && (
-                                <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded mt-2">
-                                  <StickyNote className="h-3 w-3 inline mr-1" />
-                                  {person.notes.length} {person.notes.length === 1 ? 'note' : 'notes'}
-                                </div>
-                              )}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {person.notes.length > 0 && (
+                                  <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                                    <StickyNote className="h-3 w-3 inline mr-1" />
+                                    {person.notes.length} {person.notes.length === 1 ? 'note' : 'notes'}
+                                  </div>
+                                )}
+                                {conversationCounts[person.id] > 0 && (
+                                  <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                                    <MessageSquare className="h-3 w-3 inline mr-1" />
+                                    {conversationCounts[person.id]} {conversationCounts[person.id] === 1 ? 'conversation' : 'conversations'}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

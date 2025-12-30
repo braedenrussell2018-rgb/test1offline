@@ -323,7 +323,13 @@ export default function AIAssistant() {
     }
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+  
   const confirmContactMatch = async (contactId: string | null, createNew: boolean = false) => {
+    // Prevent duplicate saves
+    if (isSaving) return;
+    setIsSaving(true);
+    
     const transcriptText = sessionStorage.getItem('pendingTranscript') || getCurrentTranscript();
     const duration = parseInt(sessionStorage.getItem('pendingDuration') || '0');
     
@@ -416,6 +422,7 @@ export default function AIAssistant() {
     setSelectedContactOverride(null);
     sessionStorage.removeItem('pendingTranscript');
     sessionStorage.removeItem('pendingDuration');
+    setIsSaving(false);
   };
 
   const askQuestion = async () => {
