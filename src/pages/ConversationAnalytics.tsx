@@ -1,11 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
-import { format, subDays, startOfDay, parseISO } from "date-fns";
-import { MessageSquare, Users, TrendingUp, Calendar, Loader2, Phone, Clock, Tag } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { format, subDays, startOfDay, parseISO, endOfDay, isWithinInterval, differenceInDays, eachDayOfInterval } from "date-fns";
+import { MessageSquare, Users, TrendingUp, Calendar as CalendarIcon, Loader2, Phone, Clock, Tag, X } from "lucide-react";
+import { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
 
 interface Conversation {
   id: string;
@@ -21,20 +27,18 @@ interface Contact {
   name: string;
 }
 
-const CHART_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
+type PresetRange = "7d" | "30d" | "90d" | "custom";
 
 export default function ConversationAnalytics() {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [presetRange, setPresetRange] = useState<PresetRange>("30d");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
 
   useEffect(() => {
     if (user) {
@@ -56,7 +60,7 @@ export default function ConversationAnalytics() {
       ]);
 
       if (conversationsRes.data) {
-        setConversations(conversationsRes.data.map(c => ({
+        setAllConversations(conversationsRes.data.map(c => ({
           ...c,
           key_points: Array.isArray(c.key_points) ? c.key_points as string[] : [],
         })));
@@ -70,28 +74,59 @@ export default function ConversationAnalytics() {
     }
   };
 
+  // Handle preset changes
+  const handlePresetChange = (preset: PresetRange) => {
+    setPresetRange(preset);
+    if (preset !== "custom") {
+      const days = preset === "7d" ? 6 : preset === "30d" ? 29 : 89;
+      setDateRange({
+        from: subDays(new Date(), days),
+        to: new Date(),
+      });
+    }
+  };
+
+  // Filter conversations by date range
+  const conversations = useMemo(() => {
+    if (!dateRange?.from) return allConversations;
+    
+    return allConversations.filter(conv => {
+      const convDate = parseISO(conv.created_at);
+      const start = startOfDay(dateRange.from!);
+      const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from!);
+      return isWithinInterval(convDate, { start, end });
+    });
+  }, [allConversations, dateRange]);
+
   const getContactName = (contactId: string | null) => {
     if (!contactId) return "Unassigned";
     return contacts.find(c => c.id === contactId)?.name || "Unknown";
   };
 
-  // Calls per day (last 30 days)
+  // Calls per day within date range
   const callsPerDay = useMemo(() => {
-    const last30Days = Array.from({ length: 30 }, (_, i) => {
-      const date = startOfDay(subDays(new Date(), 29 - i));
-      return { date: format(date, "yyyy-MM-dd"), label: format(date, "MMM d"), count: 0 };
-    });
+    if (!dateRange?.from) return [];
+    
+    const start = startOfDay(dateRange.from);
+    const end = dateRange.to ? startOfDay(dateRange.to) : start;
+    const days = eachDayOfInterval({ start, end });
+    
+    const dayData = days.map(date => ({
+      date: format(date, "yyyy-MM-dd"),
+      label: format(date, "MMM d"),
+      count: 0,
+    }));
 
     conversations.forEach(conv => {
       const convDate = format(parseISO(conv.created_at), "yyyy-MM-dd");
-      const dayEntry = last30Days.find(d => d.date === convDate);
+      const dayEntry = dayData.find(d => d.date === convDate);
       if (dayEntry) {
         dayEntry.count++;
       }
     });
 
-    return last30Days;
-  }, [conversations]);
+    return dayData;
+  }, [conversations, dateRange]);
 
   // Top contacts by conversation count
   const topContacts = useMemo(() => {
@@ -142,19 +177,18 @@ export default function ConversationAnalytics() {
       .slice(0, 20);
   }, [conversations]);
 
-  // Summary stats
+  // Summary stats for filtered range
   const stats = useMemo(() => {
     const totalCalls = conversations.length;
     const totalDuration = conversations.reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
     const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
     const uniqueContacts = new Set(conversations.filter(c => c.contact_id).map(c => c.contact_id)).size;
-    const thisWeek = conversations.filter(c => {
-      const convDate = parseISO(c.created_at);
-      return convDate >= subDays(new Date(), 7);
-    }).length;
+    const rangeLabel = dateRange?.from && dateRange?.to 
+      ? `${format(dateRange.from, "MMM d")} - ${format(dateRange.to, "MMM d")}`
+      : "Selected range";
 
-    return { totalCalls, avgDuration, uniqueContacts, thisWeek };
-  }, [conversations]);
+    return { totalCalls, avgDuration, uniqueContacts, rangeLabel };
+  }, [conversations, dateRange]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -174,14 +208,71 @@ export default function ConversationAnalytics() {
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-foreground">Conversation Analytics</h1>
-          <p className="text-muted-foreground mt-1">Insights from your recorded conversations</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Conversation Analytics</h1>
+              <p className="text-muted-foreground mt-1">Insights from your recorded conversations</p>
+            </div>
+            
+            {/* Date Range Filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={presetRange} onValueChange={(v) => handlePresetChange(v as PresetRange)}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d">Last 7 days</SelectItem>
+                  <SelectItem value="30d">Last 30 days</SelectItem>
+                  <SelectItem value="90d">Last 90 days</SelectItem>
+                  <SelectItem value="custom">Custom range</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !dateRange && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "MMM d, yyyy")} - {format(dateRange.to, "MMM d, yyyy")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "MMM d, yyyy")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={(range) => {
+                      setDateRange(range);
+                      if (range) setPresetRange("custom");
+                    }}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Conversations</CardTitle>
@@ -189,20 +280,32 @@ export default function ConversationAnalytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalCalls}</div>
-              <p className="text-xs text-muted-foreground">All time</p>
+              <p className="text-xs text-muted-foreground">{stats.rangeLabel}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">This Week</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Avg Duration</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.thisWeek}</div>
-              <p className="text-xs text-muted-foreground">Last 7 days</p>
+              <div className="text-2xl font-bold">{formatDuration(stats.avgDuration)}</div>
+              <p className="text-xs text-muted-foreground">Per conversation</p>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Unique Contacts</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.uniqueContacts}</div>
+              <p className="text-xs text-muted-foreground">People contacted</p>
+            </CardContent>
+          </Card>
+        </div>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -236,7 +339,7 @@ export default function ConversationAnalytics() {
                 <TrendingUp className="h-5 w-5" />
                 Calls Per Day
               </CardTitle>
-              <CardDescription>Last 30 days</CardDescription>
+              <CardDescription>{stats.rangeLabel}</CardDescription>
             </CardHeader>
             <CardContent>
               {conversations.length === 0 ? (
