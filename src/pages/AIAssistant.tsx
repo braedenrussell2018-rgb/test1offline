@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { 
   Mic, 
@@ -24,7 +26,10 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Building2
+  Building2,
+  AlertCircle,
+  Trash2,
+  RefreshCw
 } from "lucide-react";
 
 interface Contact {
@@ -66,9 +71,8 @@ interface AIAnalysis {
 export default function AIAssistant() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("record");
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState("");
+  const [manualTranscript, setManualTranscript] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -80,10 +84,19 @@ export default function AIAssistant() {
   const [useCustomKey, setUseCustomKey] = useState(false);
   const [pendingAnalysis, setPendingAnalysis] = useState<AIAnalysis | null>(null);
   const [showContactConfirm, setShowContactConfirm] = useState(false);
+  const [selectedContactOverride, setSelectedContactOverride] = useState<string | null>(null);
+  const [recordingStartTime, setRecordingStartTime] = useState<number>(0);
   
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingStartRef = useRef<number>(0);
+  const {
+    isListening,
+    isSupported,
+    transcript: speechTranscript,
+    interimTranscript,
+    error: speechError,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechRecognition();
 
   useEffect(() => {
     if (user) {
@@ -93,6 +106,12 @@ export default function AIAssistant() {
       loadSettings();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (speechError) {
+      toast.error(speechError);
+    }
+  }, [speechError]);
 
   const loadConversations = async () => {
     const { data, error } = await supabase
@@ -154,89 +173,29 @@ export default function AIAssistant() {
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      
-      audioChunksRef.current = [];
-      recordingStartRef.current = Date.now();
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const duration = Math.round((Date.now() - recordingStartRef.current) / 1000);
-        stream.getTracks().forEach(track => track.stop());
-        await processRecording(audioBlob, duration);
-      };
-
-      mediaRecorder.start(1000);
-      mediaRecorderRef.current = mediaRecorder;
-      setIsRecording(true);
-      toast.info("Recording started...");
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      toast.error("Could not access microphone");
-    }
+  const handleStartRecording = () => {
+    resetTranscript();
+    setManualTranscript("");
+    setRecordingStartTime(Date.now());
+    startListening();
+    toast.info("Listening... Speak now");
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
+  const handleStopRecording = () => {
+    stopListening();
+    toast.success("Recording stopped");
   };
 
-  const processRecording = async (audioBlob: Blob, duration: number) => {
-    setIsProcessing(true);
-    
-    try {
-      // Convert blob to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-      });
-      reader.readAsDataURL(audioBlob);
-      const base64Audio = await base64Promise;
-
-      // Transcribe audio
-      const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke(
-        'transcribe-audio',
-        { body: { audio: base64Audio, userOpenAIKey: useCustomKey ? openaiKey : null } }
-      );
-
-      if (transcribeError || transcribeData?.error) {
-        if (transcribeData?.needsApiKey) {
-          toast.error("Voice transcription requires an OpenAI API key. Add it in Settings.");
-          setShowSettings(true);
-          return;
-        }
-        throw new Error(transcribeData?.error || "Transcription failed");
-      }
-
-      const transcriptText = transcribeData.text;
-      setTranscript(transcriptText);
-      
-      // Analyze transcript and match to contacts
-      await analyzeTranscript(transcriptText, duration);
-
-    } catch (error) {
-      console.error("Processing error:", error);
-      toast.error("Failed to process recording");
-    } finally {
-      setIsProcessing(false);
-    }
+  const getCurrentTranscript = () => {
+    return manualTranscript || speechTranscript || "";
   };
 
-  const analyzeTranscript = async (transcriptText: string, duration?: number) => {
+  const analyzeTranscript = async (transcriptText: string) => {
+    if (!transcriptText.trim()) {
+      toast.error("Please record or enter a transcript first");
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
@@ -257,32 +216,43 @@ export default function AIAssistant() {
         },
       });
 
-      if (error || data?.error) {
-        throw new Error(data?.error || "Analysis failed");
+      if (error) {
+        console.error("Function error:", error);
+        throw new Error("Failed to call AI assistant");
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       const analysis: AIAnalysis = data;
       setPendingAnalysis(analysis);
       
       // Store pending data for contact confirmation
+      const duration = recordingStartTime ? Math.round((Date.now() - recordingStartTime) / 1000) : 0;
       sessionStorage.setItem('pendingTranscript', transcriptText);
-      sessionStorage.setItem('pendingDuration', String(duration || 0));
+      sessionStorage.setItem('pendingDuration', String(duration));
       
       setShowContactConfirm(true);
 
     } catch (error) {
       console.error("Analysis error:", error);
-      toast.error("Failed to analyze transcript");
+      toast.error(error instanceof Error ? error.message : "Failed to analyze transcript");
     } finally {
       setIsProcessing(false);
     }
   };
 
   const confirmContactMatch = async (contactId: string | null, createNew: boolean = false) => {
-    const transcriptText = sessionStorage.getItem('pendingTranscript') || transcript;
+    const transcriptText = sessionStorage.getItem('pendingTranscript') || getCurrentTranscript();
     const duration = parseInt(sessionStorage.getItem('pendingDuration') || '0');
     
     let finalContactId = contactId;
+
+    // Use override if selected
+    if (selectedContactOverride) {
+      finalContactId = selectedContactOverride;
+    }
 
     // Create new contact if requested
     if (createNew && pendingAnalysis?.suggestedNewContact) {
@@ -349,9 +319,13 @@ export default function AIAssistant() {
       loadConversations();
     }
 
+    // Cleanup
     setShowContactConfirm(false);
     setPendingAnalysis(null);
-    setTranscript("");
+    setManualTranscript("");
+    resetTranscript();
+    setSelectedContactOverride(null);
+    setRecordingStartTime(0);
     sessionStorage.removeItem('pendingTranscript');
     sessionStorage.removeItem('pendingDuration');
   };
@@ -376,17 +350,36 @@ export default function AIAssistant() {
         },
       });
 
-      if (error || data?.error) {
-        throw new Error(data?.error || "Failed to get answer");
+      if (error) {
+        throw new Error("Failed to call AI assistant");
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       setChatHistory(prev => [...prev, { role: 'assistant', content: data.answer }]);
 
     } catch (error) {
       console.error("Question error:", error);
-      toast.error("Failed to get answer");
+      toast.error(error instanceof Error ? error.message : "Failed to get answer");
+      setChatHistory(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't process that question. Please try again." }]);
     } finally {
       setIsAsking(false);
+    }
+  };
+
+  const deleteConversation = async (id: string) => {
+    const { error } = await supabase
+      .from("ai_conversations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete conversation");
+    } else {
+      toast.success("Conversation deleted");
+      setConversations(prev => prev.filter(c => c.id !== id));
     }
   };
 
@@ -404,6 +397,8 @@ export default function AIAssistant() {
     return company?.name || "";
   };
 
+  const displayTranscript = speechTranscript + (interimTranscript ? ` ${interimTranscript}` : '');
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -417,6 +412,21 @@ export default function AIAssistant() {
             <Settings className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Browser Support Warning */}
+        {!isSupported && (
+          <Card className="border-destructive">
+            <CardContent className="flex items-center gap-3 p-4">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <div>
+                <p className="font-medium text-destructive">Speech recognition not supported</p>
+                <p className="text-sm text-muted-foreground">
+                  Your browser doesn't support speech recognition. Please use Chrome, Edge, or Safari, or type your notes manually.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -440,47 +450,97 @@ export default function AIAssistant() {
               <CardHeader>
                 <CardTitle>Record Conversation</CardTitle>
                 <CardDescription>
-                  Click the microphone to start recording your sales call. The AI will transcribe and analyze it.
+                  Click the microphone to start recording, or type your notes manually below.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col items-center space-y-6">
-                <Button
-                  size="lg"
-                  variant={isRecording ? "destructive" : "default"}
-                  className="h-24 w-24 rounded-full"
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-10 w-10 animate-spin" />
-                  ) : isRecording ? (
-                    <MicOff className="h-10 w-10" />
-                  ) : (
-                    <Mic className="h-10 w-10" />
+              <CardContent className="space-y-6">
+                {/* Recording Button */}
+                <div className="flex flex-col items-center space-y-4">
+                  <Button
+                    size="lg"
+                    variant={isListening ? "destructive" : "default"}
+                    className="h-24 w-24 rounded-full"
+                    onClick={isListening ? handleStopRecording : handleStartRecording}
+                    disabled={isProcessing || !isSupported}
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="h-10 w-10 animate-spin" />
+                    ) : isListening ? (
+                      <MicOff className="h-10 w-10" />
+                    ) : (
+                      <Mic className="h-10 w-10" />
+                    )}
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    {isProcessing ? "Processing..." : isListening ? "Listening... Click to stop" : isSupported ? "Click to start recording" : "Type notes below"}
+                  </p>
+                  {isListening && (
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
+                      </span>
+                      <span className="text-sm text-destructive font-medium">Recording</span>
+                    </div>
                   )}
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  {isProcessing ? "Processing..." : isRecording ? "Recording... Click to stop" : "Click to start recording"}
-                </p>
+                </div>
 
-                {transcript && (
-                  <div className="w-full space-y-2">
-                    <Label>Transcript</Label>
-                    <Textarea 
-                      value={transcript} 
-                      onChange={(e) => setTranscript(e.target.value)}
-                      rows={6}
-                      className="resize-none"
-                    />
-                    <Button 
-                      onClick={() => analyzeTranscript(transcript)}
-                      disabled={isProcessing || !transcript.trim()}
-                    >
-                      {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                      Analyze & Save
-                    </Button>
+                {/* Live Transcript Display */}
+                {(displayTranscript || isListening) && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Live Transcript</Label>
+                      {displayTranscript && (
+                        <Button variant="ghost" size="sm" onClick={resetTranscript}>
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg min-h-[100px]">
+                      <p className="text-foreground">
+                        {speechTranscript}
+                        {interimTranscript && (
+                          <span className="text-muted-foreground italic"> {interimTranscript}</span>
+                        )}
+                        {!displayTranscript && isListening && (
+                          <span className="text-muted-foreground italic">Waiting for speech...</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 )}
+
+                {/* Manual Transcript Entry */}
+                <div className="space-y-2">
+                  <Label>Manual Notes (or edit transcript)</Label>
+                  <Textarea 
+                    value={manualTranscript || speechTranscript} 
+                    onChange={(e) => setManualTranscript(e.target.value)}
+                    rows={6}
+                    placeholder="Type or paste your conversation notes here..."
+                    className="resize-none"
+                  />
+                </div>
+
+                {/* Analyze Button */}
+                <Button 
+                  onClick={() => analyzeTranscript(manualTranscript || speechTranscript)}
+                  disabled={isProcessing || (!manualTranscript && !speechTranscript)}
+                  className="w-full"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Analyze & Save Conversation
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -516,16 +576,26 @@ export default function AIAssistant() {
                                   </Badge>
                                 )}
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(conv.created_at).toLocaleString()}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(conv.created_at).toLocaleString()}
+                                </span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => deleteConversation(conv.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                             
                             {conv.summary && (
                               <p className="text-sm text-foreground">{conv.summary}</p>
                             )}
                             
-                            {conv.key_points && conv.key_points.length > 0 && (
+                            {conv.key_points && Array.isArray(conv.key_points) && conv.key_points.length > 0 && (
                               <div className="flex flex-wrap gap-1">
                                 {(conv.key_points as string[]).map((point, i) => (
                                   <Badge key={i} variant="outline" className="text-xs">
@@ -535,11 +605,17 @@ export default function AIAssistant() {
                               </div>
                             )}
 
+                            {conv.duration_seconds && conv.duration_seconds > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Duration: {Math.floor(conv.duration_seconds / 60)}m {conv.duration_seconds % 60}s
+                              </p>
+                            )}
+
                             <details className="text-sm">
                               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                                 View full transcript
                               </summary>
-                              <p className="mt-2 p-2 bg-muted rounded text-foreground">
+                              <p className="mt-2 p-2 bg-muted rounded text-foreground whitespace-pre-wrap">
                                 {conv.transcript}
                               </p>
                             </details>
@@ -559,16 +635,41 @@ export default function AIAssistant() {
               <CardHeader>
                 <CardTitle>Ask About Conversations</CardTitle>
                 <CardDescription>
-                  Ask questions about your recorded conversations
+                  Ask questions about your {conversations.length} recorded conversation{conversations.length !== 1 ? 's' : ''}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 <ScrollArea className="flex-1 mb-4">
                   <div className="space-y-4">
                     {chatHistory.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">
-                        Ask me anything about your past conversations!
-                      </p>
+                      <div className="text-center py-8 space-y-4">
+                        <p className="text-muted-foreground">
+                          Ask me anything about your past conversations!
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setQuestion("What are the main topics discussed across all my conversations?")}
+                          >
+                            Main topics discussed?
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setQuestion("Which contacts mentioned pricing or budget?")}
+                          >
+                            Who mentioned budget?
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setQuestion("What follow-up actions were mentioned?")}
+                          >
+                            Follow-up actions?
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
                       chatHistory.map((msg, i) => (
                         <div
@@ -579,12 +680,12 @@ export default function AIAssistant() {
                               : 'bg-muted mr-8'
                           }`}
                         >
-                          {msg.content}
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
                         </div>
                       ))
                     )}
                     {isAsking && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2 text-muted-foreground mr-8 p-3 bg-muted rounded-lg">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Thinking...
                       </div>
@@ -616,7 +717,7 @@ export default function AIAssistant() {
           <DialogHeader>
             <DialogTitle>AI Settings</DialogTitle>
             <DialogDescription>
-              Configure your AI preferences
+              Configure your AI preferences. The default uses Lovable AI (free).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -624,7 +725,7 @@ export default function AIAssistant() {
               <div>
                 <Label>Use Custom OpenAI Key</Label>
                 <p className="text-sm text-muted-foreground">
-                  Required for voice transcription. Optional for text analysis.
+                  Optional: Use your own OpenAI key for analysis.
                 </p>
               </div>
               <Switch checked={useCustomKey} onCheckedChange={setUseCustomKey} />
@@ -700,6 +801,23 @@ export default function AIAssistant() {
                   </div>
                 )}
 
+                {/* Manual Contact Override */}
+                <div className="border-t pt-3">
+                  <Label className="text-sm">Or select a different contact:</Label>
+                  <Select value={selectedContactOverride || ""} onValueChange={setSelectedContactOverride}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Choose existing contact..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contacts.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.company_id ? `(${companies.find(co => co.id === c.company_id)?.name})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {pendingAnalysis.suggestedNewContact && (
                   <div className="border-t pt-3">
                     <p className="text-sm font-medium mb-2">Suggested New Contact:</p>
@@ -720,14 +838,19 @@ export default function AIAssistant() {
               </div>
 
               <div className="flex flex-col gap-2">
-                {pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' && (
+                {selectedContactOverride ? (
+                  <Button onClick={() => confirmContactMatch(selectedContactOverride)}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Link to {getContactName(selectedContactOverride)}
+                  </Button>
+                ) : pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' ? (
                   <Button onClick={() => confirmContactMatch(pendingAnalysis.matchedContactId)}>
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Confirm Match
                   </Button>
-                )}
+                ) : null}
                 
-                {pendingAnalysis.suggestedNewContact && (
+                {pendingAnalysis.suggestedNewContact && !selectedContactOverride && (
                   <Button 
                     variant="outline" 
                     onClick={() => confirmContactMatch(null, true)}
