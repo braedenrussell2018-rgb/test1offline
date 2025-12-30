@@ -12,14 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { 
   Mic, 
   MicOff, 
   Send, 
-  Settings, 
   User, 
   Clock, 
   MessageSquare,
@@ -85,9 +83,6 @@ export default function AIAssistant() {
   const [question, setQuestion] = useState("");
   const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [isAsking, setIsAsking] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [useCustomKey, setUseCustomKey] = useState(false);
   const [pendingAnalysis, setPendingAnalysis] = useState<AIAnalysis | null>(null);
   const [showContactConfirm, setShowContactConfirm] = useState(false);
   const [selectedContactOverride, setSelectedContactOverride] = useState<string | null>(null);
@@ -123,7 +118,6 @@ export default function AIAssistant() {
       loadConversations();
       loadContacts();
       loadCompanies();
-      loadSettings();
     }
   }, [user]);
 
@@ -177,35 +171,6 @@ export default function AIAssistant() {
 
     if (!error && data) {
       setCompanies(data);
-    }
-  };
-
-  const loadSettings = async () => {
-    const { data } = await supabase
-      .from("user_ai_settings")
-      .select("*")
-      .single();
-
-    if (data) {
-      setOpenaiKey(data.openai_api_key || "");
-      setUseCustomKey(data.preferred_model === "openai");
-    }
-  };
-
-  const saveSettings = async () => {
-    const { error } = await supabase
-      .from("user_ai_settings")
-      .upsert({
-        user_id: user?.id,
-        openai_api_key: openaiKey,
-        preferred_model: useCustomKey ? "openai" : "lovable",
-      });
-
-    if (error) {
-      toast.error("Failed to save settings");
-    } else {
-      toast.success("Settings saved");
-      setShowSettings(false);
     }
   };
 
@@ -288,7 +253,6 @@ export default function AIAssistant() {
           action: 'analyze_transcript',
           transcript: transcriptText,
           contacts: contactsForAI,
-          userOpenAIKey: useCustomKey ? openaiKey : null,
         },
       });
 
@@ -441,7 +405,6 @@ export default function AIAssistant() {
           action: 'ask_question',
           question: userQuestion,
           conversationIds,
-          userOpenAIKey: useCustomKey ? openaiKey : null,
         },
       });
 
@@ -551,9 +514,6 @@ export default function AIAssistant() {
             <h1 className="text-3xl font-bold text-foreground">AI Assistant</h1>
             <p className="text-muted-foreground">Voice-powered note taking for sales calls</p>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setShowSettings(true)}>
-            <Settings className="h-5 w-5" />
-          </Button>
         </div>
 
         {/* Browser Support Warning */}
@@ -917,48 +877,6 @@ export default function AIAssistant() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Settings Dialog */}
-      <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>AI Settings</DialogTitle>
-            <DialogDescription>
-              Configure your AI preferences. The default uses Lovable AI (free).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Use Custom OpenAI Key</Label>
-                <p className="text-sm text-muted-foreground">
-                  Optional: Use your own OpenAI key for analysis.
-                </p>
-              </div>
-              <Switch checked={useCustomKey} onCheckedChange={setUseCustomKey} />
-            </div>
-            
-            {useCustomKey && (
-              <div className="space-y-2">
-                <Label>OpenAI API Key</Label>
-                <Input
-                  type="password"
-                  placeholder="sk-..."
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Your key is stored securely and only used for your requests.
-                </p>
-              </div>
-            )}
-
-            <Button onClick={saveSettings} className="w-full">
-              Save Settings
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Contact Confirmation Dialog */}
       <Dialog open={showContactConfirm} onOpenChange={setShowContactConfirm}>

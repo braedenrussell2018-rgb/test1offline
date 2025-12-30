@@ -13,26 +13,22 @@ serve(async (req) => {
   }
 
   try {
-    const { action, transcript, contacts, conversationIds, question, userOpenAIKey } = await req.json();
+    const { action, transcript, contacts, conversationIds, question } = await req.json();
     console.log(`AI Assistant action: ${action}`);
 
-    // Determine which API to use
-    const useOpenAI = userOpenAIKey && userOpenAIKey.length > 0;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // Use shared OpenAI API key
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     
-    if (!useOpenAI && !LOVABLE_API_KEY) {
-      console.error("No AI API key configured");
-      throw new Error("No AI API key configured");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
+      throw new Error("OpenAI API key not configured");
     }
 
-    const apiUrl = useOpenAI 
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const apiUrl = "https://api.openai.com/v1/chat/completions";
+    const apiKey = OPENAI_API_KEY;
+    const model = "gpt-4o-mini";
     
-    const apiKey = useOpenAI ? userOpenAIKey : LOVABLE_API_KEY;
-    const model = useOpenAI ? "gpt-4o-mini" : "google/gemini-2.5-flash";
-    
-    console.log(`Using API: ${useOpenAI ? 'OpenAI' : 'Lovable'}, Model: ${model}`);
+    console.log(`Using OpenAI API with model: ${model}`);
 
     if (action === "analyze_transcript") {
       // Analyze transcript and match to contacts
