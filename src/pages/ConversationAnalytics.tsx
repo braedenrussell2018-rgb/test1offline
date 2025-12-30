@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { format, subDays, startOfDay, parseISO, endOfDay, isWithinInterval, differenceInDays, eachDayOfInterval } from "date-fns";
-import { MessageSquare, Users, TrendingUp, Calendar as CalendarIcon, Loader2, Phone, Clock, Tag, X } from "lucide-react";
+import { MessageSquare, Users, TrendingUp, Calendar as CalendarIcon, Loader2, Phone, Clock, Tag, Building2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,13 @@ interface Conversation {
 interface Contact {
   id: string;
   name: string;
+  created_at: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 type PresetRange = "7d" | "30d" | "90d" | "custom";
@@ -33,6 +40,7 @@ export default function ConversationAnalytics() {
   const { user } = useAuth();
   const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [presetRange, setPresetRange] = useState<PresetRange>("30d");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -49,14 +57,17 @@ export default function ConversationAnalytics() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [conversationsRes, contactsRes] = await Promise.all([
+      const [conversationsRes, contactsRes, companiesRes] = await Promise.all([
         supabase
           .from("ai_conversations")
           .select("id, contact_id, created_at, duration_seconds, key_points, summary")
           .order("created_at", { ascending: false }),
         supabase
           .from("people")
-          .select("id, name"),
+          .select("id, name, created_at"),
+        supabase
+          .from("companies")
+          .select("id, name, created_at"),
       ]);
 
       if (conversationsRes.data) {
@@ -68,6 +79,10 @@ export default function ConversationAnalytics() {
 
       if (contactsRes.data) {
         setContacts(contactsRes.data);
+      }
+
+      if (companiesRes.data) {
+        setCompanies(companiesRes.data);
       }
     } finally {
       setLoading(false);
@@ -127,6 +142,42 @@ export default function ConversationAnalytics() {
 
     return dayData;
   }, [conversations, dateRange]);
+
+  // Contacts & Companies created per day
+  const crmGrowthPerDay = useMemo(() => {
+    if (!dateRange?.from) return [];
+    
+    const start = startOfDay(dateRange.from);
+    const end = dateRange.to ? startOfDay(dateRange.to) : start;
+    const days = eachDayOfInterval({ start, end });
+    
+    const dayData = days.map(date => ({
+      date: format(date, "yyyy-MM-dd"),
+      label: format(date, "MMM d"),
+      contacts: 0,
+      companies: 0,
+    }));
+
+    contacts.forEach(contact => {
+      if (!contact.created_at) return;
+      const contactDate = format(parseISO(contact.created_at), "yyyy-MM-dd");
+      const dayEntry = dayData.find(d => d.date === contactDate);
+      if (dayEntry) {
+        dayEntry.contacts++;
+      }
+    });
+
+    companies.forEach(company => {
+      if (!company.created_at) return;
+      const companyDate = format(parseISO(company.created_at), "yyyy-MM-dd");
+      const dayEntry = dayData.find(d => d.date === companyDate);
+      if (dayEntry) {
+        dayEntry.companies++;
+      }
+    });
+
+    return dayData;
+  }, [contacts, companies, dateRange]);
 
   // Top contacts by conversation count
   const topContacts = useMemo(() => {
@@ -399,7 +450,50 @@ export default function ConversationAnalytics() {
           </Card>
         </div>
 
-        {/* Key Topics */}
+        {/* CRM Growth Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              CRM Growth
+            </CardTitle>
+            <CardDescription>Contacts and companies created over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {contacts.length === 0 && companies.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                No CRM data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={crmGrowthPerDay}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="label" 
+                    tick={{ fontSize: 12 }}
+                    interval="preserveStartEnd"
+                    className="text-muted-foreground"
+                  />
+                  <YAxis 
+                    allowDecimals={false}
+                    tick={{ fontSize: 12 }}
+                    className="text-muted-foreground"
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Bar dataKey="contacts" fill="hsl(var(--primary))" name="Contacts" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="companies" fill="hsl(var(--secondary))" name="Companies" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
