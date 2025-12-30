@@ -2,7 +2,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut, RefreshCw, Download, Bot } from "lucide-react";
+import { LogOut, RefreshCw, Download, Bot, BarChart3 } from "lucide-react";
 import {
   Menubar,
   MenubarMenu,
@@ -55,6 +55,14 @@ export function AppMenuBar() {
                   <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
                     <Bot className="h-5 w-5" strokeWidth={3} />
                     AI Assistant
+                  </MenubarTrigger>
+                </NavLink>
+              </MenubarMenu>
+              <MenubarMenu>
+                <NavLink to="/analytics">
+                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                    <BarChart3 className="h-5 w-5" strokeWidth={3} />
+                    Analytics
                   </MenubarTrigger>
                 </NavLink>
               </MenubarMenu>
