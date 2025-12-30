@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,7 +30,10 @@ import {
   Building2,
   AlertCircle,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Pause,
+  Volume2
 } from "lucide-react";
 
 interface Contact {
@@ -53,6 +57,7 @@ interface Conversation {
   contact_id?: string;
   created_at: string;
   duration_seconds?: number;
+  audio_url?: string;
 }
 
 interface AIAnalysis {
@@ -72,6 +77,7 @@ export default function AIAssistant() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("record");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [manualTranscript, setManualTranscript] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -85,11 +91,14 @@ export default function AIAssistant() {
   const [pendingAnalysis, setPendingAnalysis] = useState<AIAnalysis | null>(null);
   const [showContactConfirm, setShowContactConfirm] = useState(false);
   const [selectedContactOverride, setSelectedContactOverride] = useState<string | null>(null);
-  const [recordingStartTime, setRecordingStartTime] = useState<number>(0);
+  const [pendingAudioBlob, setPendingAudioBlob] = useState<Blob | null>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   
   const {
     isListening,
-    isSupported,
+    isSupported: speechSupported,
     transcript: speechTranscript,
     interimTranscript,
     error: speechError,
@@ -97,6 +106,17 @@ export default function AIAssistant() {
     stopListening,
     resetTranscript,
   } = useSpeechRecognition();
+
+  const {
+    isRecording: isAudioRecording,
+    audioBlob,
+    audioUrl: localAudioUrl,
+    duration: recordingDuration,
+    error: audioError,
+    startRecording: startAudioRecording,
+    stopRecording: stopAudioRecording,
+    resetRecording,
+  } = useAudioRecorder();
 
   useEffect(() => {
     if (user) {
@@ -112,6 +132,22 @@ export default function AIAssistant() {
       toast.error(speechError);
     }
   }, [speechError]);
+
+  useEffect(() => {
+    if (audioError) {
+      toast.error(audioError);
+    }
+  }, [audioError]);
+
+  // Cleanup audio player on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+    };
+  }, []);
 
   const loadConversations = async () => {
     const { data, error } = await supabase
@@ -173,17 +209,57 @@ export default function AIAssistant() {
     }
   };
 
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
     resetTranscript();
+    resetRecording();
     setManualTranscript("");
-    setRecordingStartTime(Date.now());
-    startListening();
-    toast.info("Listening... Speak now");
+    
+    // Start both speech recognition and audio recording
+    if (speechSupported) {
+      startListening();
+    }
+    await startAudioRecording();
+    toast.info("Recording started...");
   };
 
   const handleStopRecording = () => {
     stopListening();
+    stopAudioRecording();
     toast.success("Recording stopped");
+  };
+
+  const uploadAudio = async (blob: Blob): Promise<string | null> => {
+    if (!user) return null;
+    
+    setIsUploading(true);
+    try {
+      const fileName = `${user.id}/${Date.now()}.webm`;
+      
+      const { data, error } = await supabase.storage
+        .from('audio-recordings')
+        .upload(fileName, blob, {
+          contentType: 'audio/webm',
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("Upload error:", error);
+        throw error;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('audio-recordings')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error("Audio upload failed:", error);
+      toast.error("Failed to upload audio");
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const getCurrentTranscript = () => {
@@ -229,9 +305,13 @@ export default function AIAssistant() {
       setPendingAnalysis(analysis);
       
       // Store pending data for contact confirmation
-      const duration = recordingStartTime ? Math.round((Date.now() - recordingStartTime) / 1000) : 0;
       sessionStorage.setItem('pendingTranscript', transcriptText);
-      sessionStorage.setItem('pendingDuration', String(duration));
+      sessionStorage.setItem('pendingDuration', String(recordingDuration || 0));
+      
+      // Store audio blob for upload after confirmation
+      if (audioBlob) {
+        setPendingAudioBlob(audioBlob);
+      }
       
       setShowContactConfirm(true);
 
@@ -248,6 +328,12 @@ export default function AIAssistant() {
     const duration = parseInt(sessionStorage.getItem('pendingDuration') || '0');
     
     let finalContactId = contactId;
+    let audioUrl: string | null = null;
+
+    // Upload audio if available
+    if (pendingAudioBlob) {
+      audioUrl = await uploadAudio(pendingAudioBlob);
+    }
 
     // Use override if selected
     if (selectedContactOverride) {
@@ -310,6 +396,7 @@ export default function AIAssistant() {
         summary: pendingAnalysis?.summary,
         key_points: pendingAnalysis?.keyPoints,
         duration_seconds: duration,
+        audio_url: audioUrl,
       });
 
     if (error) {
@@ -322,10 +409,11 @@ export default function AIAssistant() {
     // Cleanup
     setShowContactConfirm(false);
     setPendingAnalysis(null);
+    setPendingAudioBlob(null);
     setManualTranscript("");
     resetTranscript();
+    resetRecording();
     setSelectedContactOverride(null);
-    setRecordingStartTime(0);
     sessionStorage.removeItem('pendingTranscript');
     sessionStorage.removeItem('pendingDuration');
   };
@@ -369,7 +457,18 @@ export default function AIAssistant() {
     }
   };
 
-  const deleteConversation = async (id: string) => {
+  const deleteConversation = async (id: string, audioUrl?: string) => {
+    // Delete audio file if exists
+    if (audioUrl && user) {
+      try {
+        const urlParts = audioUrl.split('/');
+        const filePath = `${user.id}/${urlParts[urlParts.length - 1]}`;
+        await supabase.storage.from('audio-recordings').remove([filePath]);
+      } catch (e) {
+        console.error("Failed to delete audio file:", e);
+      }
+    }
+
     const { error } = await supabase
       .from("ai_conversations")
       .delete()
@@ -381,6 +480,36 @@ export default function AIAssistant() {
       toast.success("Conversation deleted");
       setConversations(prev => prev.filter(c => c.id !== id));
     }
+  };
+
+  const playAudio = (conversationId: string, audioUrl: string) => {
+    // Stop current audio if playing
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+
+    if (playingAudioId === conversationId) {
+      setPlayingAudioId(null);
+      return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audioPlayerRef.current = audio;
+    
+    audio.onended = () => {
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+
+    audio.onerror = () => {
+      toast.error("Failed to play audio");
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+
+    audio.play();
+    setPlayingAudioId(conversationId);
   };
 
   const getContactName = (contactId?: string) => {
@@ -397,7 +526,14 @@ export default function AIAssistant() {
     return company?.name || "";
   };
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const displayTranscript = speechTranscript + (interimTranscript ? ` ${interimTranscript}` : '');
+  const isRecording = isAudioRecording || isListening;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
@@ -414,14 +550,14 @@ export default function AIAssistant() {
         </div>
 
         {/* Browser Support Warning */}
-        {!isSupported && (
+        {!speechSupported && (
           <Card className="border-destructive">
             <CardContent className="flex items-center gap-3 p-4">
               <AlertCircle className="h-5 w-5 text-destructive" />
               <div>
                 <p className="font-medium text-destructive">Speech recognition not supported</p>
                 <p className="text-sm text-muted-foreground">
-                  Your browser doesn't support speech recognition. Please use Chrome, Edge, or Safari, or type your notes manually.
+                  Live transcription unavailable. Audio will still be recorded and you can type notes manually.
                 </p>
               </div>
             </CardContent>
@@ -450,7 +586,7 @@ export default function AIAssistant() {
               <CardHeader>
                 <CardTitle>Record Conversation</CardTitle>
                 <CardDescription>
-                  Click the microphone to start recording, or type your notes manually below.
+                  Click the microphone to record audio with live transcription.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -458,35 +594,50 @@ export default function AIAssistant() {
                 <div className="flex flex-col items-center space-y-4">
                   <Button
                     size="lg"
-                    variant={isListening ? "destructive" : "default"}
+                    variant={isRecording ? "destructive" : "default"}
                     className="h-24 w-24 rounded-full"
-                    onClick={isListening ? handleStopRecording : handleStartRecording}
-                    disabled={isProcessing || !isSupported}
+                    onClick={isRecording ? handleStopRecording : handleStartRecording}
+                    disabled={isProcessing || isUploading}
                   >
-                    {isProcessing ? (
+                    {isProcessing || isUploading ? (
                       <Loader2 className="h-10 w-10 animate-spin" />
-                    ) : isListening ? (
+                    ) : isRecording ? (
                       <MicOff className="h-10 w-10" />
                     ) : (
                       <Mic className="h-10 w-10" />
                     )}
                   </Button>
+                  
                   <p className="text-sm text-muted-foreground">
-                    {isProcessing ? "Processing..." : isListening ? "Listening... Click to stop" : isSupported ? "Click to start recording" : "Type notes below"}
+                    {isProcessing ? "Processing..." : isUploading ? "Uploading..." : isRecording ? "Recording... Click to stop" : "Click to start recording"}
                   </p>
-                  {isListening && (
-                    <div className="flex items-center gap-2">
+                  
+                  {isRecording && (
+                    <div className="flex items-center gap-3">
                       <span className="relative flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
                       </span>
-                      <span className="text-sm text-destructive font-medium">Recording</span>
+                      <span className="text-lg font-mono font-medium text-destructive">
+                        {formatDuration(recordingDuration)}
+                      </span>
                     </div>
                   )}
                 </div>
 
+                {/* Audio Preview */}
+                {localAudioUrl && !isRecording && (
+                  <div className="flex items-center justify-center gap-4 p-4 bg-muted rounded-lg">
+                    <Volume2 className="h-5 w-5 text-muted-foreground" />
+                    <audio src={localAudioUrl} controls className="flex-1 max-w-md" />
+                    <Button variant="ghost" size="sm" onClick={resetRecording}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
                 {/* Live Transcript Display */}
-                {(displayTranscript || isListening) && (
+                {(displayTranscript || isRecording) && speechSupported && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label>Live Transcript</Label>
@@ -503,7 +654,7 @@ export default function AIAssistant() {
                         {interimTranscript && (
                           <span className="text-muted-foreground italic"> {interimTranscript}</span>
                         )}
-                        {!displayTranscript && isListening && (
+                        {!displayTranscript && isRecording && (
                           <span className="text-muted-foreground italic">Waiting for speech...</span>
                         )}
                       </p>
@@ -513,7 +664,7 @@ export default function AIAssistant() {
 
                 {/* Manual Transcript Entry */}
                 <div className="space-y-2">
-                  <Label>Manual Notes (or edit transcript)</Label>
+                  <Label>Notes {speechSupported ? "(or edit transcript)" : ""}</Label>
                   <Textarea 
                     value={manualTranscript || speechTranscript} 
                     onChange={(e) => setManualTranscript(e.target.value)}
@@ -526,13 +677,18 @@ export default function AIAssistant() {
                 {/* Analyze Button */}
                 <Button 
                   onClick={() => analyzeTranscript(manualTranscript || speechTranscript)}
-                  disabled={isProcessing || (!manualTranscript && !speechTranscript)}
+                  disabled={isProcessing || isUploading || (!manualTranscript && !speechTranscript)}
                   className="w-full"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Analyzing...
+                    </>
+                  ) : isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading Audio...
                     </>
                   ) : (
                     <>
@@ -584,12 +740,41 @@ export default function AIAssistant() {
                                   variant="ghost" 
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => deleteConversation(conv.id)}
+                                  onClick={() => deleteConversation(conv.id, conv.audio_url)}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
                             </div>
+
+                            {/* Audio Player */}
+                            {conv.audio_url && (
+                              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => playAudio(conv.id, conv.audio_url!)}
+                                  className="gap-2"
+                                >
+                                  {playingAudioId === conv.id ? (
+                                    <>
+                                      <Pause className="h-4 w-4" />
+                                      Pause
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="h-4 w-4" />
+                                      Play Audio
+                                    </>
+                                  )}
+                                </Button>
+                                {conv.duration_seconds && conv.duration_seconds > 0 && (
+                                  <span className="text-sm text-muted-foreground">
+                                    {formatDuration(conv.duration_seconds)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             
                             {conv.summary && (
                               <p className="text-sm text-foreground">{conv.summary}</p>
@@ -603,12 +788,6 @@ export default function AIAssistant() {
                                   </Badge>
                                 ))}
                               </div>
-                            )}
-
-                            {conv.duration_seconds && conv.duration_seconds > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Duration: {Math.floor(conv.duration_seconds / 60)}m {conv.duration_seconds % 60}s
-                              </p>
                             )}
 
                             <details className="text-sm">
