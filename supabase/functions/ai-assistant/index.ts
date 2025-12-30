@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -20,6 +21,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!useOpenAI && !LOVABLE_API_KEY) {
+      console.error("No AI API key configured");
       throw new Error("No AI API key configured");
     }
 
@@ -29,12 +31,16 @@ serve(async (req) => {
     
     const apiKey = useOpenAI ? userOpenAIKey : LOVABLE_API_KEY;
     const model = useOpenAI ? "gpt-4o-mini" : "google/gemini-2.5-flash";
+    
+    console.log(`Using API: ${useOpenAI ? 'OpenAI' : 'Lovable'}, Model: ${model}`);
 
     if (action === "analyze_transcript") {
       // Analyze transcript and match to contacts
-      const contactList = contacts.map((c: any) => 
-        `- ID: ${c.id}, Name: ${c.name}, Company: ${c.company || 'N/A'}, Email: ${c.email || 'N/A'}, Phone: ${c.phone || 'N/A'}`
-      ).join('\n');
+      const contactList = contacts?.length > 0 
+        ? contacts.map((c: any) => 
+            `- ID: ${c.id}, Name: ${c.name}, Company: ${c.company || 'N/A'}, Email: ${c.email || 'N/A'}, Phone: ${c.phone || 'N/A'}`
+          ).join('\n')
+        : 'No existing contacts.';
 
       const systemPrompt = `You are a sales assistant AI. Analyze conversation transcripts and match them to existing contacts.
 
@@ -51,8 +57,13 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
   "suggestedNewContact": { "name": "string", "company": "string", "email": "string", "phone": "string" } | null,
   "summary": "Brief summary of the conversation",
   "keyPoints": ["point1", "point2", "point3"]
-}`;
+}
 
+If you cannot identify a specific contact from the transcript, set matchedContactId to null and matchConfidence to "no_match".
+If you can extract contact info from the conversation, include it in suggestedNewContact.`;
+
+      console.log("Sending analyze request to AI...");
+      
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -65,27 +76,41 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
             { role: "system", content: systemPrompt },
             { role: "user", content: `EXISTING CONTACTS:\n${contactList}\n\nTRANSCRIPT:\n${transcript}` }
           ],
-          temperature: 0.3,
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error("AI API error:", response.status, errorText);
-        throw new Error(`AI API error: ${response.status}`);
+        throw new Error(`AI API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log("AI response received:", JSON.stringify(data).substring(0, 200));
+      
       const content = data.choices?.[0]?.message?.content;
-      console.log("AI response:", content);
-
-      // Parse the JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("Invalid AI response format");
+      if (!content) {
+        console.error("No content in AI response");
+        throw new Error("No content in AI response");
       }
 
-      const analysis = JSON.parse(jsonMatch[0]);
+      // Parse the JSON response - try multiple approaches
+      let analysis;
+      try {
+        // First try direct parse
+        analysis = JSON.parse(content);
+      } catch {
+        // Try to extract JSON from the response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.error("Could not parse AI response:", content);
+          throw new Error("Invalid AI response format");
+        }
+        analysis = JSON.parse(jsonMatch[0]);
+      }
+      
+      console.log("Analysis parsed successfully");
+      
       return new Response(JSON.stringify(analysis), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -96,24 +121,32 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // Fetch conversations for context
-      const { data: conversations, error } = await supabase
-        .from("ai_conversations")
-        .select("transcript, summary, key_points, created_at, contact_id")
-        .in("id", conversationIds || []);
+      let conversationContext = 'No conversations available.';
+      
+      if (conversationIds && conversationIds.length > 0) {
+        // Fetch conversations for context
+        const { data: conversations, error } = await supabase
+          .from("ai_conversations")
+          .select("transcript, summary, key_points, created_at, contact_id")
+          .in("id", conversationIds);
 
-      if (error) {
-        console.error("Database error:", error);
-        throw new Error("Failed to fetch conversations");
+        if (error) {
+          console.error("Database error:", error);
+          throw new Error("Failed to fetch conversations");
+        }
+
+        if (conversations && conversations.length > 0) {
+          conversationContext = conversations.map((c: any, i: number) => 
+            `[Conversation ${i + 1} - ${new Date(c.created_at).toLocaleDateString()}]\nSummary: ${c.summary || 'No summary'}\nKey Points: ${JSON.stringify(c.key_points || [])}\nTranscript: ${c.transcript}`
+          ).join('\n\n---\n\n');
+        }
       }
-
-      const conversationContext = conversations?.map((c: any, i: number) => 
-        `[Conversation ${i + 1} - ${new Date(c.created_at).toLocaleDateString()}]\nSummary: ${c.summary}\nKey Points: ${JSON.stringify(c.key_points)}\nTranscript: ${c.transcript}`
-      ).join('\n\n---\n\n') || 'No conversations found.';
 
       const systemPrompt = `You are a helpful sales assistant AI with access to past conversation recordings. 
 Answer questions based on the provided conversation history. Be specific and cite relevant conversations when applicable.
 If the information isn't in the conversations, say so clearly.`;
+
+      console.log("Sending question to AI...");
 
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -127,7 +160,6 @@ If the information isn't in the conversations, say so clearly.`;
             { role: "system", content: systemPrompt },
             { role: "user", content: `CONVERSATION HISTORY:\n${conversationContext}\n\nQUESTION: ${question}` }
           ],
-          temperature: 0.5,
         }),
       });
 
@@ -138,7 +170,7 @@ If the information isn't in the conversations, say so clearly.`;
       }
 
       const data = await response.json();
-      const answer = data.choices?.[0]?.message?.content;
+      const answer = data.choices?.[0]?.message?.content || "I couldn't generate an answer.";
 
       return new Response(JSON.stringify({ answer }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
