@@ -99,6 +99,53 @@ export type Database = {
           },
         ]
       }
+      ai_conversations: {
+        Row: {
+          audio_url: string | null
+          contact_id: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          key_points: Json | null
+          summary: string | null
+          transcript: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          contact_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          key_points?: Json | null
+          summary?: string | null
+          transcript: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          contact_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          key_points?: Json | null
+          summary?: string | null
+          transcript?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string | null
@@ -616,6 +663,33 @@ export type Database = {
           shipping?: number | null
           subtotal?: number
           total?: number
+        }
+        Relationships: []
+      }
+      user_ai_settings: {
+        Row: {
+          created_at: string
+          id: string
+          openai_api_key: string | null
+          preferred_model: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          openai_api_key?: string | null
+          preferred_model?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          openai_api_key?: string | null
+          preferred_model?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
