@@ -1,0 +1,51 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRole, AppRole } from "@/hooks/useUserRole";
+
+interface RoleProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles: AppRole[];
+  redirectTo?: string;
+}
+
+export const RoleProtectedRoute = ({ 
+  children, 
+  allowedRoles, 
+  redirectTo = "/" 
+}: RoleProtectedRouteProps) => {
+  const { user, loading: authLoading } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!authLoading && !roleLoading && user) {
+      if (!allowedRoles.includes(role)) {
+        navigate(redirectTo);
+      }
+    }
+  }, [user, authLoading, role, roleLoading, allowedRoles, navigate, redirectTo]);
+
+  if (authLoading || roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!allowedRoles.includes(role)) {
+    return null;
+  }
+
+  return <>{children}</>;
+};

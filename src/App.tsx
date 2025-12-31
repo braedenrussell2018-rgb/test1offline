@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppMenuBar } from "@/components/AppMenuBar";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import Index from "./pages/Index";
 import Quotes from "./pages/Quotes";
 import SoldItems from "./pages/SoldItems";
@@ -14,6 +15,7 @@ import CRM from "./pages/CRM";
 import Accounting from "./pages/Accounting";
 import AIAssistant from "./pages/AIAssistant";
 import ConversationAnalytics from "./pages/ConversationAnalytics";
+import SpiffProgram from "./pages/SpiffProgram";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
@@ -41,7 +43,12 @@ const App = () => (
             <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
             <Route path="/ai-assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute><ConversationAnalytics /></ProtectedRoute>} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Spiff Program - salesmen only */}
+            <Route path="/spiff-program" element={
+              <RoleProtectedRoute allowedRoles={["salesman"]} redirectTo="/auth">
+                <SpiffProgram />
+              </RoleProtectedRoute>
+            } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
