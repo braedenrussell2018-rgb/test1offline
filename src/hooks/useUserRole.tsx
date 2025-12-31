@@ -39,10 +39,10 @@ export const useUserRole = () => {
     return role === checkRole;
   };
 
-  const isSalesman = (): boolean => hasRole("salesman");
-  const isOwner = (): boolean => hasRole("owner");
-  const isEmployee = (): boolean => hasRole("employee");
-  const isCustomer = (): boolean => hasRole("customer");
+  const isSalesman = (): boolean => role === "salesman";
+  const isOwner = (): boolean => role === "owner";
+  const isEmployee = (): boolean => role === "employee";
+  const isCustomer = (): boolean => role === "customer";
 
   // Check if user has internal access (owner or employee)
   const hasInternalAccess = (): boolean => {

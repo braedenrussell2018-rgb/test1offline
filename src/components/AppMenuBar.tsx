@@ -14,11 +14,11 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 export function AppMenuBar() {
   const { user, signOut } = useAuth();
-  const { role, isSalesman, isOwner, hasInternalAccess } = useUserRole();
+  const { role, loading: roleLoading, isSalesman, isOwner, hasInternalAccess } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Don't show menu bar on auth page
+  // Don't show menu bar on auth page or when not logged in
   if (location.pathname === "/auth" || !user) {
     return null;
   }
@@ -27,6 +27,37 @@ export function AppMenuBar() {
     await signOut();
     navigate("/auth");
   };
+
+  // Show minimal menu while role is loading
+  if (roleLoading) {
+    return (
+      <div className="w-full overflow-x-hidden">
+        <div className="w-full h-8 bg-[hsl(220,60%,15%)]" />
+        <div className="border-b bg-card w-full">
+          <div className="px-2 sm:px-4 w-full">
+            <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <Menubar className="border-0 bg-transparent flex-wrap h-auto">
+                <MenubarMenu>
+                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1 text-muted-foreground">
+                    Loading...
+                  </MenubarTrigger>
+                </MenubarMenu>
+              </Menubar>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="px-2"
+              >
+                <LogOut className="h-5 w-5" strokeWidth={3} />
+                <span className="hidden sm:inline ml-2">Sign Out</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full overflow-x-hidden">
