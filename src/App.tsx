@@ -33,11 +33,7 @@ const App = () => (
         <BrowserRouter>
           <AppMenuBar />
           <Routes>
-            <Route path="/" element={
-              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
-                <Index />
-              </RoleProtectedRoute>
-            } />
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
             <Route path="/sold-items" element={<ProtectedRoute><SoldItems /></ProtectedRoute>} />
