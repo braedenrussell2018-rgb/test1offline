@@ -7,8 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
+
+type UserRole = "employee" | "owner" | "customer" | "salesman";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -16,6 +19,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<UserRole>("customer");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,7 +33,7 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !role) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -48,32 +52,51 @@ export default function Auth() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    
+    // First, sign up the user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
         data: {
           full_name: fullName,
+          role: role,
         },
       },
     });
 
-    setLoading(false);
-
-    if (error) {
+    if (authError) {
+      setLoading(false);
       toast({
         title: "Sign up failed",
-        description: error.message,
+        description: authError.message,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Success!",
-        description: "Account created successfully. You can now log in.",
-      });
-      navigate("/");
+      return;
     }
+
+    // If user was created, insert their role
+    if (authData.user) {
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: authData.user.id,
+          role: role,
+        });
+
+      if (roleError) {
+        console.error("Failed to set user role:", roleError);
+        // Don't block signup if role insert fails - user can be assigned later
+      }
+    }
+
+    setLoading(false);
+    toast({
+      title: "Success!",
+      description: "Account created successfully. You can now log in.",
+    });
+    navigate("/");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -179,6 +202,26 @@ export default function Auth() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-role">I am a...</Label>
+                  <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
+                    <SelectTrigger id="signup-role" className="bg-background">
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="customer">Customer</SelectItem>
+                      <SelectItem value="salesman">Salesman (Customer Rep)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {role === "salesman" && "As a salesman, you'll have access to the Spiff Program"}
+                    {role === "owner" && "As an owner, you'll have full access to all features"}
+                    {role === "employee" && "As an employee, you'll have access to most features"}
+                    {role === "customer" && "As a customer, you'll have limited access"}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>

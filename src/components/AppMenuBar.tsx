@@ -1,8 +1,9 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut, RefreshCw, Download, Bot, BarChart3 } from "lucide-react";
+import { LogOut, RefreshCw, Download, Bot, BarChart3, Trophy } from "lucide-react";
 import {
   Menubar,
   MenubarMenu,
@@ -12,6 +13,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 export function AppMenuBar() {
   const { user, signOut } = useAuth();
+  const { role, isSalesman, hasInternalAccess } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,53 +37,70 @@ export function AppMenuBar() {
         <div className="px-2 sm:px-4 w-full">
           <div className="flex flex-wrap items-center justify-between gap-2 py-2">
             <Menubar className="border-0 bg-transparent flex-wrap h-auto">
-              <MenubarMenu>
-                <NavLink to="/">
-                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Inventory</MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/crm">
-                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">CRM</MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/accounting">
-                  <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Accounting</MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/ai-assistant">
-                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                    <Bot className="h-5 w-5" strokeWidth={3} />
-                    AI Assistant
-                  </MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/analytics">
-                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                    <BarChart3 className="h-5 w-5" strokeWidth={3} />
-                    Analytics
-                  </MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/sync">
-                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                    <RefreshCw className="h-5 w-5" strokeWidth={3} />
-                    Sync
-                  </MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
-              <MenubarMenu>
-                <NavLink to="/install">
-                  <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                    <Download className="h-5 w-5" strokeWidth={3} />
-                    Install
-                  </MenubarTrigger>
-                </NavLink>
-              </MenubarMenu>
+              {/* Spiff Program - only for salesmen */}
+              {isSalesman() && (
+                <MenubarMenu>
+                  <NavLink to="/spiff-program">
+                    <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                      <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={3} />
+                      Spiff Program
+                    </MenubarTrigger>
+                  </NavLink>
+                </MenubarMenu>
+              )}
+              
+              {/* Internal access only - owners and employees */}
+              {hasInternalAccess() && (
+                <>
+                  <MenubarMenu>
+                    <NavLink to="/">
+                      <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Inventory</MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/crm">
+                      <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">CRM</MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/accounting">
+                      <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Accounting</MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/ai-assistant">
+                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                        <Bot className="h-5 w-5" strokeWidth={3} />
+                        AI Assistant
+                      </MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/analytics">
+                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                        <BarChart3 className="h-5 w-5" strokeWidth={3} />
+                        Analytics
+                      </MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/sync">
+                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                        <RefreshCw className="h-5 w-5" strokeWidth={3} />
+                        Sync
+                      </MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <NavLink to="/install">
+                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                        <Download className="h-5 w-5" strokeWidth={3} />
+                        Install
+                      </MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
+                </>
+              )}
             </Menubar>
             <div className="flex items-center gap-1 sm:gap-2">
               <GlobalSearch />

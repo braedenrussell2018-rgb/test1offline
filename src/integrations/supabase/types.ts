@@ -666,6 +666,69 @@ export type Database = {
         }
         Relationships: []
       }
+      spiff_prizes: {
+        Row: {
+          created_at: string | null
+          credits_required: number
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          credits_required: number
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          credits_required?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      spiff_program: {
+        Row: {
+          created_at: string | null
+          credits_earned: number
+          id: string
+          prize_redeemed: string | null
+          redeemed_at: string | null
+          sale_amount: number
+          sale_description: string
+          salesman_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credits_earned?: number
+          id?: string
+          prize_redeemed?: string | null
+          redeemed_at?: string | null
+          sale_amount?: number
+          sale_description: string
+          salesman_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credits_earned?: number
+          id?: string
+          prize_redeemed?: string | null
+          redeemed_at?: string | null
+          sale_amount?: number
+          sale_description?: string
+          salesman_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_ai_settings: {
         Row: {
           created_at: string
@@ -689,6 +752,27 @@ export type Database = {
           openai_api_key?: string | null
           preferred_model?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
@@ -738,9 +822,21 @@ export type Database = {
         Args: { p_note_text: string; p_person_id: string }
         Returns: undefined
       }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
+      app_role: "employee" | "owner" | "customer" | "salesman"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -869,6 +965,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "revenue", "expense"],
+      app_role: ["employee", "owner", "customer", "salesman"],
     },
   },
 } as const
