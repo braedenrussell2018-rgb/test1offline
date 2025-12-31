@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +15,11 @@ import { IssuePODialog } from "@/components/IssuePODialog";
 import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
+import { useUserRole } from "@/hooks/useUserRole";
 
 function IndexContent() {
+  const navigate = useNavigate();
+  const { isSalesman, loading: roleLoading } = useUserRole();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -26,6 +30,13 @@ function IndexContent() {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Redirect salesmen to spiff program
+  useEffect(() => {
+    if (!roleLoading && isSalesman()) {
+      navigate("/spiff-program");
+    }
+  }, [roleLoading, isSalesman, navigate]);
 
   useEffect(() => {
     const loadData = async () => {
