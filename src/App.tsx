@@ -16,6 +16,7 @@ import Accounting from "./pages/Accounting";
 import AIAssistant from "./pages/AIAssistant";
 import ConversationAnalytics from "./pages/ConversationAnalytics";
 import SpiffProgram from "./pages/SpiffProgram";
+import SpiffAdmin from "./pages/SpiffAdmin";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
@@ -47,6 +48,12 @@ const App = () => (
             <Route path="/spiff-program" element={
               <RoleProtectedRoute allowedRoles={["salesman"]} redirectTo="/auth">
                 <SpiffProgram />
+              </RoleProtectedRoute>
+            } />
+            {/* Spiff Admin - owners only */}
+            <Route path="/spiff-admin" element={
+              <RoleProtectedRoute allowedRoles={["owner"]} redirectTo="/">
+                <SpiffAdmin />
               </RoleProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

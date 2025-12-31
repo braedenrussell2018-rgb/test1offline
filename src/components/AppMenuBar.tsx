@@ -1,6 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { Settings2 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut, RefreshCw, Download, Bot, BarChart3, Trophy } from "lucide-react";
@@ -13,7 +14,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 export function AppMenuBar() {
   const { user, signOut } = useAuth();
-  const { role, isSalesman, hasInternalAccess } = useUserRole();
+  const { role, isSalesman, isOwner, hasInternalAccess } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,6 +100,16 @@ export function AppMenuBar() {
                       </MenubarTrigger>
                     </NavLink>
                   </MenubarMenu>
+                  {isOwner() && (
+                    <MenubarMenu>
+                      <NavLink to="/spiff-admin">
+                        <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                          <Settings2 className="h-5 w-5" strokeWidth={3} />
+                          Spiff Admin
+                        </MenubarTrigger>
+                      </NavLink>
+                    </MenubarMenu>
+                  )}
                 </>
               )}
             </Menubar>
