@@ -114,7 +114,8 @@ export function AppMenuBar() {
               )}
             </Menubar>
             <div className="flex items-center gap-1 sm:gap-2">
-              <GlobalSearch />
+              {/* Only show search for internal users */}
+              {hasInternalAccess() && <GlobalSearch />}
               <Button
                 variant="ghost"
                 size="sm"
