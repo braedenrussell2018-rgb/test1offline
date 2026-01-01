@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Upload, Loader2, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { addExpense, EXPENSE_CATEGORIES, getCategoryLabel, uploadReceipt, scanReceipt } from "@/lib/expense-storage";
+import { addExpense, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_GROUPS, getCategoryLabel, uploadReceipt, scanReceipt } from "@/lib/expense-storage";
 import { inventoryStorage, Person } from "@/lib/inventory-storage";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -270,11 +270,18 @@ export const AddExpenseDialog = ({ open: controlledOpen, onOpenChange, onExpense
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
-              <SelectContent>
-                {EXPENSE_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {getCategoryLabel(cat)}
-                  </SelectItem>
+              <SelectContent className="max-h-[300px]">
+                {Object.entries(EXPENSE_CATEGORY_GROUPS).map(([groupKey, group]) => (
+                  <div key={groupKey}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                      {group.label}
+                    </div>
+                    {group.categories.map((cat) => (
+                      <SelectItem key={cat} value={cat} className="pl-4">
+                        {getCategoryLabel(cat)}
+                      </SelectItem>
+                    ))}
+                  </div>
                 ))}
               </SelectContent>
             </Select>

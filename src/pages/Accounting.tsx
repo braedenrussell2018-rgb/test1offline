@@ -7,7 +7,7 @@ import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
-import { getExpenses, getCategoryLabel, type Expense } from "@/lib/expense-storage";
+import { getExpenses, getCategoryLabel, EXPENSE_CATEGORY_GROUPS, type Expense } from "@/lib/expense-storage";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { FinancialReports } from "@/components/FinancialReports";
 
@@ -87,6 +87,23 @@ const Accounting = () => {
     acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
     return acc;
   }, {} as Record<string, number>);
+
+  // Group expenses by category group for detailed breakdown
+  const expensesByGroup = Object.entries(EXPENSE_CATEGORY_GROUPS).reduce((acc, [groupKey, group]) => {
+    const groupExpenses = group.categories.reduce((sum, cat) => {
+      return sum + (expensesByCategory[cat] || 0);
+    }, 0);
+    if (groupExpenses > 0) {
+      acc[groupKey] = {
+        label: group.label,
+        total: groupExpenses,
+        categories: group.categories
+          .filter(cat => expensesByCategory[cat] && expensesByCategory[cat] > 0)
+          .map(cat => ({ category: cat, amount: expensesByCategory[cat] || 0 }))
+      };
+    }
+    return acc;
+  }, {} as Record<string, { label: string; total: number; categories: { category: string; amount: number }[] }>);
 
   // Purchase Orders
   const totalPOValue = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
@@ -466,15 +483,35 @@ const Accounting = () => {
                   <div className="text-2xl font-bold text-orange-700">${totalExpenses.toFixed(2)}</div>
                 </div>
 
-                {/* Expenses by Category */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">By Category</h4>
-                  {Object.entries(expensesByCategory).map(([category, amount]) => (
-                    <div key={category} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm">
-                      <span>{getCategoryLabel(category)}</span>
-                      <span className="font-semibold">${amount.toFixed(2)}</span>
-                    </div>
+                {/* Expenses by Category Group */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Operating Expenses Breakdown</h4>
+                  {Object.entries(expensesByGroup).map(([groupKey, group]) => (
+                    <Collapsible key={groupKey}>
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex justify-between items-center p-2 border rounded bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                            <span className="font-medium">{group.label}</span>
+                          </div>
+                          <span className="font-bold">${group.total.toFixed(2)}</span>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="ml-6 mt-1 space-y-1">
+                          {group.categories.map(({ category, amount }) => (
+                            <div key={category} className="flex justify-between items-center p-1.5 text-sm text-muted-foreground">
+                              <span>{getCategoryLabel(category)}</span>
+                              <span>${amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))}
+                  {Object.keys(expensesByGroup).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No expenses recorded</p>
+                  )}
                 </div>
 
                 {/* Recent Expenses */}
