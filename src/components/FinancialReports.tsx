@@ -8,7 +8,7 @@ import { Loader2, TrendingUp, Download } from "lucide-react";
 import { toast } from "sonner";
 import { getAccounts, getBudgetForecasts, generateAIForecast, type Account, type BudgetForecast } from "@/lib/accounting-storage";
 import { getItems, getInvoices, type Item, type Invoice } from "@/lib/supabase-storage";
-import { getExpenses, type Expense, getCategoryLabel } from "@/lib/expense-storage";
+import { getExpenses, type Expense, getCategoryLabel, getCategoryGroup, EXPENSE_CATEGORY_GROUPS } from "@/lib/expense-storage";
 import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 
 export const FinancialReports = () => {
@@ -101,6 +101,23 @@ export const FinancialReports = () => {
     acc[category] = (acc[category] || 0) + exp.amount;
     return acc;
   }, {} as Record<string, number>);
+
+  // Group expenses by category group for detailed breakdown
+  const expensesByGroup = Object.entries(EXPENSE_CATEGORY_GROUPS).reduce((acc, [groupKey, group]) => {
+    const groupExpenses = group.categories.reduce((sum, cat) => {
+      return sum + (expensesByCategory[cat] || 0);
+    }, 0);
+    if (groupExpenses > 0) {
+      acc[groupKey] = {
+        label: group.label,
+        total: groupExpenses,
+        categories: group.categories
+          .filter(cat => expensesByCategory[cat] && expensesByCategory[cat] > 0)
+          .map(cat => ({ category: cat, amount: expensesByCategory[cat] || 0 }))
+      };
+    }
+    return acc;
+  }, {} as Record<string, { label: string; total: number; categories: { category: string; amount: number }[] }>);
 
   // Net income calculation
   const grossProfit = totalRevenue - cogs;
@@ -262,13 +279,21 @@ export const FinancialReports = () => {
                   <TableRow className="font-bold">
                     <TableCell colSpan={2}>OPERATING EXPENSES</TableCell>
                   </TableRow>
-                  {Object.entries(expensesByCategory).map(([category, amount]) => (
-                    <TableRow key={category}>
-                      <TableCell className="pl-6">{getCategoryLabel(category)}</TableCell>
-                      <TableCell className="text-right">${amount.toFixed(2)}</TableCell>
-                    </TableRow>
+                  {Object.entries(expensesByGroup).map(([groupKey, group]) => (
+                    <>
+                      <TableRow key={groupKey} className="bg-muted/30">
+                        <TableCell className="pl-6 font-medium">{group.label}</TableCell>
+                        <TableCell className="text-right font-medium">${group.total.toFixed(2)}</TableCell>
+                      </TableRow>
+                      {group.categories.map(({ category, amount }) => (
+                        <TableRow key={category} className="text-muted-foreground">
+                          <TableCell className="pl-10 text-sm">{getCategoryLabel(category)}</TableCell>
+                          <TableCell className="text-right text-sm">${amount.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </>
                   ))}
-                  {Object.keys(expensesByCategory).length === 0 && (
+                  {Object.keys(expensesByGroup).length === 0 && (
                     <TableRow>
                       <TableCell className="pl-6 text-muted-foreground">No expenses recorded</TableCell>
                       <TableCell className="text-right">$0.00</TableCell>

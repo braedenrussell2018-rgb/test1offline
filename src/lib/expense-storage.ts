@@ -14,30 +14,115 @@ export interface Expense {
 }
 
 export const EXPENSE_CATEGORIES = [
-  'fuel',
-  'food',
+  // Utilities
+  'utilities_electric',
+  'utilities_gas',
+  'utilities_water',
+  'utilities_internet',
+  'utilities_phone',
+  // Factory/Shop Supplies
+  'factory_supplies',
   'tools',
-  'office_supplies',
+  'equipment_rental',
+  // Shipping & Freight
+  'shipping_outbound',
+  'shipping_inbound',
+  'freight',
+  // Labor Categories
+  'labor_shop',
+  'labor_field',
+  'labor_delivery',
+  'labor_admin',
+  'labor_overtime',
+  'labor_contract',
+  // Vehicle & Travel
+  'fuel',
+  'vehicle_maintenance',
   'travel',
+  // Office & General
+  'office_supplies',
+  'food',
   'maintenance',
-  'utilities',
+  'insurance',
+  'rent',
   'other'
 ] as const;
 
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
+// Define category groups for organized display
+export const EXPENSE_CATEGORY_GROUPS: Record<string, { label: string; categories: ExpenseCategory[] }> = {
+  utilities: {
+    label: 'Utilities',
+    categories: ['utilities_electric', 'utilities_gas', 'utilities_water', 'utilities_internet', 'utilities_phone']
+  },
+  factory: {
+    label: 'Factory & Shop Supplies',
+    categories: ['factory_supplies', 'tools', 'equipment_rental']
+  },
+  shipping: {
+    label: 'Shipping & Freight',
+    categories: ['shipping_outbound', 'shipping_inbound', 'freight']
+  },
+  labor: {
+    label: 'Labor',
+    categories: ['labor_shop', 'labor_field', 'labor_delivery', 'labor_admin', 'labor_overtime', 'labor_contract']
+  },
+  vehicle: {
+    label: 'Vehicle & Travel',
+    categories: ['fuel', 'vehicle_maintenance', 'travel']
+  },
+  general: {
+    label: 'General & Administrative',
+    categories: ['office_supplies', 'food', 'maintenance', 'insurance', 'rent', 'other']
+  }
+};
+
 export const getCategoryLabel = (category: string): string => {
   const labels: Record<string, string> = {
-    fuel: 'Fuel',
-    food: 'Food',
+    // Utilities
+    utilities_electric: 'Electric',
+    utilities_gas: 'Gas/Propane',
+    utilities_water: 'Water/Sewer',
+    utilities_internet: 'Internet',
+    utilities_phone: 'Phone/Communications',
+    // Factory
+    factory_supplies: 'Factory Supplies',
     tools: 'Tools',
-    office_supplies: 'Office Supplies',
+    equipment_rental: 'Equipment Rental',
+    // Shipping
+    shipping_outbound: 'Outbound Shipping',
+    shipping_inbound: 'Inbound Shipping',
+    freight: 'Freight',
+    // Labor
+    labor_shop: 'Shop Labor',
+    labor_field: 'Field Labor',
+    labor_delivery: 'Delivery Labor',
+    labor_admin: 'Administrative Labor',
+    labor_overtime: 'Overtime',
+    labor_contract: 'Contract Labor',
+    // Vehicle
+    fuel: 'Fuel',
+    vehicle_maintenance: 'Vehicle Maintenance',
     travel: 'Travel',
-    maintenance: 'Maintenance',
-    utilities: 'Utilities',
+    // General
+    office_supplies: 'Office Supplies',
+    food: 'Food',
+    maintenance: 'Facility Maintenance',
+    insurance: 'Insurance',
+    rent: 'Rent/Lease',
     other: 'Other'
   };
   return labels[category] || category;
+};
+
+export const getCategoryGroup = (category: string): string => {
+  for (const [groupKey, group] of Object.entries(EXPENSE_CATEGORY_GROUPS)) {
+    if (group.categories.includes(category as ExpenseCategory)) {
+      return groupKey;
+    }
+  }
+  return 'general';
 };
 
 export const getExpenses = async (): Promise<Expense[]> => {
