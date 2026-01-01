@@ -703,6 +703,7 @@ export type Database = {
           sale_amount: number
           sale_description: string
           salesman_id: string
+          serial_number: string | null
           updated_at: string | null
         }
         Insert: {
@@ -714,6 +715,7 @@ export type Database = {
           sale_amount?: number
           sale_description: string
           salesman_id: string
+          serial_number?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -725,6 +727,7 @@ export type Database = {
           sale_amount?: number
           sale_description?: string
           salesman_id?: string
+          serial_number?: string | null
           updated_at?: string | null
         }
         Relationships: []

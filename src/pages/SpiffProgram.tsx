@@ -15,6 +15,7 @@ import { format } from "date-fns";
 interface SpiffRecord {
   id: string;
   sale_description: string;
+  serial_number: string | null;
   sale_amount: number;
   credits_earned: number;
   prize_redeemed: string | null;
@@ -40,6 +41,7 @@ export default function SpiffProgram() {
   
   // Form state for adding sales
   const [saleDescription, setSaleDescription] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
   const [saleAmount, setSaleAmount] = useState("");
 
   const totalCredits = spiffRecords.reduce((sum, record) => sum + record.credits_earned, 0);
@@ -87,7 +89,7 @@ export default function SpiffProgram() {
 
   const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !saleDescription || !saleAmount) return;
+    if (!user || !saleDescription || !serialNumber || !saleAmount) return;
 
     const amount = parseFloat(saleAmount);
     // Calculate credits: 1 credit per $100 in sales
@@ -98,6 +100,7 @@ export default function SpiffProgram() {
       .insert({
         salesman_id: user.id,
         sale_description: saleDescription,
+        serial_number: serialNumber.trim(),
         sale_amount: amount,
         credits_earned: creditsEarned,
       });
@@ -114,6 +117,7 @@ export default function SpiffProgram() {
         description: `Sale recorded! You earned ${creditsEarned} credits.`,
       });
       setSaleDescription("");
+      setSerialNumber("");
       setSaleAmount("");
       setAddDialogOpen(false);
       fetchSpiffRecords();
@@ -202,6 +206,16 @@ export default function SpiffProgram() {
                   placeholder="e.g., Excavator parts for ABC Company"
                   value={saleDescription}
                   onChange={(e) => setSaleDescription(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="serial-number">Attachment Serial Number</Label>
+                <Input
+                  id="serial-number"
+                  placeholder="e.g., SN-12345-ABC"
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
                   required
                 />
               </div>
@@ -384,6 +398,7 @@ export default function SpiffProgram() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Serial Number</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Credits</TableHead>
                   <TableHead>Status</TableHead>
@@ -396,6 +411,7 @@ export default function SpiffProgram() {
                       {format(new Date(record.created_at), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell>{record.sale_description}</TableCell>
+                    <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
                     <TableCell className="text-right">
                       ${Number(record.sale_amount).toLocaleString()}
                     </TableCell>
