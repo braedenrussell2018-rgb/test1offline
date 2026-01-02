@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { format, subDays, startOfDay, parseISO, endOfDay, isWithinInterval, differenceInDays, eachDayOfInterval } from "date-fns";
-import { MessageSquare, Users, TrendingUp, Calendar as CalendarIcon, Loader2, Phone, Clock, Tag, Building2 } from "lucide-react";
+import { MessageSquare, Users, TrendingUp, Calendar as CalendarIcon, Loader2, Phone, Clock, Tag, Building2, UserCircle } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
@@ -34,13 +37,23 @@ interface Company {
   created_at: string;
 }
 
+interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  created_at: string;
+  role?: string;
+}
+
 type PresetRange = "7d" | "30d" | "90d" | "custom";
 
 export default function ConversationAnalytics() {
   const { user } = useAuth();
+  const { isOwner } = useUserRole();
   const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [presetRange, setPresetRange] = useState<PresetRange>("30d");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -83,6 +96,22 @@ export default function ConversationAnalytics() {
 
       if (companiesRes.data) {
         setCompanies(companiesRes.data);
+      }
+
+      // Fetch profiles for owners only
+      if (isOwner()) {
+        const [profilesRes, rolesRes] = await Promise.all([
+          supabase.from("profiles").select("id, user_id, full_name, created_at"),
+          supabase.from("user_roles").select("user_id, role"),
+        ]);
+
+        if (profilesRes.data && rolesRes.data) {
+          const roleMap = new Map(rolesRes.data.map(r => [r.user_id, r.role]));
+          setProfiles(profilesRes.data.map(p => ({
+            ...p,
+            role: roleMap.get(p.user_id) || "unknown",
+          })));
+        }
       }
     } finally {
       setLoading(false);
@@ -321,8 +350,14 @@ export default function ConversationAnalytics() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Stats Cards */}
+      <div className="container mx-auto px-4 py-8">
+        <Tabs defaultValue="analytics" className="space-y-8">
+          <TabsList>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            {isOwner() && <TabsTrigger value="profiles">User Profiles</TabsTrigger>}
+          </TabsList>
+
+          <TabsContent value="analytics" className="space-y-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -566,6 +601,59 @@ export default function ConversationAnalytics() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Profiles Tab - Owner Only */}
+          {isOwner() && (
+            <TabsContent value="profiles" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCircle className="h-5 w-5" />
+                    User Profiles
+                  </CardTitle>
+                  <CardDescription>All registered users and their roles</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {profiles.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      No user profiles found
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Joined</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {profiles.map((profile) => (
+                          <TableRow key={profile.id}>
+                            <TableCell className="font-medium">{profile.full_name}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                profile.role === "owner" ? "default" :
+                                profile.role === "employee" ? "secondary" :
+                                profile.role === "salesman" ? "outline" : "secondary"
+                              }>
+                                {profile.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {format(parseISO(profile.created_at), "MMM d, yyyy")}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </div>
   );
