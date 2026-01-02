@@ -96,7 +96,15 @@ export default function Auth() {
       title: "Success!",
       description: "Account created successfully. You can now log in.",
     });
-    navigate("/");
+    
+    // Redirect based on role
+    if (role === "salesman") {
+      navigate("/spiff-program");
+    } else if (role === "customer") {
+      navigate("/customer");
+    } else {
+      navigate("/");
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -125,7 +133,21 @@ export default function Auth() {
         variant: "destructive",
       });
     } else {
-      navigate("/");
+      // Fetch user role and redirect appropriately
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+        .maybeSingle();
+
+      const userRole = roleData?.role;
+      if (userRole === "salesman") {
+        navigate("/spiff-program");
+      } else if (userRole === "customer") {
+        navigate("/customer");
+      } else {
+        navigate("/");
+      }
     }
   };
 
