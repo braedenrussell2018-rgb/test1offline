@@ -112,16 +112,41 @@ If you can extract contact info from the conversation, include it in suggestedNe
       });
 
     } else if (action === "ask_question") {
-      // Answer questions about past recordings
+      // SECURITY FIX: Validate authentication before accessing conversations
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) {
+        console.error("No authorization header provided");
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - No authorization header' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      
+      // Use anon key with user's JWT token to respect RLS policies
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      // Verify authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error("Authentication failed:", authError?.message);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log("Authenticated user:", user.id);
 
       let conversationContext = '';
       let hasCompanyData = false;
       
       if (conversationIds && conversationIds.length > 0) {
-        // Fetch conversations for context
+        // Fetch conversations - RLS will automatically restrict to user's own conversations
         const { data: conversations, error } = await supabase
           .from("ai_conversations")
           .select("transcript, summary, key_points, created_at, contact_id")
