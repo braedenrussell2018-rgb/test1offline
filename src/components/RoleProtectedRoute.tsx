@@ -24,9 +24,16 @@ export const RoleProtectedRoute = ({
       return;
     }
 
-    if (!authLoading && !roleLoading && user) {
+    if (!authLoading && !roleLoading && user && role) {
       if (!allowedRoles.includes(role)) {
-        navigate(redirectTo);
+        // Redirect based on user's actual role
+        if (role === "salesman") {
+          navigate("/spiff-program");
+        } else if (role === "customer") {
+          navigate("/customer");
+        } else {
+          navigate(redirectTo);
+        }
       }
     }
   }, [user, authLoading, role, roleLoading, allowedRoles, navigate, redirectTo]);

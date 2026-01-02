@@ -21,6 +21,7 @@ import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
+import CustomerDashboard from "./pages/CustomerDashboard";
 
 const queryClient = new QueryClient();
 
@@ -33,20 +34,57 @@ const App = () => (
         <BrowserRouter>
           <AppMenuBar />
           <Routes>
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            {/* Internal pages - owners and employees only */}
+            <Route path="/" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <Index />
+              </RoleProtectedRoute>
+            } />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
-            <Route path="/sold-items" element={<ProtectedRoute><SoldItems /></ProtectedRoute>} />
-            <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-            <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
-            <Route path="/sync" element={<ProtectedRoute><Sync /></ProtectedRoute>} />
+            <Route path="/quotes" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <Quotes />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/sold-items" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <SoldItems />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/expenses" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <Expenses />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/crm" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <CRM />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/sync" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <Sync />
+              </RoleProtectedRoute>
+            } />
             <Route path="/install" element={<Install />} />
-            <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
-            <Route path="/ai-assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
-            <Route path="/analytics" element={<ProtectedRoute><ConversationAnalytics /></ProtectedRoute>} />
+            <Route path="/accounting" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <Accounting />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/ai-assistant" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <AIAssistant />
+              </RoleProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <ConversationAnalytics />
+              </RoleProtectedRoute>
+            } />
             {/* Spiff Program - salesmen only */}
             <Route path="/spiff-program" element={
-              <RoleProtectedRoute allowedRoles={["salesman"]} redirectTo="/auth">
+              <RoleProtectedRoute allowedRoles={["salesman"]} redirectTo="/">
                 <SpiffProgram />
               </RoleProtectedRoute>
             } />
@@ -54,6 +92,12 @@ const App = () => (
             <Route path="/spiff-admin" element={
               <RoleProtectedRoute allowedRoles={["owner"]} redirectTo="/">
                 <SpiffAdmin />
+              </RoleProtectedRoute>
+            } />
+            {/* Customer dashboard */}
+            <Route path="/customer" element={
+              <RoleProtectedRoute allowedRoles={["customer"]} redirectTo="/">
+                <CustomerDashboard />
               </RoleProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
