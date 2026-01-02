@@ -1,35 +1,69 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, FileText, DollarSign, TrendingUp, FileEdit, Eye, Search, Archive } from "lucide-react";
-import { AddItemDialog } from "@/components/AddItemDialog";
-import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
-import { BulkUploadDialog } from "@/components/BulkUploadDialog";
-import { IssuePODialog } from "@/components/IssuePODialog";
+import { Eye, RefreshCw, AlertCircle } from "lucide-react";
 import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { inventoryStorage, InventoryItem, Invoice } from "@/lib/inventory-storage";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAsyncData } from "@/hooks/useAsyncData";
+import { useDebouncedSearch } from "@/hooks/useDebounce";
+import { usePagination } from "@/hooks/usePagination";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LoadingSpinner, CardSkeleton } from "@/components/LoadingState";
+import { InventoryStats } from "@/components/inventory/InventoryStats";
+import { InventoryActions } from "@/components/inventory/InventoryActions";
+import { InventoryFilters } from "@/components/inventory/InventoryFilters";
+import { InventoryList } from "@/components/inventory/InventoryList";
+import { PaginationControls } from "@/components/inventory/PaginationControls";
+import { toast } from "sonner";
 
 function IndexContent() {
   const navigate = useNavigate();
   const { isSalesman, loading: roleLoading } = useUserRole();
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Dialog states
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("inventory");
-  const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Tab and filter states
+  const [activeTab, setActiveTab] = useState("inventory");
+  const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
+  
+  // Debounced search
+  const { searchQuery, debouncedQuery, setSearchQuery, isSearching } = useDebouncedSearch("", 300);
+
+  // Data fetching with async hook
+  const {
+    data: items = [],
+    loading: itemsLoading,
+    error: itemsError,
+    refresh: refreshItems,
+  } = useAsyncData(
+    () => inventoryStorage.getItems(),
+    {
+      cacheKey: "inventory-items",
+      errorMessage: "Failed to load inventory items. Please try again.",
+    }
+  );
+
+  const {
+    data: invoices = [],
+    loading: invoicesLoading,
+    error: invoicesError,
+    refresh: refreshInvoices,
+  } = useAsyncData(
+    () => inventoryStorage.getInvoices(),
+    {
+      cacheKey: "invoices",
+      errorMessage: "Failed to load invoices. Please try again.",
+    }
+  );
 
   // Redirect salesmen to spiff program
   useEffect(() => {
@@ -38,41 +72,37 @@ function IndexContent() {
     }
   }, [roleLoading, isSalesman, navigate]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      const [itemsData, invoicesData] = await Promise.all([
-        inventoryStorage.getItems(),
-        inventoryStorage.getInvoices()
-      ]);
-      setItems(itemsData);
-      setInvoices(invoicesData);
-    };
-    loadData();
-  }, [refreshKey]);
+  // Memoized calculations
+  const availableItems = useMemo(
+    () => items.filter(item => item.status === 'available'),
+    [items]
+  );
 
-  const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
-  };
+  const soldItems = useMemo(
+    () => items.filter(item => item.status === 'sold'),
+    [items]
+  );
 
-  const handleItemClick = (item: InventoryItem) => {
-    setSelectedItem(item);
-    setDetailDialogOpen(true);
-  };
+  const totalInventoryValue = useMemo(
+    () => availableItems.reduce((sum, item) => sum + (item.cost || 0), 0),
+    [availableItems]
+  );
 
-  const availableItems = items.filter(item => item.status === 'available');
-  const soldItems = items.filter(item => item.status === 'sold');
-  const totalInventoryValue = availableItems.reduce((sum, item) => sum + item.cost, 0);
-  const totalRevenue = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
+  const totalRevenue = useMemo(
+    () => invoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0),
+    [invoices]
+  );
 
+  // Filtered and sorted items
   const filteredItems = useMemo(() => {
     let filtered = items.filter(item => {
       if (itemFilter === 'all') return true;
       return item.status === itemFilter;
     });
 
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply search filter using debounced query
+    if (debouncedQuery.trim()) {
+      const query = debouncedQuery.toLowerCase();
       filtered = filtered.filter(item =>
         item.partNumber.toLowerCase().includes(query) ||
         item.description.toLowerCase().includes(query) ||
@@ -87,112 +117,122 @@ function IndexContent() {
       if (a.status === 'sold' && b.status === 'available') return 1;
       return 0;
     });
-  }, [items, itemFilter, searchQuery]);
+  }, [items, itemFilter, debouncedQuery]);
 
-  const handleInvoicePreview = (invoice: Invoice) => {
+  // Pagination
+  const pagination = usePagination(filteredItems, {
+    initialPageSize: 50,
+    pageSizeOptions: [25, 50, 100],
+  });
+
+  // Handlers
+  const handleRefresh = useCallback(async () => {
+    try {
+      await Promise.all([refreshItems(), refreshInvoices()]);
+      toast.success("Data refreshed successfully");
+    } catch {
+      toast.error("Failed to refresh data");
+    }
+  }, [refreshItems, refreshInvoices]);
+
+  const handleItemClick = useCallback((item: InventoryItem) => {
+    setSelectedItem(item);
+    setDetailDialogOpen(true);
+  }, []);
+
+  const handleInvoicePreview = useCallback((invoice: Invoice) => {
     setPreviewInvoice(invoice);
     setInvoicePreviewOpen(true);
-  };
+  }, []);
+
+  const handleStatsItemsClick = useCallback(() => {
+    setActiveTab("inventory");
+    setItemFilter('all');
+  }, []);
+
+  const handleStatsAvailableClick = useCallback(() => {
+    setActiveTab("inventory");
+    setItemFilter('available');
+  }, []);
+
+  const handleStatsSoldClick = useCallback(() => {
+    setActiveTab("inventory");
+    setItemFilter('sold');
+  }, []);
+
+  const handleStatsInvoicesClick = useCallback(() => {
+    setActiveTab("invoices");
+  }, []);
+
+  const isLoading = itemsLoading || invoicesLoading;
+  const hasError = itemsError || invoicesError;
+
+  // Get empty message based on filter
+  const emptyMessage = useMemo(() => {
+    if (debouncedQuery.trim()) {
+      return `No items found matching "${debouncedQuery}"`;
+    }
+    if (itemFilter === 'all') {
+      return 'No items in inventory. Add your first item to get started.';
+    }
+    return `No ${itemFilter} items found.`;
+  }, [itemFilter, debouncedQuery]);
 
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-foreground">Inventory Management</h1>
-          <p className="text-muted-foreground mt-1">Track and manage your inventory items and sales</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Inventory Management</h1>
+              <p className="text-muted-foreground mt-1">Track and manage your inventory items and sales</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => {
-              setActiveTab("inventory");
-              setItemFilter('all');
-            }}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{items.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {availableItems.length} available, {soldItems.length} sold
+        {/* Error State */}
+        {hasError && (
+          <div className="mb-6 p-4 border border-destructive/50 rounded-lg bg-destructive/10 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-destructive">
+                Failed to load some data. Please try refreshing.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              Retry
+            </Button>
+          </div>
+        )}
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => {
-              setActiveTab("inventory");
-              setItemFilter('available');
-            }}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalInventoryValue.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Available items cost</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => {
-              setActiveTab("inventory");
-              setItemFilter('sold');
-            }}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">From {invoices.length} invoices</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => setActiveTab("invoices")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Invoices</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{invoices.length}</div>
-              <p className="text-xs text-muted-foreground">Total sales</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Stats Cards */}
+        <InventoryStats
+          totalItems={items.length}
+          availableCount={availableItems.length}
+          soldCount={soldItems.length}
+          totalInventoryValue={totalInventoryValue}
+          totalRevenue={totalRevenue}
+          invoiceCount={invoices.length}
+          loading={isLoading}
+          onItemsClick={handleStatsItemsClick}
+          onAvailableClick={handleStatsAvailableClick}
+          onSoldClick={handleStatsSoldClick}
+          onInvoicesClick={handleStatsInvoicesClick}
+        />
 
         {/* Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          <AddItemDialog onItemAdded={handleRefresh} />
-          <BulkUploadDialog onItemsAdded={handleRefresh} />
-          <IssuePODialog onPOCreated={handleRefresh} />
-          <CreateInvoiceDialog onInvoiceCreated={handleRefresh} />
-          <Link to="/quotes">
-            <Button variant="outline" className="w-full">
-              <FileEdit className="mr-2 h-4 w-4" />
-              View Quotes
-            </Button>
-          </Link>
-          <Link to="/sold-items">
-            <Button variant="outline" className="w-full">
-              <Archive className="mr-2 h-4 w-4" />
-              Sold Items
-            </Button>
-          </Link>
-        </div>
+        <InventoryActions onRefresh={handleRefresh} disabled={isLoading} />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -204,122 +244,39 @@ function IndexContent() {
           <TabsContent value="inventory" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex flex-col gap-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle>
-                        {itemFilter === 'all' ? 'All Items' : 
-                         itemFilter === 'available' ? 'Available Items' : 
-                         'Sold Items'}
-                      </CardTitle>
-                      <CardDescription>View and manage your inventory items</CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant={itemFilter === 'all' ? 'default' : 'outline'} 
-                        size="sm"
-                        onClick={() => setItemFilter('all')}
-                      >
-                        All ({items.length})
-                      </Button>
-                      <Button 
-                        variant={itemFilter === 'available' ? 'default' : 'outline'} 
-                        size="sm"
-                        onClick={() => setItemFilter('available')}
-                      >
-                        Available ({availableItems.length})
-                      </Button>
-                      <Button 
-                        variant={itemFilter === 'sold' ? 'default' : 'outline'} 
-                        size="sm"
-                        onClick={() => setItemFilter('sold')}
-                      >
-                        Sold ({soldItems.length})
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by part number, description, serial number, or shelf location..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
+                <InventoryFilters
+                  itemFilter={itemFilter}
+                  onFilterChange={setItemFilter}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  totalCount={items.length}
+                  availableCount={availableItems.length}
+                  soldCount={soldItems.length}
+                  isSearching={isSearching}
+                />
               </CardHeader>
               <CardContent>
-                {filteredItems.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    {itemFilter === 'all' 
-                      ? 'No items in inventory. Add your first item to get started.'
-                      : `No ${itemFilter} items found.`}
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredItems.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleItemClick(item)}
-                        className="flex items-start justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors cursor-pointer"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold">{item.partNumber}</span>
-                            {item.serialNumber && (
-                              <span className="text-sm text-muted-foreground">SN: {item.serialNumber}</span>
-                            )}
-                            <Badge
-                              variant={item.status === 'available' ? 'default' : 'secondary'}
-                            >
-                              {item.status}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                            <span className="text-muted-foreground">
-                              Sale: <span className="font-medium text-foreground">${item.salePrice.toFixed(2)}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Cost: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Value: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
-                            </span>
-                            {item.weight && (
-                              <span className="text-muted-foreground">
-                                Weight: <span className="font-medium text-foreground">{item.weight} lbs</span>
-                              </span>
-                            )}
-                            {item.volume && (
-                              <span className="text-muted-foreground">
-                                Volume: <span className="font-medium text-foreground">{item.volume} cu yd</span>
-                              </span>
-                            )}
-                            {item.warranty && (
-                              <span className="text-muted-foreground">
-                                Warranty: <span className="font-medium text-foreground">{item.warranty}</span>
-                              </span>
-                            )}
-                            {(item.minReorderLevel !== undefined || item.maxReorderLevel !== undefined) && (
-                              <span className="text-muted-foreground">
-                                Reorder: <span className="font-medium text-foreground">
-                                  {item.minReorderLevel ?? '-'} - {item.maxReorderLevel ?? '-'}
-                                </span>
-                              </span>
-                            )}
-                            {item.soldDate && (
-                              <span className="text-muted-foreground col-span-2">
-                                Sold: {new Date(item.soldDate).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <InventoryList
+                  items={pagination.paginatedData}
+                  loading={itemsLoading}
+                  emptyMessage={emptyMessage}
+                  onItemClick={handleItemClick}
+                />
+                <PaginationControls
+                  currentPage={pagination.currentPage}
+                  totalPages={pagination.totalPages}
+                  pageSize={pagination.pageSize}
+                  totalItems={pagination.totalItems}
+                  startIndex={pagination.startIndex}
+                  endIndex={pagination.endIndex}
+                  hasNextPage={pagination.hasNextPage}
+                  hasPreviousPage={pagination.hasPreviousPage}
+                  pageSizeOptions={pagination.pageSizeOptions}
+                  onPageChange={pagination.goToPage}
+                  onNextPage={pagination.nextPage}
+                  onPreviousPage={pagination.previousPage}
+                  onPageSizeChange={pagination.setPageSize}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -331,7 +288,11 @@ function IndexContent() {
                 <CardDescription>View all generated invoices</CardDescription>
               </CardHeader>
               <CardContent>
-                {invoices.length === 0 ? (
+                {invoicesLoading ? (
+                  <div className="space-y-4">
+                    <CardSkeleton count={3} />
+                  </div>
+                ) : invoices.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
                     No invoices yet. Create your first invoice to track sales.
                   </p>
@@ -404,12 +365,14 @@ function IndexContent() {
       </div>
     </div>
   );
-};
+}
 
 export default function Index() {
   return (
     <ProtectedRoute>
-      <IndexContent />
+      <ErrorBoundary>
+        <IndexContent />
+      </ErrorBoundary>
     </ProtectedRoute>
   );
 }

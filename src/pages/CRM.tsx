@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare, RefreshCw, AlertCircle } from "lucide-react";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
@@ -16,8 +16,11 @@ import { MergeDuplicatesDialog } from "@/components/MergeDuplicatesDialog";
 import { ContactsMapDialog } from "@/components/ContactsMapDialog";
 import { inventoryStorage, Company, Person, Quote, Invoice } from "@/lib/inventory-storage";
 import { supabase } from "@/integrations/supabase/client";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LoadingSpinner, CardSkeleton, StatsCardSkeleton } from "@/components/LoadingState";
+import { toast } from "sonner";
 
-const CRM = () => {
+const CRMContent = () => {
   const [activeTab, setActiveTab] = useState(() => {
     return sessionStorage.getItem('crm_active_tab') || "companies";
   });
@@ -38,6 +41,8 @@ const CRM = () => {
   const [assignSalesmanCurrent, setAssignSalesmanCurrent] = useState<string | undefined>();
   const [mergeDuplicatesOpen, setMergeDuplicatesOpen] = useState(false);
   const [conversationCounts, setConversationCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -45,8 +50,11 @@ const CRM = () => {
     sessionStorage.setItem('crm_active_tab', value);
   };
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
       const [companiesData, personsData, quotesData, invoicesData] = await Promise.all([
         inventoryStorage.getCompanies(),
         inventoryStorage.getPersons(),
@@ -59,11 +67,13 @@ const CRM = () => {
       setInvoices(invoicesData);
       
       // Load conversation counts per contact
-      const { data: conversations } = await supabase
+      const { data: conversations, error: convError } = await supabase
         .from("ai_conversations")
         .select("contact_id");
       
-      if (conversations) {
+      if (convError) {
+        console.error("Failed to load conversation counts:", convError);
+      } else if (conversations) {
         const counts: Record<string, number> = {};
         conversations.forEach(c => {
           if (c.contact_id) {
@@ -72,13 +82,23 @@ const CRM = () => {
         });
         setConversationCounts(counts);
       }
-    };
-    loadData();
-  }, [refreshKey]);
+    } catch (err) {
+      console.error("Failed to load CRM data:", err);
+      setError(err instanceof Error ? err : new Error("Failed to load data"));
+      toast.error("Failed to load CRM data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const handleRefresh = () => {
+  useEffect(() => {
+    loadData();
+  }, [loadData, refreshKey]);
+
+  const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
-  };
+    toast.success("Data refreshed");
+  }, []);
 
   const getCompanyName = (companyId: string) => {
     const company = companies.find(c => c.id === companyId);
@@ -601,4 +621,10 @@ const CRM = () => {
   );
 };
 
-export default CRM;
+export default function CRM() {
+  return (
+    <ErrorBoundary>
+      <CRMContent />
+    </ErrorBoundary>
+  );
+}
