@@ -212,18 +212,30 @@ export default function AIAssistant() {
         throw error;
       }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('audio-recordings')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
+      // Store the file path for later signed URL generation
+      // We store just the path, not a public URL, since bucket is now private
+      return fileName;
     } catch (error) {
       console.error("Audio upload failed:", error);
       toast.error("Failed to upload audio");
       return null;
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Get a signed URL for audio playback (1 hour expiration)
+  const getSignedAudioUrl = async (audioPath: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('audio-recordings')
+        .createSignedUrl(audioPath, 3600); // 1 hour
+
+      if (error) throw error;
+      return data.signedUrl;
+    } catch (error) {
+      console.error("Failed to get signed URL:", error);
+      return null;
     }
   };
 
@@ -452,7 +464,7 @@ export default function AIAssistant() {
     }
   };
 
-  const playAudio = (conversationId: string, audioUrl: string) => {
+  const playAudio = async (conversationId: string, audioPath: string) => {
     // Stop current audio if playing
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -464,7 +476,14 @@ export default function AIAssistant() {
       return;
     }
 
-    const audio = new Audio(audioUrl);
+    // Get signed URL for private audio file
+    const signedUrl = await getSignedAudioUrl(audioPath);
+    if (!signedUrl) {
+      toast.error("Failed to load audio");
+      return;
+    }
+
+    const audio = new Audio(signedUrl);
     audioPlayerRef.current = audio;
     
     audio.onended = () => {
