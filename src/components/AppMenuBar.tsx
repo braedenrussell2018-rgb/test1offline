@@ -132,14 +132,24 @@ export function AppMenuBar() {
                     </NavLink>
                   </MenubarMenu>
                   {isOwner() && (
-                    <MenubarMenu>
-                      <NavLink to="/spiff-admin">
-                        <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                          <Settings2 className="h-5 w-5" strokeWidth={3} />
-                          Spiff Admin
-                        </MenubarTrigger>
-                      </NavLink>
-                    </MenubarMenu>
+                    <>
+                      <MenubarMenu>
+                        <NavLink to="/spiff-program">
+                          <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                            <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={3} />
+                            Spiff Program
+                          </MenubarTrigger>
+                        </NavLink>
+                      </MenubarMenu>
+                      <MenubarMenu>
+                        <NavLink to="/spiff-admin">
+                          <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                            <Settings2 className="h-5 w-5" strokeWidth={3} />
+                            Spiff Admin
+                          </MenubarTrigger>
+                        </NavLink>
+                      </MenubarMenu>
+                    </>
                   )}
                 </>
               )}
