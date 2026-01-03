@@ -9,21 +9,92 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Check, X } from "lucide-react";
 
-type UserRole = "employee" | "owner" | "customer" | "salesman";
+// SECURITY FIX: Only allow safe self-registration roles
+// Owner and Employee roles must be assigned by existing owners
+type PublicUserRole = "customer" | "salesman";
+
+const PUBLIC_ROLES: { value: PublicUserRole; label: string; description: string }[] = [
+  { value: "customer", label: "Customer", description: "View your orders and quotes" },
+  { value: "salesman", label: "Salesman", description: "Create quotes and track commissions" },
+];
+
+// Password requirements
+const PASSWORD_REQUIREMENTS = [
+  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+  { label: "Uppercase letter (A-Z)", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "Lowercase letter (a-z)", test: (p: string) => /[a-z]/.test(p) },
+  { label: "Number (0-9)", test: (p: string) => /[0-9]/.test(p) },
+  { label: "Special character (!@#$%^&*)", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function PasswordStrengthIndicator({ password }: { password: string }) {
+  if (!password) return null;
+  
+  const results = PASSWORD_REQUIREMENTS.map(req => ({
+    ...req,
+    passed: req.test(password)
+  }));
+  
+  const passedCount = results.filter(r => r.passed).length;
+  const strength = (passedCount / PASSWORD_REQUIREMENTS.length) * 100;
+  
+  const getStrengthLabel = () => {
+    if (strength < 40) return { label: "Weak", color: "bg-red-500" };
+    if (strength < 80) return { label: "Medium", color: "bg-yellow-500" };
+    return { label: "Strong", color: "bg-green-500" };
+  };
+  
+  const strengthInfo = getStrengthLabel();
+  
+  return (
+    <div className="space-y-2 mt-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">Password strength</span>
+        <span className={strength >= 80 ? "text-green-500" : strength >= 40 ? "text-yellow-500" : "text-red-500"}>
+          {strengthInfo.label}
+        </span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div 
+          className={`h-full transition-all duration-300 ${strengthInfo.color}`}
+          style={{ width: `${strength}%` }}
+        />
+      </div>
+      <ul className="space-y-1 text-xs">
+        {results.map((req, i) => (
+          <li key={i} className="flex items-center gap-1">
+            {req.passed ? (
+              <Check className="h-3 w-3 text-green-500" />
+            ) : (
+              <X className="h-3 w-3 text-muted-foreground" />
+            )}
+            <span className={req.passed ? "text-green-500" : "text-muted-foreground"}>
+              {req.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function isPasswordValid(password: string): boolean {
+  return PASSWORD_REQUIREMENTS.every(req => req.test(password));
+}
 
 export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("customer");
+  const [role, setRole] = useState<PublicUserRole>("customer");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/");
@@ -33,6 +104,8 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
     if (!email || !password || !fullName || !role) {
       toast({
         title: "Error",
@@ -42,10 +115,42 @@ export default function Auth() {
       return;
     }
 
-    if (password.length < 6) {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
       toast({
         title: "Error",
-        description: "Password must be at least 6 characters",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Strong password validation
+    if (!isPasswordValid(password)) {
+      toast({
+        title: "Weak Password",
+        description: "Please meet all password requirements",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Name validation
+    if (fullName.trim().length < 2) {
+      toast({
+        title: "Error",
+        description: "Please enter your full name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // SECURITY: Validate role is in allowed list (defense in depth)
+    if (!PUBLIC_ROLES.some(r => r.value === role)) {
+      toast({
+        title: "Error",
+        description: "Invalid role selected",
         variant: "destructive",
       });
       return;
@@ -53,14 +158,13 @@ export default function Auth() {
 
     setLoading(true);
     
-    // First, sign up the user
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
         data: {
-          full_name: fullName,
+          full_name: fullName.trim(),
           role: role,
         },
       },
@@ -76,51 +180,50 @@ export default function Auth() {
       return;
     }
 
-    // If user was created, insert their role
     if (authData.user) {
+      // Insert role - the database trigger will validate this
       const { error: roleError } = await supabase
         .from("user_roles")
         .insert({
           user_id: authData.user.id,
-          role: role,
+          role: role, // Only "customer" or "salesman" allowed
         });
 
       if (roleError) {
         console.error("Failed to set user role:", roleError);
-        // Don't block signup if role insert fails - user can be assigned later
+        // The trigger should prevent invalid roles, log for monitoring
       }
     }
 
     setLoading(false);
     toast({
       title: "Success!",
-      description: "Account created successfully. You can now log in.",
+      description: "Account created successfully. Please check your email to verify your account, then log in.",
     });
     
-    // Redirect based on role
-    if (role === "salesman") {
-      navigate("/spiff-program");
-    } else if (role === "customer") {
-      navigate("/customer");
-    } else {
-      navigate("/");
-    }
+    // Clear form
+    setEmail("");
+    setPassword("");
+    setFullName("");
+    setRole("customer");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!email || !password) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please enter your email and password",
         variant: "destructive",
       });
       return;
     }
 
     setLoading(true);
+
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
 
@@ -132,32 +235,19 @@ export default function Auth() {
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      // Fetch user role and redirect appropriately
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
-        .maybeSingle();
-
-      const userRole = roleData?.role;
-      if (userRole === "salesman") {
-        navigate("/spiff-program");
-      } else if (userRole === "customer") {
-        navigate("/customer");
-      } else {
-        navigate("/");
-      }
+      return;
     }
+
+    navigate("/");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
-          <CardDescription className="text-center">
-            Sign in to your account or create a new one
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Serial Stock Suite</CardTitle>
+          <CardDescription>
+            Company management made simple
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -166,6 +256,7 @@ export default function Auth() {
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
+
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
@@ -176,41 +267,49 @@ export default function Auth() {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                     required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signin-password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
+
             <TabsContent value="signup">
-              <Alert variant="destructive" className="mb-4">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Do not enter sensitive information
-                </AlertDescription>
-              </Alert>
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-fullname">Full Name</Label>
+                  <Label htmlFor="signup-name">Full Name</Label>
                   <Input
-                    id="signup-fullname"
+                    id="signup-name"
                     type="text"
-                    placeholder="John Smith"
+                    placeholder="John Doe"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    autoComplete="name"
                     required
                   />
                 </div>
@@ -222,46 +321,60 @@ export default function Auth() {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                     required
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-role">I am a...</Label>
-                  <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                    <SelectTrigger id="signup-role" className="bg-background">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="customer">Customer</SelectItem>
-                      <SelectItem value="salesman">Salesman (Customer Rep)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {role === "salesman" && "As a salesman, you'll have access to the Spiff Program"}
-                    {role === "owner" && "As an owner, you'll have full access to all features"}
-                    {role === "employee" && "As an employee, you'll have access to most features"}
-                    {role === "customer" && "As a customer, you'll have limited access"}
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="new-password"
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <PasswordStrengthIndicator password={password} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-role">Account Type</Label>
+                  <Select value={role} onValueChange={(value) => setRole(value as PublicUserRole)}>
+                    <SelectTrigger id="signup-role">
+                      <SelectValue placeholder="Select account type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PUBLIC_ROLES.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          <div className="flex flex-col">
+                            <span>{r.label}</span>
+                            <span className="text-xs text-muted-foreground">{r.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
-                    Password must be at least 6 characters
+                    Need an Employee or Owner account? Contact your administrator.
                   </p>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating account..." : "Sign Up"}
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={loading || !isPasswordValid(password)}
+                >
+                  {loading ? "Creating account..." : "Create Account"}
                 </Button>
               </form>
             </TabsContent>
