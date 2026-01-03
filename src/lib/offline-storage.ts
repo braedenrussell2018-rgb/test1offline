@@ -118,9 +118,10 @@ export async function clearOfflineStore(storeName: StoreName): Promise<void> {
 export async function addToSyncQueue(item: Omit<SyncQueueItem, "id" | "timestamp">): Promise<void> {
   const database = await initOfflineDB();
   
+  const data = item.data as { id?: string };
   const queueItem: SyncQueueItem = {
     ...item,
-    id: `${item.store}_${item.data.id}_${Date.now()}`,
+    id: `${item.store}_${data.id || 'unknown'}_${Date.now()}`,
     timestamp: Date.now(),
   };
 

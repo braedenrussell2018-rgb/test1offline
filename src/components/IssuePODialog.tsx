@@ -133,7 +133,7 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
         return;
       }
 
-      const validated = jsonData.map((item) => validateItem(item));
+      const validated = jsonData.map((item) => validateItem(item as Record<string, unknown>));
       setParsedItems(validated);
 
       const validCount = validated.filter(item => item.valid).length;

@@ -134,10 +134,10 @@ Consider growth trends, seasonal variations, and business cycles.`;
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error("Invalid AI response format");
     
-    const forecasts = JSON.parse(jsonMatch[0]);
+    const forecasts = JSON.parse(jsonMatch[0]) as Array<{ account_id: string; forecasted_amount: number }>;
 
     // Save forecasts to database
-    const forecastRecords = forecasts.map((f: unknown) => ({
+    const forecastRecords = forecasts.map((f) => ({
       month,
       account_id: f.account_id,
       forecasted_amount: f.forecasted_amount,

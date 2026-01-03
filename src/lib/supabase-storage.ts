@@ -105,10 +105,10 @@ export const getCompanies = async (): Promise<Company[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    name: row.name,
-    address: row.address,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    address: row.address as string | undefined,
     notes: (row.notes as Array<{ text: string; timestamp: string }>) || [],
   }));
 };
@@ -159,11 +159,11 @@ export const getBranches = async (): Promise<Branch[]> => {
     .order("name", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    companyId: row.company_id,
-    name: row.name,
-    address: row.address,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    companyId: String(row.company_id),
+    name: String(row.name),
+    address: row.address as string | undefined,
   }));
 };
 
@@ -175,11 +175,11 @@ export const getBranchesByCompany = async (companyId: string): Promise<Branch[]>
     .order("name", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    companyId: row.company_id,
-    name: row.name,
-    address: row.address,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    companyId: String(row.company_id),
+    name: String(row.name),
+    address: row.address as string | undefined,
   }));
 };
 
@@ -232,16 +232,16 @@ export const getPeople = async (): Promise<Person[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    name: row.name,
-    companyId: row.company_id,
-    branchId: row.branch_id,
-    userId: row.user_id,
-    jobTitle: row.job_title,
-    email: row.email,
-    phone: row.phone,
-    address: row.address,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    companyId: row.company_id as string | undefined,
+    branchId: row.branch_id as string | undefined,
+    userId: row.user_id as string | undefined,
+    jobTitle: row.job_title as string | undefined,
+    email: row.email as string | undefined,
+    phone: row.phone as string | undefined,
+    address: row.address as string | undefined,
     notes: (row.notes as Array<{ text: string; timestamp: string }>) || [],
     excavatorLines: (row.excavator_lines as string[]) || [],
   }));
@@ -337,23 +337,23 @@ export const getItems = async (): Promise<Item[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    partNumber: row.part_number,
-    description: row.description,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    partNumber: String(row.part_number),
+    description: String(row.description),
     status: row.status as "available" | "sold",
     salePrice: row.sale_price ? Number(row.sale_price) : undefined,
     cost: row.cost ? Number(row.cost) : undefined,
     weight: row.weight ? Number(row.weight) : undefined,
     volume: row.volume ? Number(row.volume) : undefined,
-    warrantyMonths: row.warranty_months,
-    serialNumber: row.serial_number,
-    minReorderLevel: row.min_reorder_level,
-    maxReorderLevel: row.max_reorder_level,
-    soldInInvoiceId: row.sold_in_invoice_id,
-    dateSold: row.date_sold,
-    shelfLocation: row.shelf_location,
-    createdAt: row.created_at,
+    warrantyMonths: row.warranty_months as number | undefined,
+    serialNumber: row.serial_number as string | undefined,
+    minReorderLevel: row.min_reorder_level as number | undefined,
+    maxReorderLevel: row.max_reorder_level as number | undefined,
+    soldInInvoiceId: row.sold_in_invoice_id as string | undefined,
+    dateSold: row.date_sold as string | undefined,
+    shelfLocation: row.shelf_location as string | undefined,
+    createdAt: row.created_at as string | undefined,
   }));
 };
 
@@ -453,24 +453,24 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    invoiceNumber: row.invoice_number,
-    customerName: row.customer_name,
-    customerEmail: row.customer_email,
-    customerPhone: row.customer_phone,
-    customerAddress: row.customer_address,
-    shipToName: row.ship_to_name,
-    shipToAddress: row.ship_to_address,
-    salesmanName: row.salesman_name,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    invoiceNumber: String(row.invoice_number),
+    customerName: String(row.customer_name),
+    customerEmail: row.customer_email as string | undefined,
+    customerPhone: row.customer_phone as string | undefined,
+    customerAddress: row.customer_address as string | undefined,
+    shipToName: row.ship_to_name as string | undefined,
+    shipToAddress: row.ship_to_address as string | undefined,
+    salesmanName: row.salesman_name as string | undefined,
     items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
     total: Number(row.total),
-    createdAt: row.created_at,
-    paid: row.paid || false,
-    paidAt: row.paid_at,
+    createdAt: String(row.created_at),
+    paid: Boolean(row.paid),
+    paidAt: row.paid_at as string | undefined,
   }));
 };
 
@@ -546,22 +546,22 @@ export const getQuotes = async (): Promise<Quote[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    quoteNumber: row.quote_number,
-    customerName: row.customer_name,
-    customerEmail: row.customer_email,
-    customerPhone: row.customer_phone,
-    customerAddress: row.customer_address,
-    shipToName: row.ship_to_name,
-    shipToAddress: row.ship_to_address,
-    salesmanName: row.salesman_name,
+  return (data || []).map((row) => ({
+    id: String(row.id),
+    quoteNumber: String(row.quote_number),
+    customerName: String(row.customer_name),
+    customerEmail: row.customer_email as string | undefined,
+    customerPhone: row.customer_phone as string | undefined,
+    customerAddress: row.customer_address as string | undefined,
+    shipToName: row.ship_to_name as string | undefined,
+    shipToAddress: row.ship_to_address as string | undefined,
+    salesmanName: row.salesman_name as string | undefined,
     items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
     total: Number(row.total),
-    createdAt: row.created_at,
+    createdAt: String(row.created_at),
   }));
 };
 

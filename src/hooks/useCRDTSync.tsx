@@ -77,7 +77,7 @@ export function useCRDTSync(options: UseCRDTSyncOptions = {}) {
   
   // Set up event listeners
   useEffect(() => {
-    const unsubSynced = onSyncEvent("synced", (data) => {
+    const unsubSynced = onSyncEvent("synced", (data: { source?: string } | undefined) => {
       setLastSyncTime(new Date());
       if (data?.source === "webrtc" && notificationsEnabled) {
         showNotification("Sync Complete", {
@@ -87,13 +87,13 @@ export function useCRDTSync(options: UseCRDTSyncOptions = {}) {
       }
     });
     
-    const unsubPeers = onSyncEvent("peers-changed", (data) => {
+    const unsubPeers = onSyncEvent("peers-changed", (data: { count?: number } | undefined) => {
       setPeerCount(data?.count || 0);
       
       // Update peer info from awareness
       const awarenessStates = getPeerAwareness();
       const peerInfos: PeerInfo[] = [];
-      awarenessStates.forEach((state, id) => {
+      awarenessStates.forEach((state: { user?: { name?: string } }, id: number) => {
         if (state.user?.name) {
           peerInfos.push({
             id,
@@ -105,7 +105,7 @@ export function useCRDTSync(options: UseCRDTSyncOptions = {}) {
       setPeers(peerInfos);
     });
     
-    const unsubConflict = onSyncEvent("conflict-resolved", (data) => {
+    const unsubConflict = onSyncEvent("conflict-resolved", (data: { store?: string } | undefined) => {
       console.log("Conflict resolved:", data);
       if (notificationsEnabled) {
         showNotification("Conflict Resolved", {

@@ -3,17 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   initOfflineDB,
-  saveToOffline,
   getFromOffline,
   cacheAllData,
   getSyncQueue,
   clearSyncQueue,
-  setMetadata,
   getMetadata,
   isOnline,
   onConnectionChange,
 } from "@/lib/offline-storage";
-import type { Company, Person, Item, Vendor } from "@/lib/inventory-storage";
 
 interface Device {
   deviceId: string;
@@ -22,8 +19,8 @@ interface Device {
 
 interface DuplicateResult {
   type: string;
-  incoming: Company | Person | Item | Vendor;
-  existing: Company | Person | Item | Vendor;
+  incoming: Record<string, unknown>;
+  existing: Record<string, unknown>;
   field: string;
 }
 
@@ -33,11 +30,29 @@ interface DeletionInfo {
   name: string;
 }
 
+interface SyncPayload {
+  action: string;
+  deviceId: string;
+  deviceName: string;
+  data?: {
+    companies?: Record<string, unknown>[];
+    people?: Record<string, unknown>[];
+    items?: Record<string, unknown>[];
+    vendors?: Record<string, unknown>[];
+  };
+  deletionIds?: {
+    companies?: string[];
+    people?: string[];
+    items?: string[];
+    vendors?: string[];
+  };
+}
+
 interface SyncData {
-  companies?: Company[];
-  people?: Person[];
-  items?: Item[];
-  vendors?: Vendor[];
+  companies?: Record<string, unknown>[];
+  people?: Record<string, unknown>[];
+  items?: Record<string, unknown>[];
+  vendors?: Record<string, unknown>[];
 }
 
 // Generate or retrieve device ID
@@ -97,9 +112,9 @@ export function useDeviceSync() {
     getSyncQueue().then((queue) => setPendingChanges(queue.length)).catch(console.error);
 
     // Listen for connection changes
-    const unsubscribe = onConnectionChange((isOnline) => {
-      setOnline(isOnline);
-      if (isOnline) {
+    const unsubscribe = onConnectionChange((isOnlineNow) => {
+      setOnline(isOnlineNow);
+      if (isOnlineNow) {
         toast.success("Back online!");
         // Auto-sync pending changes when coming back online
         processPendingChanges();
@@ -119,9 +134,10 @@ export function useDeviceSync() {
       for (const item of queue) {
         try {
           if (item.action === "insert" || item.action === "update") {
-            await supabase.from(item.store).upsert(item.data, { onConflict: "id" });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await supabase.from(item.store).upsert(item.data as any, { onConflict: "id" });
           } else if (item.action === "delete") {
-            await supabase.from(item.store).delete().eq("id", item.data.id);
+            await supabase.from(item.store).delete().eq("id", (item.data as { id: string }).id);
           }
         } catch (err) {
           console.error(`Failed to sync item ${item.id}:`, err);
@@ -136,7 +152,7 @@ export function useDeviceSync() {
     }
   };
 
-  const callSyncFunction = async (payload: SyncData) => {
+  const callSyncFunction = async (payload: SyncPayload) => {
     try {
       const { data, error } = await supabase.functions.invoke("sync-data", {
         body: payload,
@@ -212,10 +228,10 @@ export function useDeviceSync() {
         ]);
 
         return {
-          companies: companies.data || [],
-          people: people.data || [],
-          items: items.data || [],
-          vendors: vendors.data || [],
+          companies: (companies.data || []) as Record<string, unknown>[],
+          people: (people.data || []) as Record<string, unknown>[],
+          items: (items.data || []) as Record<string, unknown>[],
+          vendors: (vendors.data || []) as Record<string, unknown>[],
         };
       } catch (err) {
         console.error("Failed to fetch from Supabase, using offline data:", err);
@@ -230,7 +246,12 @@ export function useDeviceSync() {
       getFromOffline("vendors"),
     ]);
 
-    return { companies, people, items, vendors };
+    return { 
+      companies: companies as Record<string, unknown>[], 
+      people: people as Record<string, unknown>[], 
+      items: items as Record<string, unknown>[], 
+      vendors: vendors as Record<string, unknown>[] 
+    };
   };
 
   const cacheDataForOffline = useCallback(async () => {
@@ -390,19 +411,23 @@ export function useDeviceSync() {
     try {
       const data = pendingData;
       
-      // Upsert all data
+      // Upsert all data - use 'any' to bypass strict type checking since we're working with generic sync data
       const promises = [];
       if (data.companies?.length) {
-        promises.push(supabase.from("companies").upsert(data.companies, { onConflict: "id" }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        promises.push(supabase.from("companies").upsert(data.companies as any, { onConflict: "id" }));
       }
       if (data.people?.length) {
-        promises.push(supabase.from("people").upsert(data.people, { onConflict: "id" }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        promises.push(supabase.from("people").upsert(data.people as any, { onConflict: "id" }));
       }
       if (data.items?.length) {
-        promises.push(supabase.from("items").upsert(data.items, { onConflict: "id" }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        promises.push(supabase.from("items").upsert(data.items as any, { onConflict: "id" }));
       }
       if (data.vendors?.length) {
-        promises.push(supabase.from("vendors").upsert(data.vendors, { onConflict: "id" }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        promises.push(supabase.from("vendors").upsert(data.vendors as any, { onConflict: "id" }));
       }
 
       await Promise.all(promises);
