@@ -7,6 +7,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface Contact {
+  id: string;
+  name: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+}
+
+interface Conversation {
+  transcript: string;
+  summary: string | null;
+  key_points: string[] | null;
+  created_at: string;
+  contact_id: string | null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -16,24 +32,23 @@ serve(async (req) => {
     const { action, transcript, contacts, conversationIds, question } = await req.json();
     console.log(`AI Assistant action: ${action}`);
 
-    // Use Anthropic Claude API key
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    // Use Lovable AI
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!ANTHROPIC_API_KEY) {
-      console.error("ANTHROPIC_API_KEY not configured");
-      throw new Error("Anthropic API key not configured");
+    if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY not configured");
+      throw new Error("Lovable API key not configured");
     }
 
-    const apiUrl = "https://api.anthropic.com/v1/messages";
-    const apiKey = ANTHROPIC_API_KEY;
-    const model = "claude-3-5-sonnet-20241022"; // or use claude-3-haiku-20240307 for faster/cheaper
+    const apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const model = "google/gemini-2.5-flash";
 
-    console.log(`Using Claude API with model: ${model}`);
+    console.log(`Using Lovable AI with model: ${model}`);
 
     if (action === "analyze_transcript") {
       // Analyze transcript and match to contacts
       const contactList = contacts?.length > 0 
-        ? contacts.map((c: unknown) => 
+        ? (contacts as Contact[]).map((c: Contact) => 
             `- ID: ${c.id}, Name: ${c.name}, Company: ${c.company || 'N/A'}, Email: ${c.email || 'N/A'}, Phone: ${c.phone || 'N/A'}`
           ).join('\n')
         : 'No existing contacts.';
@@ -58,20 +73,18 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
 If you cannot identify a specific contact from the transcript, set matchedContactId to null and matchConfidence to "no_match".
 If you can extract contact info from the conversation, include it in suggestedNewContact.`;
 
-      console.log("Sending analyze request to AI...");
+      console.log("Sending analyze request to Lovable AI...");
 
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2048,
-          system: systemPrompt,
           messages: [
+            { role: "system", content: systemPrompt },
             { role: "user", content: `EXISTING CONTACTS:\n${contactList}\n\nTRANSCRIPT:\n${transcript}` }
           ],
         }),
@@ -80,14 +93,28 @@ If you can extract contact info from the conversation, include it in suggestedNe
       if (!response.ok) {
         const errorText = await response.text();
         console.error("AI API error:", response.status, errorText);
-        throw new Error(`AI API error: ${response.status} - ${errorText}`);
+        
+        if (response.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (response.status === 402) {
+          return new Response(JSON.stringify({ error: "Payment required. Please add funds to your Lovable AI workspace." }), {
+            status: 402,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        throw new Error(`AI API error: ${response.status}`);
       }
 
       const data = await response.json();
       console.log("AI response received:", JSON.stringify(data).substring(0, 200));
 
-      // Claude returns content in a different format
-      const content = data.content?.[0]?.text;
+      // OpenAI-compatible format
+      const content = data.choices?.[0]?.message?.content;
       if (!content) {
         console.error("No content in AI response");
         throw new Error("No content in AI response");
@@ -162,7 +189,7 @@ If you can extract contact info from the conversation, include it in suggestedNe
 
         if (conversations && conversations.length > 0) {
           hasCompanyData = true;
-          conversationContext = conversations.map((c: unknown, i: number) => 
+          conversationContext = (conversations as Conversation[]).map((c: Conversation, i: number) => 
             `[Conversation ${i + 1} - ${new Date(c.created_at).toLocaleDateString()}]\nSummary: ${c.summary || 'No summary'}\nKey Points: ${JSON.stringify(c.key_points || [])}\nTranscript: ${c.transcript}`
           ).join('\n\n---\n\n');
         }
@@ -185,20 +212,18 @@ When answering:
 ${hasCompanyData ? `COMPANY CONVERSATION HISTORY:
 ${conversationContext}` : 'No company conversation history available.'}`;
 
-      console.log("Sending question to AI...");
+      console.log("Sending question to Lovable AI...");
 
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model,
-          max_tokens: 4096,
-          system: systemPromptWithData,
           messages: [
+            { role: "system", content: systemPromptWithData },
             { role: "user", content: question }
           ],
         }),
@@ -210,13 +235,13 @@ ${conversationContext}` : 'No company conversation history available.'}`;
         
         // Handle rate limits
         if (response.status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
             status: 429,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         if (response.status === 402) {
-          return new Response(JSON.stringify({ error: "AI credits exhausted. Please add more credits." }), {
+          return new Response(JSON.stringify({ error: "Payment required. Please add funds to your Lovable AI workspace." }), {
             status: 402,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
@@ -226,8 +251,8 @@ ${conversationContext}` : 'No company conversation history available.'}`;
       }
 
       const data = await response.json();
-      // Claude returns content in a different format
-      const answer = data.content?.[0]?.text || "I couldn't generate an answer.";
+      // OpenAI-compatible format
+      const answer = data.choices?.[0]?.message?.content || "I couldn't generate an answer.";
 
       return new Response(JSON.stringify({ answer }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
