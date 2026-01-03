@@ -12,10 +12,10 @@ interface SyncPayload {
   deviceId: string;
   deviceName: string;
   data?: {
-    companies?: any[];
-    people?: any[];
-    items?: any[];
-    vendors?: any[];
+    companies?: unknown[];
+    people?: unknown[];
+    items?: unknown[];
+    vendors?: unknown[];
   };
   deletionIds?: {
     companies?: string[];
@@ -27,8 +27,8 @@ interface SyncPayload {
 
 interface DuplicateResult {
   type: string;
-  incoming: any;
-  existing: any;
+  incoming: unknown;
+  existing: unknown;
   field: string;
 }
 
@@ -43,7 +43,7 @@ interface DeletionInfo {
 // For production, you'd want to use a database table
 const deviceRegistry = new Map<string, { deviceName: string; lastSeen: Date; networkId: string; userId: string }>();
 
-function findDuplicates(incoming: any[], existing: any[], type: string, matchFields: string[]): DuplicateResult[] {
+function findDuplicates(incoming: unknown[], existing: unknown[], type: string, matchFields: string[]): DuplicateResult[] {
   const duplicates: DuplicateResult[] = [];
   
   for (const incomingItem of incoming) {
@@ -208,10 +208,10 @@ serve(async (req) => {
         };
 
         // Detect items that exist locally but not in the database (deleted by others)
-        const existingCompanyIds = new Set(existingData.companies.map((c: any) => c.id));
-        const existingPeopleIds = new Set(existingData.people.map((p: any) => p.id));
-        const existingItemIds = new Set(existingData.items.map((i: any) => i.id));
-        const existingVendorIds = new Set(existingData.vendors.map((v: any) => v.id));
+        const existingCompanyIds = new Set(existingData.companies.map((c: unknown) => c.id));
+        const existingPeopleIds = new Set(existingData.people.map((p: unknown) => p.id));
+        const existingItemIds = new Set(existingData.items.map((i: unknown) => i.id));
+        const existingVendorIds = new Set(existingData.vendors.map((v: unknown) => v.id));
 
         // Check what the user has locally that no longer exists in the database
         if (data.companies?.length) {
@@ -294,10 +294,10 @@ serve(async (req) => {
         const deletedItemIds = new Set(deletedByOthers.filter(d => d.type === "item").map(d => d.id));
         const deletedVendorIds = new Set(deletedByOthers.filter(d => d.type === "vendor").map(d => d.id));
 
-        const companiesToSync = data.companies?.filter((c: any) => !deletedCompanyIds.has(c.id)) || [];
-        const peopleToSync = data.people?.filter((p: any) => !deletedPeopleIds.has(p.id)) || [];
-        const itemsToSync = data.items?.filter((i: any) => !deletedItemIds.has(i.id)) || [];
-        const vendorsToSync = data.vendors?.filter((v: any) => !deletedVendorIds.has(v.id)) || [];
+        const companiesToSync = data.companies?.filter((c: unknown) => !deletedCompanyIds.has(c.id)) || [];
+        const peopleToSync = data.people?.filter((p: unknown) => !deletedPeopleIds.has(p.id)) || [];
+        const itemsToSync = data.items?.filter((i: unknown) => !deletedItemIds.has(i.id)) || [];
+        const vendorsToSync = data.vendors?.filter((v: unknown) => !deletedVendorIds.has(v.id)) || [];
 
         if (companiesToSync.length) {
           const { error } = await userClient.from("companies").upsert(companiesToSync, { onConflict: "id" });

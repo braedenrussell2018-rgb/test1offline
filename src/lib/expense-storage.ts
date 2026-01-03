@@ -180,7 +180,7 @@ export const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>): Pr
 };
 
 export const updateExpense = async (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>): Promise<Expense> => {
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
   
   if (updates.employeeName !== undefined) updateData.employee_name = updates.employeeName;
   if (updates.customerId !== undefined) updateData.customer_id = updates.customerId || null;

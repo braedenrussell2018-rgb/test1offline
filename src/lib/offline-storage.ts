@@ -8,7 +8,7 @@ interface SyncQueueItem {
   id: string;
   store: StoreName;
   action: "insert" | "update" | "delete";
-  data: any;
+  data: unknown;
   timestamp: number;
 }
 

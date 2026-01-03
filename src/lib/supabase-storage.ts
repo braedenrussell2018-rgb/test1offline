@@ -105,7 +105,7 @@ export const getCompanies = async (): Promise<Company[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     name: row.name,
     address: row.address,
@@ -159,7 +159,7 @@ export const getBranches = async (): Promise<Branch[]> => {
     .order("name", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     companyId: row.company_id,
     name: row.name,
@@ -175,7 +175,7 @@ export const getBranchesByCompany = async (companyId: string): Promise<Branch[]>
     .order("name", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     companyId: row.company_id,
     name: row.name,
@@ -232,7 +232,7 @@ export const getPeople = async (): Promise<Person[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     name: row.name,
     companyId: row.company_id,
@@ -337,7 +337,7 @@ export const getItems = async (): Promise<Item[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     partNumber: row.part_number,
     description: row.description,
@@ -453,7 +453,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     invoiceNumber: row.invoice_number,
     customerName: row.customer_name,
@@ -463,7 +463,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     shipToName: row.ship_to_name,
     shipToAddress: row.ship_to_address,
     salesmanName: row.salesman_name,
-    items: row.items as any[],
+    items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
@@ -506,7 +506,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
     shipToName: data.ship_to_name,
     shipToAddress: data.ship_to_address,
     salesmanName: data.salesman_name,
-    items: data.items as any[],
+    items: data.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(data.subtotal),
     discount: Number(data.discount),
     shipping: Number(data.shipping),
@@ -516,7 +516,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
 };
 
 export const updateInvoice = async (id: string, updates: { paid?: boolean; paidAt?: string; salesmanName?: string }): Promise<void> => {
-  const updateData: Record<string, any> = {};
+  const updateData: Record<string, unknown> = {};
   if (updates.paid !== undefined) updateData.paid = updates.paid;
   if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt;
   if (updates.salesmanName !== undefined) updateData.salesman_name = updates.salesmanName;
@@ -546,7 +546,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(row => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     id: row.id,
     quoteNumber: row.quote_number,
     customerName: row.customer_name,
@@ -556,7 +556,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     shipToName: row.ship_to_name,
     shipToAddress: row.ship_to_address,
     salesmanName: row.salesman_name,
-    items: row.items as any[],
+    items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
@@ -597,7 +597,7 @@ export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
     shipToName: data.ship_to_name,
     shipToAddress: data.ship_to_address,
     salesmanName: data.salesman_name,
-    items: data.items as any[],
+    items: data.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
     subtotal: Number(data.subtotal),
     discount: Number(data.discount),
     shipping: Number(data.shipping),

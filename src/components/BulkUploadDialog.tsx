@@ -74,7 +74,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
     });
   };
 
-  const validateItem = async (item: any): Promise<ParsedItem> => {
+  const validateItem = async (item: Record<string, unknown>): Promise<ParsedItem> => {
     const errors: string[] = [];
     
     const partNumber = String(item.PartNumber || item.partNumber || item["Part Number"] || "").trim();

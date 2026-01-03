@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Type definitions for our data
 export interface CRDTItem {
   id: string;
-  data: any;
+  data: unknown;
   updatedAt: number;
   deletedAt?: number;
 }
@@ -23,16 +23,16 @@ let webrtcProvider: WebrtcProvider | null = null;
 
 // Event listeners
 type SyncEventType = "synced" | "peers-changed" | "conflict-resolved" | "data-changed";
-const eventListeners: Map<SyncEventType, Set<(data?: any) => void>> = new Map();
+const eventListeners: Map<SyncEventType, Set<(data?: unknown) => void>> = new Map();
 
-function emit(event: SyncEventType, data?: any) {
+function emit(event: SyncEventType, data?: unknown) {
   const listeners = eventListeners.get(event);
   if (listeners) {
     listeners.forEach(cb => cb(data));
   }
 }
 
-export function onSyncEvent(event: SyncEventType, callback: (data?: any) => void): () => void {
+export function onSyncEvent(event: SyncEventType, callback: (data?: unknown) => void): () => void {
   if (!eventListeners.has(event)) {
     eventListeners.set(event, new Set());
   }
@@ -198,7 +198,7 @@ export async function syncCRDTToSupabase(): Promise<{ success: boolean; error?: 
   
   try {
     for (const storeName of STORES) {
-      const items = getCRDTData<any>(storeName);
+      const items = getCRDTData<unknown>(storeName);
       
       if (items.length > 0) {
         const { error } = await supabase
@@ -266,7 +266,7 @@ export async function loadFromSupabase(): Promise<{ success: boolean; error?: st
     ydoc.transact(() => {
       STORES.forEach((storeName, index) => {
         const data = results[index].data || [];
-        data.forEach((item: any) => {
+        data.forEach((item: Record<string, unknown>) => {
           const ymap = ydoc!.getMap(storeName);
           const existingItem = ymap.get(item.id) as CRDTItem | undefined;
           
@@ -329,13 +329,13 @@ export async function destroyCRDTSync(): Promise<void> {
 }
 
 // Get peer awareness (for showing who's connected)
-export function getPeerAwareness(): Map<number, any> {
+export function getPeerAwareness(): Map<number, unknown> {
   if (!webrtcProvider) return new Map();
   return webrtcProvider.awareness.getStates();
 }
 
 // Set local awareness state (name, cursor position, etc.)
-export function setLocalAwareness(state: Record<string, any>): void {
+export function setLocalAwareness(state: Record<string, unknown>): void {
   if (!webrtcProvider) return;
   webrtcProvider.awareness.setLocalStateField("user", state);
 }

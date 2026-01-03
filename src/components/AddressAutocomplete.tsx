@@ -19,6 +19,13 @@ interface AddressSuggestion {
   center: [number, number];
 }
 
+interface MapboxFeature {
+  id: string;
+  place_name: string;
+  place_type?: string[];
+  center: [number, number];
+}
+
 export function AddressAutocomplete({
   value,
   onChange,
@@ -86,7 +93,7 @@ export function AddressAutocomplete({
       
       if (data.features && data.features.length > 0) {
         setSuggestions(
-          data.features.map((feature: any) => ({
+          data.features.map((feature: MapboxFeature) => ({
             id: feature.id,
             place_name: feature.place_name,
             place_type: feature.place_type || [],

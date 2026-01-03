@@ -13,6 +13,7 @@ import {
   isOnline,
   onConnectionChange,
 } from "@/lib/offline-storage";
+import type { Company, Person, Item, Vendor } from "@/lib/inventory-storage";
 
 interface Device {
   deviceId: string;
@@ -21,8 +22,8 @@ interface Device {
 
 interface DuplicateResult {
   type: string;
-  incoming: any;
-  existing: any;
+  incoming: Company | Person | Item | Vendor;
+  existing: Company | Person | Item | Vendor;
   field: string;
 }
 
@@ -33,10 +34,10 @@ interface DeletionInfo {
 }
 
 interface SyncData {
-  companies?: any[];
-  people?: any[];
-  items?: any[];
-  vendors?: any[];
+  companies?: Company[];
+  people?: Person[];
+  items?: Item[];
+  vendors?: Vendor[];
 }
 
 // Generate or retrieve device ID
@@ -135,7 +136,7 @@ export function useDeviceSync() {
     }
   };
 
-  const callSyncFunction = async (payload: any) => {
+  const callSyncFunction = async (payload: SyncData) => {
     try {
       const { data, error } = await supabase.functions.invoke("sync-data", {
         body: payload,
