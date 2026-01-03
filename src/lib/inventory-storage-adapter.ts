@@ -313,7 +313,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     shipToName: inv.shipToName,
     shipToAddress: inv.shipToAddress,
     salesmanName: inv.salesmanName,
-    items: inv.items.map((item: any) => ({
+    items: inv.items.map((item) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
@@ -364,7 +364,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     shipToName: dbInvoice.shipToName,
     shipToAddress: dbInvoice.shipToAddress,
     salesmanName: dbInvoice.salesmanName,
-    items: dbInvoice.items.map((item: any) => ({
+    items: dbInvoice.items.map((item) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
@@ -399,7 +399,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     shipToName: quote.shipToName,
     shipToAddress: quote.shipToAddress,
     salesmanName: quote.salesmanName,
-    items: quote.items.map((item: any) => ({
+    items: quote.items.map((item) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,
@@ -449,7 +449,7 @@ export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<
     shipToName: dbQuote.shipToName,
     shipToAddress: dbQuote.shipToAddress,
     salesmanName: dbQuote.salesmanName,
-    items: dbQuote.items.map((item: any) => ({
+    items: dbQuote.items.map((item) => ({
       itemId: item.id,
       partNumber: item.partNumber,
       serialNumber: item.serialNumber,

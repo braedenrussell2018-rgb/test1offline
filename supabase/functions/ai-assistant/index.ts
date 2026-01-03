@@ -33,7 +33,7 @@ serve(async (req) => {
     if (action === "analyze_transcript") {
       // Analyze transcript and match to contacts
       const contactList = contacts?.length > 0 
-        ? contacts.map((c: any) => 
+        ? contacts.map((c: unknown) => 
             `- ID: ${c.id}, Name: ${c.name}, Company: ${c.company || 'N/A'}, Email: ${c.email || 'N/A'}, Phone: ${c.phone || 'N/A'}`
           ).join('\n')
         : 'No existing contacts.';
@@ -159,7 +159,7 @@ If you can extract contact info from the conversation, include it in suggestedNe
 
         if (conversations && conversations.length > 0) {
           hasCompanyData = true;
-          conversationContext = conversations.map((c: any, i: number) => 
+          conversationContext = conversations.map((c: unknown, i: number) => 
             `[Conversation ${i + 1} - ${new Date(c.created_at).toLocaleDateString()}]\nSummary: ${c.summary || 'No summary'}\nKey Points: ${JSON.stringify(c.key_points || [])}\nTranscript: ${c.transcript}`
           ).join('\n\n---\n\n');
         }

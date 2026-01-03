@@ -137,7 +137,7 @@ Consider growth trends, seasonal variations, and business cycles.`;
     const forecasts = JSON.parse(jsonMatch[0]);
 
     // Save forecasts to database
-    const forecastRecords = forecasts.map((f: any) => ({
+    const forecastRecords = forecasts.map((f: unknown) => ({
       month,
       account_id: f.account_id,
       forecasted_amount: f.forecasted_amount,

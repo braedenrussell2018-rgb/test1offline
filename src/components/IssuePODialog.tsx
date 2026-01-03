@@ -83,7 +83,7 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
     });
   };
 
-  const validateItem = (item: any): ParsedPOItem => {
+  const validateItem = (item: Record<string, unknown>): ParsedPOItem => {
     const errors: string[] = [];
     
     const partNumber = String(item.PartNumber || item.partNumber || item["Part Number"] || "").trim();

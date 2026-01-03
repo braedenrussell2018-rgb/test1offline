@@ -52,7 +52,7 @@ export const QuotePDFPreview = ({ quote, open, onOpenChange }: QuotePDFPreviewPr
     doc.line(20, y, 190, y);
     y += 7;
     
-    quote.items.forEach((item: any) => {
+    quote.items.forEach((item) => {
       doc.text(item.partNumber, 20, y);
       const description = item.description.length > 40 ? item.description.substring(0, 40) + "..." : item.description;
       doc.text(description, 70, y);

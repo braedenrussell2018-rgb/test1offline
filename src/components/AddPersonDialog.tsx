@@ -22,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2 } from "lucide-react";
-import { inventoryStorage, Note, Branch } from "@/lib/inventory-storage";
+import { inventoryStorage, Note, Branch, Company } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessCardScanner } from "@/hooks/useBusinessCardScanner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
@@ -47,7 +47,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [newCompanyName, setNewCompanyName] = useState("");
   const { toast } = useToast();
   const { scanBusinessCard, isScanning, scanProgress, isOnline } = useBusinessCardScanner();
-  const [companies, setCompanies] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [showNewBranchForm, setShowNewBranchForm] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");

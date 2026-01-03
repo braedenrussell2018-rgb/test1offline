@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Note } from "@/lib/inventory-storage";
 
 export interface Vendor {
   id: string;
@@ -7,7 +8,7 @@ export interface Vendor {
   email?: string;
   phone?: string;
   address?: string;
-  notes?: any[];
+  notes?: Note[];
   createdAt: string;
   updatedAt: string;
 }
@@ -22,10 +23,21 @@ export interface PurchaseOrder {
   shipping: number;
   tax: number;
   total: number;
-  items: any[];
+  items: POItemSummary[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface POItemSummary {
+  itemId?: string;
+  partNumber: string;
+  serialNumber?: string;
+  description: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  receivedQuantity?: number;
 }
 
 export interface POItem {

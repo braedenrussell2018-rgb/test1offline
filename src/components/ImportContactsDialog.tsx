@@ -91,7 +91,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
   };
 
   const validateContact = async (
-    item: any, 
+    item: Record<string, unknown>,
     existingPersons: { name: string; email?: string }[],
     companies: Company[]
   ): Promise<ParsedContact> => {

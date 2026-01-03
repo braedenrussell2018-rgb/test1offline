@@ -110,11 +110,11 @@ export function AdminRoleManager() {
 
       // Refresh list
       fetchUsers();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating role:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update role",
+        description: error instanceof Error ? error.message : "Failed to update role",
         variant: "destructive",
       });
     } finally {
