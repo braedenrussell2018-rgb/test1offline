@@ -253,7 +253,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       const existingForCheck = existingPersons.map(p => ({ name: p.name, email: p.email }));
 
       const validated = await Promise.all(
-        jsonData.map((item) => validateContact(item, existingForCheck, companies))
+        jsonData.map((item) => validateContact(item as Record<string, unknown>, existingForCheck, companies))
       );
       setParsedContacts(validated);
       setPreviewTab("all");

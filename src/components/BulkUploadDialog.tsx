@@ -162,7 +162,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         return;
       }
 
-      const validated = await Promise.all(jsonData.map((item) => validateItem(item)));
+      const validated = await Promise.all(jsonData.map((item) => validateItem(item as Record<string, unknown>)));
       setParsedItems(validated);
 
       const validCount = validated.filter(item => item.valid).length;

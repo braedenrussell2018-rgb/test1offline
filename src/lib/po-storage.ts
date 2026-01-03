@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Note } from "@/lib/inventory-storage";
+import type { Json } from "@/integrations/supabase/types";
+
+export interface Note {
+  id?: string;
+  text: string;
+  timestamp: string;
+}
 
 export interface Vendor {
   id: string;
@@ -53,6 +59,43 @@ export interface POItem {
   createdAt: string;
 }
 
+// Helper to safely convert Json to Note[]
+function jsonToNotes(json: Json | null): Note[] {
+  if (!json || !Array.isArray(json)) return [];
+  return json.map(item => {
+    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>;
+      return {
+        id: typeof obj.id === 'string' ? obj.id : undefined,
+        text: typeof obj.text === 'string' ? obj.text : '',
+        timestamp: typeof obj.timestamp === 'string' ? obj.timestamp : new Date().toISOString(),
+      };
+    }
+    return { text: '', timestamp: new Date().toISOString() };
+  });
+}
+
+// Helper to safely convert Json to POItemSummary[]
+function jsonToPOItems(json: Json | null): POItemSummary[] {
+  if (!json || !Array.isArray(json)) return [];
+  return json.map(item => {
+    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>;
+      return {
+        itemId: typeof obj.itemId === 'string' ? obj.itemId : undefined,
+        partNumber: typeof obj.partNumber === 'string' ? obj.partNumber : '',
+        serialNumber: typeof obj.serialNumber === 'string' ? obj.serialNumber : undefined,
+        description: typeof obj.description === 'string' ? obj.description : '',
+        quantity: typeof obj.quantity === 'number' ? obj.quantity : 0,
+        unitCost: typeof obj.unitCost === 'number' ? obj.unitCost : 0,
+        totalCost: typeof obj.totalCost === 'number' ? obj.totalCost : 0,
+        receivedQuantity: typeof obj.receivedQuantity === 'number' ? obj.receivedQuantity : undefined,
+      };
+    }
+    return { partNumber: '', description: '', quantity: 0, unitCost: 0, totalCost: 0 };
+  });
+}
+
 // Vendors
 export async function getVendors(): Promise<Vendor[]> {
   const { data, error } = await supabase
@@ -69,13 +112,15 @@ export async function getVendors(): Promise<Vendor[]> {
     email: v.email || "",
     phone: v.phone || "",
     address: v.address || "",
-    notes: Array.isArray(v.notes) ? v.notes : [],
-    createdAt: v.created_at,
-    updatedAt: v.updated_at,
+    notes: jsonToNotes(v.notes),
+    createdAt: v.created_at || new Date().toISOString(),
+    updatedAt: v.updated_at || new Date().toISOString(),
   }));
 }
 
 export async function addVendor(vendor: Omit<Vendor, "id" | "createdAt" | "updatedAt">): Promise<Vendor> {
+  const notesJson = (vendor.notes || []) as unknown as Json;
+  
   const { data, error } = await supabase
     .from('vendors')
     .insert({
@@ -84,7 +129,7 @@ export async function addVendor(vendor: Omit<Vendor, "id" | "createdAt" | "updat
       email: vendor.email,
       phone: vendor.phone,
       address: vendor.address,
-      notes: vendor.notes || [],
+      notes: notesJson,
     })
     .select()
     .single();
@@ -98,9 +143,9 @@ export async function addVendor(vendor: Omit<Vendor, "id" | "createdAt" | "updat
     email: data.email || "",
     phone: data.phone || "",
     address: data.address || "",
-    notes: Array.isArray(data.notes) ? data.notes : [],
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
+    notes: jsonToNotes(data.notes),
+    createdAt: data.created_at || new Date().toISOString(),
+    updatedAt: data.updated_at || new Date().toISOString(),
   };
 }
 
@@ -123,14 +168,16 @@ export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
     shipping: Number(po.shipping || 0),
     tax: Number(po.tax || 0),
     total: Number(po.total),
-    items: Array.isArray(po.items) ? po.items : [],
+    items: jsonToPOItems(po.items),
     notes: po.notes || "",
-    createdAt: po.created_at,
-    updatedAt: po.updated_at,
+    createdAt: po.created_at || new Date().toISOString(),
+    updatedAt: po.updated_at || new Date().toISOString(),
   }));
 }
 
 export async function addPurchaseOrder(po: Omit<PurchaseOrder, "id" | "createdAt" | "updatedAt">): Promise<PurchaseOrder> {
+  const itemsJson = po.items as unknown as Json;
+  
   const { data, error } = await supabase
     .from('purchase_orders')
     .insert({
@@ -142,7 +189,7 @@ export async function addPurchaseOrder(po: Omit<PurchaseOrder, "id" | "createdAt
       shipping: po.shipping,
       tax: po.tax,
       total: po.total,
-      items: po.items,
+      items: itemsJson,
       notes: po.notes,
     })
     .select()
@@ -160,14 +207,16 @@ export async function addPurchaseOrder(po: Omit<PurchaseOrder, "id" | "createdAt
     shipping: Number(data.shipping || 0),
     tax: Number(data.tax || 0),
     total: Number(data.total),
-    items: Array.isArray(data.items) ? data.items : [],
+    items: jsonToPOItems(data.items),
     notes: data.notes || "",
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
+    createdAt: data.created_at || new Date().toISOString(),
+    updatedAt: data.updated_at || new Date().toISOString(),
   };
 }
 
 export async function updatePurchaseOrder(po: PurchaseOrder): Promise<void> {
+  const itemsJson = po.items as unknown as Json;
+  
   const { error } = await supabase
     .from('purchase_orders')
     .update({
@@ -176,7 +225,7 @@ export async function updatePurchaseOrder(po: PurchaseOrder): Promise<void> {
       shipping: po.shipping,
       tax: po.tax,
       total: po.total,
-      items: po.items,
+      items: itemsJson,
       notes: po.notes,
     })
     .eq('id', po.id);
@@ -207,13 +256,13 @@ export async function getPOItems(poId: string): Promise<POItem[]> {
     id: item.id,
     poId: item.po_id,
     partNumber: item.part_number,
-    serialNumber: item.serial_number,
+    serialNumber: item.serial_number || undefined,
     description: item.description,
     quantity: item.quantity,
     unitCost: Number(item.unit_cost),
     totalCost: Number(item.total_cost),
-    receivedQuantity: item.received_quantity,
-    createdAt: item.created_at,
+    receivedQuantity: item.received_quantity || 0,
+    createdAt: item.created_at || new Date().toISOString(),
   }));
 }
 

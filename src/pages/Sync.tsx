@@ -597,13 +597,13 @@ export default function Sync() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="p-2 bg-muted rounded">
                           <p className="font-medium mb-1">Incoming</p>
-                          <p>{dup.incoming.name || dup.incoming.part_number || "Unknown"}</p>
-                          {dup.incoming.email && <p className="text-muted-foreground">{dup.incoming.email}</p>}
+                          <p>{String(dup.incoming.name || dup.incoming.part_number || "Unknown")}</p>
+                          {dup.incoming.email && <p className="text-muted-foreground">{String(dup.incoming.email)}</p>}
                         </div>
                         <div className="p-2 bg-muted rounded">
                           <p className="font-medium mb-1">Existing</p>
-                          <p>{dup.existing.name || dup.existing.part_number || "Unknown"}</p>
-                          {dup.existing.email && <p className="text-muted-foreground">{dup.existing.email}</p>}
+                          <p>{String(dup.existing.name || dup.existing.part_number || "Unknown")}</p>
+                          {dup.existing.email && <p className="text-muted-foreground">{String(dup.existing.email)}</p>}
                         </div>
                       </div>
 

@@ -150,7 +150,8 @@ export function setCRDTData<T extends { id: string }>(storeName: StoreName, item
   // Check for conflicts (if item was updated elsewhere more recently)
   if (existingItem && existingItem.updatedAt > now - 1000) {
     // Merge strategy: keep both changes by merging fields
-    const mergedData = { ...existingItem.data, ...item };
+    const existingData = existingItem.data as Record<string, unknown>;
+    const mergedData = { ...existingData, ...item };
     crdtItem.data = mergedData;
     emit("conflict-resolved", { store: storeName, item: mergedData, strategy: "merge" });
   }
@@ -198,12 +199,13 @@ export async function syncCRDTToSupabase(): Promise<{ success: boolean; error?: 
   
   try {
     for (const storeName of STORES) {
-      const items = getCRDTData<unknown>(storeName);
+      const items = getCRDTData<Record<string, unknown>>(storeName);
       
       if (items.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase
           .from(storeName)
-          .upsert(items, { onConflict: "id" });
+          .upsert(items as any, { onConflict: "id" });
         
         if (error) {
           console.error(`Failed to sync ${storeName}:`, error);
@@ -268,17 +270,19 @@ export async function loadFromSupabase(): Promise<{ success: boolean; error?: st
         const data = results[index].data || [];
         data.forEach((item: Record<string, unknown>) => {
           const ymap = ydoc!.getMap(storeName);
-          const existingItem = ymap.get(item.id) as CRDTItem | undefined;
+          const itemId = String(item.id || '');
+          const existingItem = ymap.get(itemId) as CRDTItem | undefined;
           
           // Only update if server version is newer or item doesn't exist locally
-          const serverTime = new Date(item.updated_at || item.created_at || 0).getTime();
+          const updatedAt = item.updated_at || item.created_at;
+          const serverTime = updatedAt ? new Date(String(updatedAt)).getTime() : 0;
           if (!existingItem || serverTime > existingItem.updatedAt) {
             const crdtItem: CRDTItem = {
-              id: item.id,
+              id: itemId,
               data: item,
               updatedAt: serverTime || Date.now(),
             };
-            ymap.set(item.id, crdtItem);
+            ymap.set(itemId, crdtItem);
           }
         });
       });
