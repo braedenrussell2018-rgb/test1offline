@@ -1,6 +1,6 @@
 # AI Assistant Function
 
-This Supabase Edge Function provides AI-powered conversation analysis and question answering using Anthropic's Claude API.
+This Supabase Edge Function provides AI-powered conversation analysis and question answering using Lovable AI (Google Gemini models).
 
 ## Features
 
@@ -9,23 +9,24 @@ This Supabase Edge Function provides AI-powered conversation analysis and questi
 
 ## Setup
 
-### 1. Get an Anthropic API Key
+### 1. Get a Lovable AI API Key
 
-1. Sign up at [Anthropic Console](https://console.anthropic.com/)
-2. Navigate to API Keys section
-3. Create a new API key
+The Lovable AI API key is automatically available for projects hosted on Lovable. If you need to set it manually:
 
-### 2. Configure Environment Variable
+1. Check your Lovable project settings
+2. The `LOVABLE_API_KEY` should already be configured in Supabase secrets
 
-Set the API key in Supabase:
+### 2. Verify Environment Variable
+
+Check that the API key is configured in Supabase:
 
 ```bash
 # Using Supabase CLI
-supabase secrets set ANTHROPIC_API_KEY=your_api_key_here
+supabase secrets list
 
 # Or in Supabase Dashboard:
 # Project Settings → Edge Functions → Secrets
-# Add: ANTHROPIC_API_KEY = your_api_key_here
+# Verify: LOVABLE_API_KEY exists
 ```
 
 ### 3. Deploy the Function
@@ -38,19 +39,17 @@ supabase functions deploy ai-assistant
 
 ### Model Selection
 
-The default model is `claude-3-5-sonnet-20241022`. You can change this in `index.ts`:
+The default model is `google/gemini-2.5-flash`. This is a fast and capable model from Google.
+
+Other available models through Lovable AI:
+- `google/gemini-2.5-flash` (recommended - fast and capable)
+- `google/gemini-pro` (more powerful, slightly slower)
+
+To change the model, edit line 29 in `index.ts`:
 
 ```typescript
-const model = "claude-3-5-sonnet-20241022"; // Most capable, higher cost
-// const model = "claude-3-haiku-20240307"; // Faster, lower cost
+const model = "google/gemini-2.5-flash"; // Change to your preferred model
 ```
-
-### Token Limits
-
-- **Transcript Analysis**: 2048 max_tokens
-- **Question Answering**: 4096 max_tokens
-
-Adjust these in the code if needed for longer responses.
 
 ## API Usage
 
@@ -80,37 +79,52 @@ const response = await supabase.functions.invoke('ai-assistant', {
 
 ## Cost Considerations
 
-Claude API pricing (as of 2024):
+Lovable AI includes API credits for projects hosted on the platform. The Google Gemini models are cost-effective:
 
-| Model | Input (per 1M tokens) | Output (per 1M tokens) |
-|-------|----------------------|------------------------|
-| Claude 3.5 Sonnet | $3.00 | $15.00 |
-| Claude 3 Haiku | $0.25 | $1.25 |
+- **Gemini 2.5 Flash**: Very fast, optimized for frequent use
+- **Gemini Pro**: More capable for complex tasks
 
-**Example costs:**
-- Analyzing a 1000-word transcript: ~$0.01 with Sonnet, ~$0.001 with Haiku
-- Answering a question: ~$0.01-0.05 depending on conversation history
+**Example usage:**
+- Analyzing a 1000-word transcript: Fast and efficient
+- Answering a question: Real-time responses with conversation context
+
+## Integration with Lovable
+
+Since this project is hosted on Lovable, the AI gateway is pre-configured:
+
+- **Endpoint**: `https://ai.gateway.lovable.dev/v1/chat/completions`
+- **Format**: OpenAI-compatible API
+- **Authentication**: Automatic via `LOVABLE_API_KEY`
 
 ## Troubleshooting
 
-### "Anthropic API key not configured"
-- Ensure ANTHROPIC_API_KEY is set in Supabase secrets
-- Redeploy the function after setting the secret
+### "Lovable AI API key not configured"
+- Verify `LOVABLE_API_KEY` exists in Supabase secrets
+- Check that you're using a Lovable-hosted project
+- Redeploy the function after configuration
 
 ### API Rate Limits
-- Claude API has rate limits based on your plan
-- Handle 429 errors gracefully (function already includes basic handling)
+- Lovable AI has rate limits based on your project plan
+- Error 429 responses include retry information
+- The function handles rate limit errors gracefully
 
 ### Authentication Errors
-- Make sure requests include valid Supabase auth token
+- Ensure requests include valid Supabase auth token
 - The function verifies user authentication before processing questions
 
-## Migration from OpenAI
+## Migration from Other AI Providers
 
-If you previously used OpenAI (GPT):
+If you previously used OpenAI or Claude:
 
-1. Remove old environment variable: `supabase secrets unset OPENAI_API_KEY`
-2. Set new variable: `supabase secrets set ANTHROPIC_API_KEY=...`
-3. Deploy updated function: `supabase functions deploy ai-assistant`
+1. The API interface remains the same (no frontend changes needed)
+2. The environment variable changes from `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to `LOVABLE_API_KEY`
+3. Deploy the updated function: `supabase functions deploy ai-assistant`
 
-No frontend changes required - the API interface remains the same.
+## Other Functions Using Lovable AI
+
+This project also uses Lovable AI in:
+- `scan-business-card` - AI-powered business card OCR
+- `scan-receipt` - Receipt scanning and extraction
+- `generate-budget-forecast` - Financial forecasting
+
+All use the same `LOVABLE_API_KEY` and Lovable AI gateway.

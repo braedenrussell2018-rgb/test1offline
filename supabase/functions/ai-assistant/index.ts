@@ -16,19 +16,19 @@ serve(async (req) => {
     const { action, transcript, contacts, conversationIds, question } = await req.json();
     console.log(`AI Assistant action: ${action}`);
 
-    // Use Anthropic Claude API key
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    // Use Lovable AI API key
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!ANTHROPIC_API_KEY) {
-      console.error("ANTHROPIC_API_KEY not configured");
-      throw new Error("Anthropic API key not configured");
+    if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY not configured");
+      throw new Error("Lovable AI API key not configured");
     }
 
-    const apiUrl = "https://api.anthropic.com/v1/messages";
-    const apiKey = ANTHROPIC_API_KEY;
-    const model = "claude-3-5-sonnet-20241022"; // or use claude-3-haiku-20240307 for faster/cheaper
+    const apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const apiKey = LOVABLE_API_KEY;
+    const model = "google/gemini-2.5-flash"; // Lovable uses Google Gemini models
 
-    console.log(`Using Claude API with model: ${model}`);
+    console.log(`Using Lovable AI with model: ${model}`);
 
     if (action === "analyze_transcript") {
       // Analyze transcript and match to contacts
@@ -63,15 +63,13 @@ If you can extract contact info from the conversation, include it in suggestedNe
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2048,
-          system: systemPrompt,
           messages: [
+            { role: "system", content: systemPrompt },
             { role: "user", content: `EXISTING CONTACTS:\n${contactList}\n\nTRANSCRIPT:\n${transcript}` }
           ],
         }),
@@ -86,8 +84,8 @@ If you can extract contact info from the conversation, include it in suggestedNe
       const data = await response.json();
       console.log("AI response received:", JSON.stringify(data).substring(0, 200));
 
-      // Claude returns content in a different format
-      const content = data.content?.[0]?.text;
+      // Lovable AI returns content in OpenAI-compatible format
+      const content = data.choices?.[0]?.message?.content;
       if (!content) {
         console.error("No content in AI response");
         throw new Error("No content in AI response");
@@ -190,15 +188,13 @@ ${conversationContext}` : 'No company conversation history available.'}`;
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model,
-          max_tokens: 4096,
-          system: systemPromptWithData,
           messages: [
+            { role: "system", content: systemPromptWithData },
             { role: "user", content: question }
           ],
         }),
@@ -226,8 +222,8 @@ ${conversationContext}` : 'No company conversation history available.'}`;
       }
 
       const data = await response.json();
-      // Claude returns content in a different format
-      const answer = data.content?.[0]?.text || "I couldn't generate an answer.";
+      // Lovable AI returns content in OpenAI-compatible format
+      const answer = data.choices?.[0]?.message?.content || "I couldn't generate an answer.";
 
       return new Response(JSON.stringify({ answer }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
