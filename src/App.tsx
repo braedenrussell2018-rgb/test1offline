@@ -23,6 +23,7 @@ import Sync from "./pages/Sync";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import CustomerDashboard from "./pages/CustomerDashboard";
+import SelectRole from "./pages/SelectRole";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +52,11 @@ const App = () => (
                 </RoleProtectedRoute>
               } />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/select-role" element={
+                <ProtectedRoute>
+                  <SelectRole />
+                </ProtectedRoute>
+              } />
               <Route path="/quotes" element={
                 <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
                   <Quotes />

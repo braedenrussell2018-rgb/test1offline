@@ -24,6 +24,12 @@ export const RoleProtectedRoute = ({
       return;
     }
 
+    // If user is authenticated but has no role, redirect to select-role
+    if (!authLoading && !roleLoading && user && role === null) {
+      navigate("/select-role");
+      return;
+    }
+
     if (!authLoading && !roleLoading && user && role) {
       if (!allowedRoles.includes(role)) {
         // Redirect based on user's actual role

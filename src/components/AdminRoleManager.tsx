@@ -20,6 +20,12 @@ interface UserWithRole {
   created_at: string;
 }
 
+interface UserWithoutRole {
+  id: string;
+  full_name: string;
+  created_at: string;
+}
+
 const ROLE_COLORS: Record<AppRole, string> = {
   owner: "bg-red-500",
   employee: "bg-blue-500",
@@ -38,6 +44,7 @@ export function AdminRoleManager() {
   const { isOwner, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [usersWithoutRoles, setUsersWithoutRoles] = useState<UserWithoutRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -64,11 +71,11 @@ export function AdminRoleManager() {
       // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, full_name");
+        .select("user_id, full_name, created_at");
 
       if (profilesError) throw profilesError;
 
-      // Combine data
+      // Combine data for users with roles
       const usersWithRoles: UserWithRole[] = (roles || []).map((r) => {
         const profile = profiles?.find((p) => p.user_id === r.user_id);
         return {
@@ -80,7 +87,18 @@ export function AdminRoleManager() {
         };
       });
 
+      // Find users without roles
+      const roleUserIds = new Set((roles || []).map((r) => r.user_id));
+      const profilesWithoutRoles: UserWithoutRole[] = (profiles || [])
+        .filter((p) => !roleUserIds.has(p.user_id))
+        .map((p) => ({
+          id: p.user_id,
+          full_name: p.full_name || "Unknown User",
+          created_at: p.created_at || new Date().toISOString(),
+        }));
+
       setUsers(usersWithRoles);
+      setUsersWithoutRoles(profilesWithoutRoles);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({
@@ -115,6 +133,37 @@ export function AdminRoleManager() {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update role",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleAssignRole = async (userId: string, role: AppRole) => {
+    setUpdating(userId);
+    try {
+      const { error } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: userId,
+          role: role,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "User role assigned successfully",
+      });
+
+      // Refresh list
+      fetchUsers();
+    } catch (error) {
+      console.error("Error assigning role:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to assign role",
         variant: "destructive",
       });
     } finally {
@@ -160,7 +209,59 @@ export function AdminRoleManager() {
         {loading ? (
           <div className="text-center py-4">Loading users...</div>
         ) : (
-          <Table>
+          <>
+            {/* Users without roles section */}
+            {usersWithoutRoles.length > 0 && (
+              <div className="mb-6">
+                <Alert variant="destructive" className="mb-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Action Required:</strong> {usersWithoutRoles.length} user(s) without assigned roles found.
+                    These users cannot access the system until a role is assigned.
+                  </AlertDescription>
+                </Alert>
+                <h3 className="text-lg font-semibold mb-3">Users Without Roles</h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Assign Role</TableHead>
+                      <TableHead>Joined</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {usersWithoutRoles.map((user) => (
+                      <TableRow key={user.id} className="bg-yellow-50 dark:bg-yellow-950">
+                        <TableCell className="font-medium">{user.full_name}</TableCell>
+                        <TableCell>
+                          <Select
+                            onValueChange={(value) => handleAssignRole(user.id, value as AppRole)}
+                            disabled={updating === user.id}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="customer">Customer</SelectItem>
+                              <SelectItem value="salesman">Salesman</SelectItem>
+                              <SelectItem value="employee">Employee</SelectItem>
+                              <SelectItem value="owner">Owner</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Users with roles section */}
+            <h3 className="text-lg font-semibold mb-3">Users With Roles</h3>
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -202,6 +303,7 @@ export function AdminRoleManager() {
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </CardContent>
     </Card>

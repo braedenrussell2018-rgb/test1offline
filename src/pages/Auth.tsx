@@ -191,7 +191,17 @@ export default function Auth() {
 
       if (roleError) {
         console.error("Failed to set user role:", roleError);
-        // The trigger should prevent invalid roles, log for monitoring
+
+        // CRITICAL: Role assignment failed - inform user
+        // Note: The user account was created but without a role
+        // They will be redirected to select a role on next login
+        setLoading(false);
+        toast({
+          title: "Account created with incomplete setup",
+          description: "Your account was created but role assignment failed. Please sign in and you'll be able to select your role.",
+          variant: "destructive",
+        });
+        return;
       }
     }
 
