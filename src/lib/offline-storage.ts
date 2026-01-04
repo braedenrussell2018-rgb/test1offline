@@ -1,4 +1,7 @@
 // IndexedDB-based offline storage for the app
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
+
 const DB_NAME = "inventory_app_offline";
 const DB_VERSION = 1;
 
@@ -179,7 +182,7 @@ export async function removeFromSyncQueue(id: string): Promise<void> {
 }
 
 // Metadata operations
-export async function setMetadata(key: string, value: any): Promise<void> {
+export async function setMetadata(key: string, value: unknown): Promise<void> {
   const database = await initOfflineDB();
   
   return new Promise((resolve, reject) => {
@@ -228,7 +231,7 @@ export function onConnectionChange(callback: (online: boolean) => void): () => v
 }
 
 // Full cache sync from Supabase
-export async function cacheAllData(supabaseClient: any): Promise<{
+export async function cacheAllData(supabaseClient: SupabaseClient<Database>): Promise<{
   success: boolean;
   error?: string;
   counts?: Record<StoreName, number>;
