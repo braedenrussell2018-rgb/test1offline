@@ -29,8 +29,36 @@ serve(async (req) => {
   }
 
   try {
+    // SECURITY: Validate authentication for all actions
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error("No authorization header provided");
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error("Authentication failed:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log("Authenticated user:", user.id);
+
     const { action, transcript, contacts, conversationIds, question } = await req.json();
-    console.log(`AI Assistant action: ${action}`);
+    console.log(`AI Assistant action: ${action} for user: ${user.id}`);
 
     // Use Lovable AI
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -135,43 +163,14 @@ If you can extract contact info from the conversation, include it in suggestedNe
         analysis = JSON.parse(jsonMatch[0]);
       }
       
-      console.log("Analysis parsed successfully");
+      console.log("Analysis parsed successfully for user:", user.id);
       
       return new Response(JSON.stringify(analysis), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
 
     } else if (action === "ask_question") {
-      // SECURITY FIX: Validate authentication before accessing conversations
-      const authHeader = req.headers.get('Authorization');
-      if (!authHeader) {
-        console.error("No authorization header provided");
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized - No authorization header' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      
-      // Use anon key with user's JWT token to respect RLS policies
-      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: authHeader } }
-      });
-
-      // Verify authentication
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error("Authentication failed:", authError?.message);
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log("Authenticated user:", user.id);
-
+      // Auth already verified at the top - reuse supabase client
       let conversationContext = '';
       let hasCompanyData = false;
       
