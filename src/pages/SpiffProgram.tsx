@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Award, Trophy, DollarSign, Star, Plus, Gift, Eye } from "lucide-react";
+import { Award, Trophy, DollarSign, Star, Plus, Gift } from "lucide-react";
 import { format } from "date-fns";
 
 interface SpiffRecord {
   id: string;
   salesman_id: string;
-  salesman_name?: string;
   sale_description: string;
   serial_number: string | null;
   sale_amount: number;
@@ -35,7 +33,6 @@ interface Prize {
 
 export default function SpiffProgram() {
   const { user } = useAuth();
-  const { isOwner, isSalesman } = useUserRole();
   const { toast } = useToast();
   const [spiffRecords, setSpiffRecords] = useState<SpiffRecord[]>([]);
   const [prizes, setPrizes] = useState<Prize[]>([]);
@@ -63,36 +60,18 @@ export default function SpiffProgram() {
   const fetchSpiffRecords = async () => {
     if (!user) return;
     
-    // Owners see all records, salesmen see only their own
-    let query = supabase.from("spiff_program").select("*");
-    
-    if (isSalesman()) {
-      query = query.eq("salesman_id", user.id);
-    }
-    
-    const { data, error } = await query.order("created_at", { ascending: false });
+    // Always show only the current user's records (salesman view)
+    const { data, error } = await supabase
+      .from("spiff_program")
+      .select("*")
+      .eq("salesman_id", user.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching spiff records:", error);
       setSpiffRecords([]);
     } else {
-      // For owners, fetch salesman names
-      if (isOwner() && data && data.length > 0) {
-        const uniqueSalesmanIds = [...new Set(data.map(r => r.salesman_id))];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name")
-          .in("user_id", uniqueSalesmanIds);
-        
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-        const recordsWithNames = data.map(record => ({
-          ...record,
-          salesman_name: profileMap.get(record.salesman_id) || "Unknown"
-        }));
-        setSpiffRecords(recordsWithNames);
-      } else {
-        setSpiffRecords(data || []);
-      }
+      setSpiffRecords(data || []);
     }
     setLoading(false);
   };
@@ -203,81 +182,70 @@ export default function SpiffProgram() {
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Trophy className="h-8 w-8 text-yellow-500" />
             Spiff Program
-            {isOwner() && (
-              <Badge variant="outline" className="ml-2 gap-1">
-                <Eye className="h-3 w-3" />
-                Owner View
-              </Badge>
-            )}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {isOwner() 
-              ? "View all salesmen's sales and credits" 
-              : "Track your sales and earn credits for prizes!"}
+            Track your sales and earn credits for prizes!
           </p>
         </div>
-        {/* Only salesmen can add sales */}
-        {isSalesman() && (
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Sale
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Sale
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-background">
+            <DialogHeader>
+              <DialogTitle>Record a Sale</DialogTitle>
+              <DialogDescription>
+                Add your sale details to earn credits. You earn 1 credit for every $100 in sales.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddSale} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sale-description">Sale Description</Label>
+                <Input
+                  id="sale-description"
+                  placeholder="e.g., Excavator parts for ABC Company"
+                  value={saleDescription}
+                  onChange={(e) => setSaleDescription(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="serial-number">Attachment Serial Number</Label>
+                <Input
+                  id="serial-number"
+                  placeholder="e.g., SN-12345-ABC"
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sale-amount">Sale Amount ($)</Label>
+                <Input
+                  id="sale-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={saleAmount}
+                  onChange={(e) => setSaleAmount(e.target.value)}
+                  required
+                />
+                {saleAmount && (
+                  <p className="text-sm text-muted-foreground">
+                    You'll earn <span className="font-semibold text-primary">{Math.floor(parseFloat(saleAmount) / 100)}</span> credits
+                  </p>
+                )}
+              </div>
+              <Button type="submit" className="w-full">
+                Record Sale
               </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-background">
-              <DialogHeader>
-                <DialogTitle>Record a Sale</DialogTitle>
-                <DialogDescription>
-                  Add your sale details to earn credits. You earn 1 credit for every $100 in sales.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddSale} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sale-description">Sale Description</Label>
-                  <Input
-                    id="sale-description"
-                    placeholder="e.g., Excavator parts for ABC Company"
-                    value={saleDescription}
-                    onChange={(e) => setSaleDescription(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="serial-number">Attachment Serial Number</Label>
-                  <Input
-                    id="serial-number"
-                    placeholder="e.g., SN-12345-ABC"
-                    value={serialNumber}
-                    onChange={(e) => setSerialNumber(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sale-amount">Sale Amount ($)</Label>
-                  <Input
-                    id="sale-amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={saleAmount}
-                    onChange={(e) => setSaleAmount(e.target.value)}
-                    required
-                  />
-                  {saleAmount && (
-                    <p className="text-sm text-muted-foreground">
-                      You'll earn <span className="font-semibold text-primary">{Math.floor(parseFloat(saleAmount) / 100)}</span> credits
-                    </p>
-                  )}
-                </div>
-                <Button type="submit" className="w-full">
-                  Record Sale
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}
@@ -329,114 +297,109 @@ export default function SpiffProgram() {
         </Card>
       </div>
 
-      {/* Prizes Section - only for salesmen */}
-      {isSalesman() && (
-        <Card className="mb-8">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Gift className="h-5 w-5" />
-                  Available Prizes
-                </CardTitle>
-                <CardDescription>Redeem your credits for awesome prizes</CardDescription>
-              </div>
-              <Dialog open={redeemDialogOpen} onOpenChange={setRedeemDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Gift className="h-4 w-4" />
-                    Redeem Prize
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-background max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Redeem a Prize</DialogTitle>
-                    <DialogDescription>
-                      You have <span className="font-bold text-primary">{availableCredits}</span> credits available
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    {prizes.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">
-                        No prizes available at the moment. Check back later!
-                      </p>
-                    ) : (
-                      prizes.map((prize) => (
-                        <div
-                          key={prize.id}
-                          className={`flex items-center justify-between p-4 border rounded-lg ${
-                            availableCredits >= prize.credits_required
-                              ? "border-primary bg-primary/5"
-                              : "opacity-50"
-                          }`}
-                        >
-                          <div>
-                            <h4 className="font-semibold">{prize.name}</h4>
-                            {prize.description && (
-                              <p className="text-sm text-muted-foreground">{prize.description}</p>
-                            )}
-                            <Badge variant="secondary" className="mt-2">
-                              {prize.credits_required} credits
-                            </Badge>
-                          </div>
-                          <Button
-                            onClick={() => handleRedeemPrize(prize)}
-                            disabled={availableCredits < prize.credits_required}
-                          >
-                            Redeem
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
+      {/* Prizes Section */}
+      <Card className="mb-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5" />
+                Available Prizes
+              </CardTitle>
+              <CardDescription>Redeem your credits for awesome prizes</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent>
-            {prizes.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No prizes configured yet. Ask your manager to add prizes to the program.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-4">
-                {prizes.map((prize) => (
-                  <div
-                    key={prize.id}
-                    className="flex items-center gap-2 px-4 py-2 border rounded-full"
-                  >
-                    <Trophy className="h-4 w-4 text-yellow-500" />
-                    <span className="font-medium">{prize.name}</span>
-                    <Badge variant="secondary">{prize.credits_required} credits</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            <Dialog open={redeemDialogOpen} onOpenChange={setRedeemDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Gift className="h-4 w-4" />
+                  Redeem Prize
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-background max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Redeem a Prize</DialogTitle>
+                  <DialogDescription>
+                    You have <span className="font-bold text-primary">{availableCredits}</span> credits available
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  {prizes.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">
+                      No prizes available at the moment. Check back later!
+                    </p>
+                  ) : (
+                    prizes.map((prize) => (
+                      <div
+                        key={prize.id}
+                        className={`flex items-center justify-between p-4 border rounded-lg ${
+                          availableCredits >= prize.credits_required
+                            ? "border-primary bg-primary/5"
+                            : "opacity-50"
+                        }`}
+                      >
+                        <div>
+                          <h4 className="font-semibold">{prize.name}</h4>
+                          {prize.description && (
+                            <p className="text-sm text-muted-foreground">{prize.description}</p>
+                          )}
+                          <Badge variant="secondary" className="mt-2">
+                            {prize.credits_required} credits
+                          </Badge>
+                        </div>
+                        <Button
+                          onClick={() => handleRedeemPrize(prize)}
+                          disabled={availableCredits < prize.credits_required}
+                        >
+                          Redeem
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {prizes.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">
+              No prizes configured yet. Ask your manager to add prizes to the program.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-4">
+              {prizes.map((prize) => (
+                <div
+                  key={prize.id}
+                  className="flex items-center gap-2 px-4 py-2 border rounded-full"
+                >
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  <span className="font-medium">{prize.name}</span>
+                  <Badge variant="secondary">{prize.credits_required} credits</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Sales History */}
       <Card>
         <CardHeader>
-          <CardTitle>Sales History</CardTitle>
-          <CardDescription>
-            {isOwner() ? "All salesmen's recorded sales" : "Your recorded sales and earned credits"}
-          </CardDescription>
+          <CardTitle>Your Sales History</CardTitle>
+          <CardDescription>Your recorded sales and earned credits</CardDescription>
         </CardHeader>
         <CardContent>
           {spiffRecords.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No sales recorded yet.</p>
-              {isSalesman() && <p className="text-sm">Click "Add Sale" to record your first sale!</p>}
+              <p className="text-sm">Click "Add Sale" to record your first sale!</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  {isOwner() && <TableHead>Salesman</TableHead>}
                   <TableHead>Description</TableHead>
                   <TableHead>Serial Number</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
@@ -450,7 +413,6 @@ export default function SpiffProgram() {
                     <TableCell>
                       {format(new Date(record.created_at), "MMM d, yyyy")}
                     </TableCell>
-                    {isOwner() && <TableCell>{record.salesman_name || "Unknown"}</TableCell>}
                     <TableCell>{record.sale_description}</TableCell>
                     <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
                     <TableCell className="text-right">
@@ -466,9 +428,7 @@ export default function SpiffProgram() {
                           {record.prize_redeemed}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-green-600">
-                          Available
-                        </Badge>
+                        <Badge variant="outline">Available</Badge>
                       )}
                     </TableCell>
                   </TableRow>
