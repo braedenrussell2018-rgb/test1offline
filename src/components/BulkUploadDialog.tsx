@@ -20,6 +20,7 @@ interface ParsedItem {
   description: string;
   quantity: number;
   salePrice: number;
+  cost: number;
   weight: number;
   isValid: boolean;
   errors: string[];
@@ -190,6 +191,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         const description = String(row["Description"] || row["description"] || "").trim();
         const quantity = Number(row["In Stock"] || row["Quantity"] || row["quantity"] || 1) || 1;
         const salePrice = Number(row["Sales Price"] || row["SalePrice"] || row["salePrice"] || row["Sale Price"] || 0) || 0;
+        const cost = Number(row["Purch Price"] || row["Cost"] || row["cost"] || row["Purchase Price"] || 0) || 0;
         const weight = Number(row["Weight"] || row["weight"] || 0) || 0;
 
         const item: ParsedItem = {
@@ -197,6 +199,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
           description,
           quantity,
           salePrice,
+          cost,
           weight,
           isValid: true,
           errors: [],
@@ -239,7 +242,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
             partNumber: item.partNumber,
             description: item.description,
             salePrice: item.salePrice,
-            cost: 0,
+            cost: item.cost,
             weight: item.weight || undefined,
             status: 'available',
           });
