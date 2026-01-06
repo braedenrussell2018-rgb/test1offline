@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import * as XLSX from "xlsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BulkUploadDialogProps {
   onItemsAdded: () => void;
@@ -16,16 +17,11 @@ interface BulkUploadDialogProps {
 
 interface ParsedItem {
   partNumber: string;
-  serialNumber?: string;
   description: string;
+  quantity: number;
   salePrice: number;
-  cost: number;
-  weight?: number;
-  volume?: number;
-  warranty?: string;
-  minReorderLevel?: number;
-  maxReorderLevel?: number;
-  valid: boolean;
+  weight: number;
+  isValid: boolean;
   errors: string[];
 }
 
@@ -33,108 +29,133 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
   const [open, setOpen] = useState(false);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = () => {
     const template = [
       {
-        PartNumber: "PN-001",
-        SerialNumber: "SN-001",
-        Description: "Sample Item 1",
-        SalePrice: 149.99,
-        Cost: 99.99,
-        Weight: 5.5,
-        Volume: 2.3,
-        Warranty: "1 year",
-        MinReorderLevel: 10,
-        MaxReorderLevel: 100,
+        "#": 1,
+        "Name": "EXAMPLE-PART-001",
+        "Description": "Example part description",
+        "In Stock": 5,
+        "Sales Price": 99.99,
+        "Weight": 10.5,
       },
       {
-        PartNumber: "PN-002",
-        SerialNumber: "SN-002",
-        Description: "Sample Item 2",
-        SalePrice: 199.99,
-        Cost: 149.50,
-        Weight: 3.2,
-        Volume: 1.5,
-        Warranty: "90 days",
-        MinReorderLevel: 5,
-        MaxReorderLevel: 50,
+        "#": 2,
+        "Name": "EXAMPLE-PART-002",
+        "Description": "Another example part",
+        "In Stock": 3,
+        "Sales Price": 149.99,
+        "Weight": 25.0,
       },
     ];
 
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    XLSX.utils.book_append_sheet(wb, ws, "Items");
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 5 },  // #
+      { wch: 25 }, // Name
+      { wch: 50 }, // Description
+      { wch: 10 }, // In Stock
+      { wch: 12 }, // Sales Price
+      { wch: 10 }, // Weight
+    ];
+    
     XLSX.writeFile(wb, "inventory_template.xlsx");
-
-    toast({
-      title: "Template Downloaded",
-      description: "Use this template to prepare your inventory data",
-    });
+    toast.success("Template downloaded");
   };
 
-  const validateItem = async (item: Record<string, unknown>): Promise<ParsedItem> => {
+  const exportInventory = async () => {
+    setIsExporting(true);
+    try {
+      const items = await inventoryStorage.getItems();
+      const availableItems = items.filter(item => item.status === 'available');
+
+      // Group items by part number and count quantities
+      const groupedItems = availableItems.reduce((acc, item) => {
+        const key = item.partNumber;
+        if (!acc[key]) {
+          acc[key] = {
+            partNumber: item.partNumber,
+            description: item.description,
+            quantity: 0,
+            salePrice: item.salePrice || 0,
+            weight: item.weight || 0,
+          };
+        }
+        acc[key].quantity += 1;
+        return acc;
+      }, {} as Record<string, { partNumber: string; description: string; quantity: number; salePrice: number; weight: number }>);
+
+      const exportData = Object.values(groupedItems).map((item, index) => ({
+        "#": index + 1,
+        "Name": item.partNumber,
+        "Description": item.description,
+        "In Stock": item.quantity,
+        "Sales Price": item.salePrice,
+        "Weight": item.weight,
+      }));
+
+      if (exportData.length === 0) {
+        toast.error("No available items to export");
+        setIsExporting(false);
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Items");
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 5 },  // #
+        { wch: 30 }, // Name
+        { wch: 60 }, // Description
+        { wch: 10 }, // In Stock
+        { wch: 12 }, // Sales Price
+        { wch: 10 }, // Weight
+      ];
+      
+      const date = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `inventory_export_${date}.xlsx`);
+      toast.success(`Exported ${exportData.length} items`);
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export inventory");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const validateItem = (item: ParsedItem, existingPartNumbers: Set<string>): ParsedItem => {
     const errors: string[] = [];
-    
-    const partNumber = String(item.PartNumber || item.partNumber || item["Part Number"] || "").trim();
-    const serialNumber = String(item.SerialNumber || item.serialNumber || item["Serial Number"] || "").trim();
-    const description = String(item.Description || item.description || "").trim();
-    const salePrice = parseFloat(String(item.SalePrice || item.salePrice || item["Sale Price"] || "0"));
-    const cost = parseFloat(String(item.Cost || item.cost || "0"));
-    const weight = item.Weight || item.weight ? parseFloat(String(item.Weight || item.weight)) : undefined;
-    const volume = item.Volume || item.volume ? parseFloat(String(item.Volume || item.volume)) : undefined;
-    const warranty = String(item.Warranty || item.warranty || "").trim();
-    const minReorderLevel = item.MinReorderLevel || item.minReorderLevel || item["Min Reorder Level"] 
-      ? parseInt(String(item.MinReorderLevel || item.minReorderLevel || item["Min Reorder Level"])) 
-      : undefined;
-    const maxReorderLevel = item.MaxReorderLevel || item.maxReorderLevel || item["Max Reorder Level"]
-      ? parseInt(String(item.MaxReorderLevel || item.maxReorderLevel || item["Max Reorder Level"]))
-      : undefined;
 
-    if (!partNumber) {
-      errors.push("Missing part number");
+    if (!item.partNumber || item.partNumber.trim() === "") {
+      errors.push("Part number is required");
     }
-    if (!description) {
-      errors.push("Missing description");
+    if (!item.description || item.description.trim() === "") {
+      errors.push("Description is required");
     }
-    if (isNaN(salePrice) || salePrice < 0) {
-      errors.push("Invalid sale price");
+    if (item.quantity < 0) {
+      errors.push("Quantity cannot be negative");
     }
-    if (isNaN(cost) || cost < 0) {
-      errors.push("Invalid cost");
-    }
-    if (weight !== undefined && (isNaN(weight) || weight < 0)) {
-      errors.push("Invalid weight");
-    }
-    if (volume !== undefined && (isNaN(volume) || volume < 0)) {
-      errors.push("Invalid volume");
-    }
-    if (minReorderLevel !== undefined && (isNaN(minReorderLevel) || minReorderLevel < 0)) {
-      errors.push("Invalid min reorder level");
-    }
-    if (maxReorderLevel !== undefined && (isNaN(maxReorderLevel) || maxReorderLevel < 0)) {
-      errors.push("Invalid max reorder level");
+    if (item.salePrice < 0) {
+      errors.push("Sale price cannot be negative");
     }
 
-    // Check for duplicate part numbers in existing inventory
-    const existingItems = await inventoryStorage.getItems();
-    if (partNumber && existingItems.some(i => i.partNumber === partNumber)) {
-      errors.push("Part number already exists");
+    // Check for duplicates in existing inventory (only warn, don't block)
+    if (existingPartNumbers.has(item.partNumber)) {
+      errors.push("Part number already exists (will add to existing)");
     }
 
     return {
-      partNumber,
-      serialNumber: serialNumber || undefined,
-      description,
-      salePrice,
-      cost,
-      weight,
-      volume,
-      warranty: warranty || undefined,
-      minReorderLevel,
-      maxReorderLevel,
-      valid: errors.length === 0,
+      ...item,
+      isValid: errors.filter(e => !e.includes("already exists")).length === 0,
       errors,
     };
   };
@@ -153,86 +174,94 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length === 0) {
-        toast({
-          title: "Error",
-          description: "The Excel file is empty",
-          variant: "destructive",
-        });
+        toast.error("The Excel file is empty");
         setIsProcessing(false);
         return;
       }
 
-      const validated = await Promise.all(jsonData.map((item) => validateItem(item as Record<string, unknown>)));
-      setParsedItems(validated);
+      // Get existing part numbers
+      const existingItems = await inventoryStorage.getItems();
+      const existingPartNumbers = new Set(existingItems.map(i => i.partNumber));
 
-      const validCount = validated.filter(item => item.valid).length;
-      const invalidCount = validated.length - validCount;
+      const items: ParsedItem[] = [];
+      for (const row of jsonData as Record<string, unknown>[]) {
+        // Support both new format (Name, In Stock, Sales Price) and legacy format
+        const partNumber = String(row["Name"] || row["PartNumber"] || row["partNumber"] || row["Part Number"] || "").trim();
+        const description = String(row["Description"] || row["description"] || "").trim();
+        const quantity = Number(row["In Stock"] || row["Quantity"] || row["quantity"] || 1) || 1;
+        const salePrice = Number(row["Sales Price"] || row["SalePrice"] || row["salePrice"] || row["Sale Price"] || 0) || 0;
+        const weight = Number(row["Weight"] || row["weight"] || 0) || 0;
 
-      if (invalidCount > 0) {
-        toast({
-          title: "Validation Complete",
-          description: `${validCount} valid items, ${invalidCount} items with errors`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Validation Complete",
-          description: `All ${validCount} items are valid and ready to import`,
-        });
+        const item: ParsedItem = {
+          partNumber,
+          description,
+          quantity,
+          salePrice,
+          weight,
+          isValid: true,
+          errors: [],
+        };
+
+        const validatedItem = validateItem(item, existingPartNumbers);
+        items.push(validatedItem);
       }
+
+      setParsedItems(items);
+
+      const validCount = items.filter(item => item.isValid).length;
+      const totalQuantity = items.filter(i => i.isValid).reduce((sum, i) => sum + i.quantity, 0);
+      toast.success(`Parsed ${items.length} products (${totalQuantity} total items)`);
     } catch (error) {
       console.error("Error parsing file:", error);
-      toast({
-        title: "Error",
-        description: "Failed to parse Excel file. Please check the format.",
-        variant: "destructive",
-      });
+      toast.error("Failed to parse Excel file. Please check the format.");
     } finally {
       setIsProcessing(false);
       e.target.value = "";
     }
   };
 
-  const handleImport = () => {
-    const validItems = parsedItems.filter(item => item.valid);
+  const handleImport = async () => {
+    const validItems = parsedItems.filter(item => item.isValid && item.quantity > 0);
     
     if (validItems.length === 0) {
-      toast({
-        title: "Error",
-        description: "No valid items to import",
-        variant: "destructive",
-      });
+      toast.error("No valid items with stock to import");
       return;
     }
 
-    validItems.forEach(item => {
-      inventoryStorage.addItem({
-        partNumber: item.partNumber,
-        serialNumber: item.serialNumber,
-        description: item.description,
-        salePrice: item.salePrice,
-        cost: item.cost,
-        weight: item.weight,
-        volume: item.volume,
-        warranty: item.warranty,
-        minReorderLevel: item.minReorderLevel,
-        maxReorderLevel: item.maxReorderLevel,
-        status: 'available',
-      });
-    });
+    setIsProcessing(true);
+    try {
+      let totalItemsCreated = 0;
+      
+      for (const item of validItems) {
+        // Create one inventory item per quantity
+        for (let i = 0; i < item.quantity; i++) {
+          await inventoryStorage.addItem({
+            partNumber: item.partNumber,
+            description: item.description,
+            salePrice: item.salePrice,
+            cost: 0,
+            weight: item.weight || undefined,
+            status: 'available',
+          });
+          totalItemsCreated++;
+        }
+      }
 
-    toast({
-      title: "Success",
-      description: `Imported ${validItems.length} items to inventory`,
-    });
-
-    setParsedItems([]);
-    setOpen(false);
-    onItemsAdded();
+      toast.success(`Imported ${totalItemsCreated} items from ${validItems.length} products`);
+      setParsedItems([]);
+      setOpen(false);
+      onItemsAdded();
+    } catch (error) {
+      console.error("Import error:", error);
+      toast.error("Failed to import items");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const validCount = parsedItems.filter(item => item.valid).length;
+  const validCount = parsedItems.filter(item => item.isValid).length;
   const invalidCount = parsedItems.length - validCount;
+  const totalQuantity = parsedItems.filter(i => i.isValid).reduce((sum, i) => sum + i.quantity, 0);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -240,127 +269,171 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       if (!isOpen) setParsedItems([]);
     }}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Upload className="mr-2 h-4 w-4" />
-          Bulk Upload
+        <Button variant="outline" className="w-full">
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Import/Export
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Bulk Upload Inventory</DialogTitle>
+          <DialogTitle>Bulk Import/Export Inventory</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Upload Excel with columns: <strong>PartNumber</strong>, <strong>Description</strong>, <strong>SalePrice</strong>, <strong>Cost</strong> (required) + SerialNumber, Weight, Volume, Warranty, MinReorderLevel, MaxReorderLevel (optional)
-            </AlertDescription>
-          </Alert>
+        <Tabs defaultValue="import" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="import">Import</TabsTrigger>
+            <TabsTrigger value="export">Export</TabsTrigger>
+          </TabsList>
 
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={downloadTemplate}
-              className="flex-1"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download Template
-            </Button>
-            
-            <Label htmlFor="file-upload" className="flex-1">
-              <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground">
-                <Upload className="mr-2 h-4 w-4" />
-                {isProcessing ? "Processing..." : "Choose Excel File"}
-              </div>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileUpload}
-                disabled={isProcessing}
-                className="sr-only"
-              />
-            </Label>
-          </div>
+          <TabsContent value="import" className="space-y-4 flex-1 overflow-hidden flex flex-col mt-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Upload Excel with columns: <strong>#</strong>, <strong>Name</strong> (part number), <strong>Description</strong>, <strong>In Stock</strong> (quantity), <strong>Sales Price</strong>, <strong>Weight</strong>
+              </AlertDescription>
+            </Alert>
 
-          {parsedItems.length > 0 && (
-            <>
-              <div className="flex gap-4 p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span className="text-sm">
-                    <strong>{validCount}</strong> Valid
-                  </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={downloadTemplate}
+                className="flex-1"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Template
+              </Button>
+              
+              <Label htmlFor="file-upload" className="flex-1">
+                <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground">
+                  <Upload className="mr-2 h-4 w-4" />
+                  {isProcessing ? "Processing..." : "Choose Excel File"}
                 </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  <span className="text-sm">
-                    <strong>{invalidCount}</strong> Invalid
-                  </span>
-                </div>
-              </div>
+                <input
+                  ref={fileInputRef}
+                  id="file-upload"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  disabled={isProcessing}
+                  className="sr-only"
+                />
+              </Label>
+            </div>
 
-              <ScrollArea className="flex-1 border rounded-lg">
-                <div className="p-4 space-y-2">
-                  {parsedItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 border rounded-lg ${
-                        item.valid ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{item.partNumber || "(missing)"}</span>
-                            <Badge variant={item.valid ? "default" : "destructive"}>
-                              {item.valid ? "Valid" : "Invalid"}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {item.description || "(missing)"}
-                          </p>
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
-                            <span>Sale: ${item.salePrice ? item.salePrice.toFixed(2) : "0.00"}</span>
-                            <span>Cost: ${item.cost ? item.cost.toFixed(2) : "0.00"}</span>
-                          </div>
-                          {item.errors.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              {item.errors.map((error, errorIndex) => (
-                                <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
-                                  <XCircle className="h-3 w-3" />
-                                  {error}
-                                </p>
-                              ))}
+            {parsedItems.length > 0 && (
+              <>
+                <div className="flex gap-4 p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span className="text-sm">
+                      <strong>{validCount}</strong> Valid ({totalQuantity} items)
+                    </span>
+                  </div>
+                  {invalidCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <XCircle className="h-4 w-4 text-destructive" />
+                      <span className="text-sm">
+                        <strong>{invalidCount}</strong> Invalid
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <ScrollArea className="flex-1 border rounded-lg">
+                  <div className="p-4 space-y-2">
+                    {parsedItems.map((item, index) => (
+                      <div
+                        key={index}
+                        className={`p-3 border rounded-lg ${
+                          item.isValid ? 'bg-green-500/5 border-green-500/20' : 'bg-destructive/5 border-destructive/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">{item.partNumber || "(missing)"}</span>
+                              {item.isValid ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              )}
                             </div>
-                          )}
+                            <p className="text-sm text-muted-foreground truncate">
+                              {item.description || "(missing)"}
+                            </p>
+                            <div className="flex gap-2 mt-2">
+                              <Badge variant="outline" className="text-xs">
+                                Qty: {item.quantity}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                ${item.salePrice.toFixed(2)}
+                              </Badge>
+                              {item.weight > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {item.weight} lbs
+                                </Badge>
+                              )}
+                            </div>
+                            {item.errors.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {item.errors.map((error, errorIndex) => (
+                                  <p key={errorIndex} className="text-xs text-amber-600 flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    {error}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    ))}
+                  </div>
+                </ScrollArea>
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setParsedItems([])}
-                >
-                  Clear
-                </Button>
-                <Button
-                  onClick={handleImport}
-                  disabled={validCount === 0}
-                >
-                  Import {validCount} {validCount === 1 ? 'Item' : 'Items'}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setParsedItems([])}
+                    disabled={isProcessing}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    onClick={handleImport}
+                    disabled={validCount === 0 || isProcessing}
+                  >
+                    {isProcessing ? "Importing..." : `Import ${totalQuantity} Items`}
+                  </Button>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="export" className="space-y-4 mt-4">
+            <div className="text-center py-8">
+              <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <h3 className="mt-4 font-medium">Export Current Inventory</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Download all available inventory items as an Excel file
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Items are grouped by part number with quantities
+              </p>
+            </div>
+
+            <Button
+              onClick={exportInventory}
+              disabled={isExporting}
+              className="w-full"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {isExporting ? "Exporting..." : "Export Inventory"}
+            </Button>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
