@@ -92,9 +92,9 @@ const App = () => (
                   <ConversationAnalytics />
                 </RoleProtectedRoute>
               } />
-              {/* Spiff Program - salesmen and owners can view */}
+              {/* Spiff Program - salesmen, owners, and employees can view */}
               <Route path="/spiff-program" element={
-                <RoleProtectedRoute allowedRoles={["salesman", "owner"]} redirectTo="/">
+                <RoleProtectedRoute allowedRoles={["salesman", "owner", "employee"]} redirectTo="/">
                   <SpiffProgram />
                 </RoleProtectedRoute>
               } />

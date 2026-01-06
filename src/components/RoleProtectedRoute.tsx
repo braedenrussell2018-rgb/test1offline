@@ -50,6 +50,11 @@ export const RoleProtectedRoute = ({
     return null;
   }
 
+  // Wait for role to be determined before showing content
+  if (role === null) {
+    return null;
+  }
+
   if (!allowedRoles.includes(role)) {
     return null;
   }
