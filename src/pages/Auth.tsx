@@ -12,10 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Eye, EyeOff, Check, X } from "lucide-react";
 
 // SECURITY FIX: Only allow safe self-registration roles
-// Owner and Employee roles must be assigned by existing owners
-type PublicUserRole = "customer" | "salesman";
+// Owner role must be assigned by existing owners
+type PublicUserRole = "customer" | "salesman" | "employee";
 
 const PUBLIC_ROLES: { value: PublicUserRole; label: string; description: string }[] = [
+  { value: "employee", label: "Employee", description: "Internal staff member" },
   { value: "customer", label: "Customer", description: "View your orders and quotes" },
   { value: "salesman", label: "Salesman", description: "Create quotes and track commissions" },
 ];
@@ -91,7 +92,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<PublicUserRole>("customer");
+  const [role, setRole] = useState<PublicUserRole>("employee");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -205,7 +206,7 @@ export default function Auth() {
     setEmail("");
     setPassword("");
     setFullName("");
-    setRole("customer");
+    setRole("employee");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -366,7 +367,7 @@ export default function Auth() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Need an Employee or Owner account? Contact your administrator.
+                    Need an Owner account? Contact your administrator.
                   </p>
                 </div>
                 <Button 
