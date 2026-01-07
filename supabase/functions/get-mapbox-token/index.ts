@@ -15,8 +15,8 @@ serve(async (req) => {
   try {
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing authorization header');
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.error('Missing or invalid authorization header');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -30,9 +30,11 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Use getClaims for JWT validation instead of getUser
+    const jwtToken = authHeader.replace('Bearer ', '');
+    const { data, error: authError } = await supabase.auth.getClaims(jwtToken);
     
-    if (authError || !user) {
+    if (authError || !data?.claims) {
       console.error('Auth error:', authError?.message);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
@@ -40,11 +42,12 @@ serve(async (req) => {
       );
     }
 
-    console.log('Authorized user requesting mapbox token:', user.id);
+    const userId = data.claims.sub;
+    console.log('Authorized user requesting mapbox token:', userId);
 
-    const token = Deno.env.get('MAPBOX_PUBLIC_TOKEN');
+    const mapboxToken = Deno.env.get('MAPBOX_PUBLIC_TOKEN');
     
-    if (!token) {
+    if (!mapboxToken) {
       return new Response(
         JSON.stringify({ error: 'Mapbox token not configured' }),
         { 
@@ -55,7 +58,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ token }),
+      JSON.stringify({ token: mapboxToken }),
       { 
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
