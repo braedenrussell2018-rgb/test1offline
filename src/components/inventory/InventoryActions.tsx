@@ -21,7 +21,7 @@ export function InventoryActions({ onRefresh, disabled = false }: InventoryActio
       <Link to="/quotes">
         <Button variant="outline" className="w-full" disabled={disabled}>
           <FileEdit className="mr-2 h-4 w-4" />
-          View Quotes
+          Create Quote
         </Button>
       </Link>
       <Link to="/sold-items">
