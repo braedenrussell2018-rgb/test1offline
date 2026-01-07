@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { MapPin, Loader2, Check, Building, MapPinned } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 interface AddressAutocompleteProps {
@@ -15,15 +14,9 @@ interface AddressAutocompleteProps {
 interface AddressSuggestion {
   id: string;
   place_name: string;
-  place_type: string[];
-  center: [number, number];
-}
-
-interface MapboxFeature {
-  id: string;
-  place_name: string;
-  place_type?: string[];
-  center: [number, number];
+  place_type: string;
+  lat: number;
+  lon: number;
 }
 
 export function AddressAutocomplete({
@@ -37,29 +30,8 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
-  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
-  const [tokenError, setTokenError] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Fetch Mapbox token on mount
-  useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("get-mapbox-token");
-        if (!error && data?.token) {
-          setMapboxToken(data.token);
-          setTokenError(false);
-        } else {
-          setTokenError(true);
-        }
-      } catch (err) {
-        console.error("Failed to fetch Mapbox token:", err);
-        setTokenError(true);
-      }
-    };
-    fetchToken();
-  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -73,31 +45,36 @@ export function AddressAutocomplete({
   }, []);
 
   const searchAddresses = async (query: string) => {
-    if (!mapboxToken || query.length < 2) {
+    if (query.length < 3) {
       setSuggestions([]);
       return;
     }
 
     setIsLoading(true);
     try {
-      // Search with broader types to include cities, states, addresses
+      // Use Nominatim (OpenStreetMap) geocoding API - free, no API key required
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-        `access_token=${mapboxToken}` +
-        `&types=address,place,locality,neighborhood,postcode,region,district` +
-        `&limit=8` +
-        `&fuzzyMatch=true` +
-        `&autocomplete=true`
+        `https://nominatim.openstreetmap.org/search?` +
+        `format=json&q=${encodeURIComponent(query)}` +
+        `&limit=8&addressdetails=1&countrycodes=us`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            // Required by Nominatim usage policy
+            'User-Agent': 'LovableApp/1.0'
+          }
+        }
       );
       const data = await response.json();
       
-      if (data.features && data.features.length > 0) {
+      if (data && data.length > 0) {
         setSuggestions(
-          data.features.map((feature: MapboxFeature) => ({
-            id: feature.id,
-            place_name: feature.place_name,
-            place_type: feature.place_type || [],
-            center: feature.center,
+          data.map((item: any) => ({
+            id: item.place_id.toString(),
+            place_name: item.display_name,
+            place_type: item.type || item.class || 'place',
+            lat: parseFloat(item.lat),
+            lon: parseFloat(item.lon),
           }))
         );
         setOpen(true);
@@ -120,10 +97,10 @@ export function AddressAutocomplete({
       clearTimeout(debounceRef.current);
     }
 
-    if (inputValue.length >= 2 && mapboxToken) {
+    if (inputValue.length >= 3) {
       debounceRef.current = setTimeout(() => {
         searchAddresses(inputValue);
-      }, 250);
+      }, 400); // Slightly longer debounce for Nominatim rate limits
     } else {
       setSuggestions([]);
       setOpen(false);
@@ -137,42 +114,33 @@ export function AddressAutocomplete({
     setOpen(false);
   };
 
-  const getPlaceTypeIcon = (placeType: string[]) => {
-    if (placeType.includes("region") || placeType.includes("place")) {
+  const getPlaceTypeIcon = (placeType: string) => {
+    if (['state', 'region', 'county', 'city', 'town', 'village'].includes(placeType)) {
       return <Building className="h-4 w-4 text-blue-500 shrink-0" />;
     }
-    if (placeType.includes("address")) {
+    if (['house', 'building', 'residential', 'commercial'].includes(placeType)) {
       return <MapPin className="h-4 w-4 text-green-500 shrink-0" />;
     }
     return <MapPinned className="h-4 w-4 text-muted-foreground shrink-0" />;
   };
 
-  const getPlaceTypeLabel = (placeType: string[]) => {
-    if (placeType.includes("region")) return "State/Region";
-    if (placeType.includes("place")) return "City";
-    if (placeType.includes("locality")) return "Town";
-    if (placeType.includes("neighborhood")) return "Neighborhood";
-    if (placeType.includes("postcode")) return "ZIP Code";
-    if (placeType.includes("address")) return "Address";
-    if (placeType.includes("district")) return "District";
-    return "Location";
+  const getPlaceTypeLabel = (placeType: string) => {
+    const labels: Record<string, string> = {
+      state: "State",
+      region: "Region",
+      county: "County",
+      city: "City",
+      town: "Town",
+      village: "Village",
+      house: "Address",
+      building: "Building",
+      residential: "Address",
+      commercial: "Commercial",
+      neighbourhood: "Neighborhood",
+      suburb: "Suburb",
+    };
+    return labels[placeType] || "Location";
   };
-
-  // Fallback to simple input if no token
-  if (tokenError || !mapboxToken) {
-    return (
-      <div className={cn("relative", className)}>
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value, true)}
-          placeholder={placeholder}
-          className="pl-9"
-          required={required}
-        />
-      </div>
-    );
-  }
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
@@ -224,7 +192,7 @@ export function AddressAutocomplete({
       )}
 
       {/* No results message */}
-      {open && suggestions.length === 0 && value.length >= 2 && !isLoading && (
+      {open && suggestions.length === 0 && value.length >= 3 && !isLoading && (
         <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg p-3">
           <p className="text-sm text-muted-foreground text-center">
             No matching locations found
