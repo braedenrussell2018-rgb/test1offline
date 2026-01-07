@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,6 @@ import { MapPin, Building2, User, X, Loader2, AlertCircle } from "lucide-react";
 import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ContactsMapDialogProps {
   companies: Company[];
@@ -32,16 +31,22 @@ interface GeocodedLocation {
   persons: Person[];
 }
 
+// Fix for default marker icons in Leaflet with bundlers
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [locations, setLocations] = useState<GeocodedLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeocodedLocation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
-  const [tokenLoading, setTokenLoading] = useState(true);
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const map = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
 
   const getCompanyName = useCallback((companyId?: string) => {
     if (!companyId) return "No Company";
@@ -49,26 +54,9 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     return company?.name || "Unknown Company";
   }, [companies]);
 
-  // Fetch Mapbox token from edge function
+  // Geocode addresses when dialog opens using Nominatim (OpenStreetMap)
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-        if (error) throw error;
-        setMapboxToken(data?.token || null);
-      } catch (err) {
-        console.error('Failed to fetch Mapbox token:', err);
-        setMapboxToken(null);
-      } finally {
-        setTokenLoading(false);
-      }
-    };
-    fetchToken();
-  }, []);
-
-  // Geocode addresses when dialog opens
-  useEffect(() => {
-    if (!open || !mapboxToken) return;
+    if (!open) return;
 
     const geocodeAddresses = async () => {
       setIsLoading(true);
@@ -107,14 +95,22 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
       
       for (const [address, data] of addressMap) {
         try {
-          // Use more lenient search types and fuzzy matching
+          // Use Nominatim (OpenStreetMap) geocoding API - free, no API key required
           const response = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxToken}&limit=1&fuzzyMatch=true&types=address,place,locality,neighborhood,postcode,region`
+            `https://nominatim.openstreetmap.org/search?` +
+            `format=json&q=${encodeURIComponent(address)}&limit=1`,
+            {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'LovableApp/1.0'
+              }
+            }
           );
           const result = await response.json();
           
-          if (result.features && result.features.length > 0) {
-            const [lng, lat] = result.features[0].center;
+          if (result && result.length > 0) {
+            const lat = parseFloat(result[0].lat);
+            const lng = parseFloat(result[0].lon);
             geocodedLocations.push({
               address: data.companies[0]?.address || data.persons[0]?.address || address,
               lat,
@@ -125,6 +121,9 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
           } else {
             failedAddresses.push(address);
           }
+          
+          // Small delay to respect Nominatim rate limits (1 request per second)
+          await new Promise(resolve => setTimeout(resolve, 200));
         } catch (err) {
           console.error(`Failed to geocode: ${address}`, err);
           failedAddresses.push(address);
@@ -140,11 +139,11 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     };
 
     geocodeAddresses();
-  }, [open, companies, persons, mapboxToken]);
+  }, [open, companies, persons]);
 
   // Initialize map when locations are ready
   useEffect(() => {
-    if (!open || !mapContainer.current || !mapboxToken || locations.length === 0) return;
+    if (!open || !mapContainer.current || locations.length === 0) return;
 
     // Clean up existing map
     if (map.current) {
@@ -153,43 +152,58 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     }
     markersRef.current = [];
 
-    mapboxgl.accessToken = mapboxToken;
+    // Create map
+    map.current = L.map(mapContainer.current);
 
-    // Calculate bounds
-    const bounds = new mapboxgl.LngLatBounds();
-    locations.forEach(loc => bounds.extend([loc.lng, loc.lat]));
+    // Add OpenStreetMap tiles (free, no API key needed)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map.current);
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/light-v11",
-      bounds: locations.length > 1 ? bounds : undefined,
-      center: locations.length === 1 ? [locations[0].lng, locations[0].lat] : undefined,
-      zoom: locations.length === 1 ? 14 : undefined,
-      fitBoundsOptions: { padding: 50 },
-    });
+    // Calculate bounds and fit map
+    const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+    
+    if (locations.length === 1) {
+      map.current.setView([locations[0].lat, locations[0].lng], 14);
+    } else {
+      map.current.fitBounds(bounds, { padding: [50, 50] });
+    }
 
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-    // Add markers
-    locations.forEach(location => {
-      const el = document.createElement("div");
-      el.className = "cursor-pointer";
-      el.innerHTML = `
-        <div class="flex items-center justify-center w-8 h-8 bg-primary rounded-full shadow-lg border-2 border-white">
+    // Custom marker icon
+    const customIcon = L.divIcon({
+      className: 'custom-marker',
+      html: `
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          background: hsl(var(--primary));
+          border-radius: 50%;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          border: 2px solid white;
+          cursor: pointer;
+        ">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
             <circle cx="12" cy="10" r="3"/>
           </svg>
         </div>
-      `;
+      `,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+    });
 
-      el.addEventListener("click", () => {
+    // Add markers
+    locations.forEach(location => {
+      const marker = L.marker([location.lat, location.lng], { icon: customIcon })
+        .addTo(map.current!);
+
+      marker.on('click', () => {
         setSelectedLocation(location);
       });
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([location.lng, location.lat])
-        .addTo(map.current!);
 
       markersRef.current.push(marker);
     });
@@ -201,30 +215,12 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
         map.current = null;
       }
     };
-  }, [locations, open, mapboxToken]);
+  }, [locations, open]);
 
   const totalAddresses = new Set([
     ...companies.filter(c => c.address?.trim()).map(c => c.address!.trim().toLowerCase()),
     ...persons.filter(p => p.address?.trim()).map(p => p.address!.trim().toLowerCase()),
   ]).size;
-
-  if (tokenLoading) {
-    return (
-      <Button variant="outline" disabled>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Map
-      </Button>
-    );
-  }
-
-  if (!mapboxToken) {
-    return (
-      <Button variant="outline" disabled>
-        <MapPin className="mr-2 h-4 w-4" />
-        Map (No Token)
-      </Button>
-    );
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
