@@ -54,6 +54,23 @@ serve(async (req) => {
 
     console.log("User authenticated:", user.id);
 
+    // Verify user has owner role (budget forecasts are owner-only per RLS)
+    const { data: roleData, error: roleError } = await userClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (roleError || !roleData || roleData.role !== 'owner') {
+      console.error('Unauthorized: User', user.id, 'attempted forecast without owner role');
+      return new Response(
+        JSON.stringify({ error: 'Only owners can generate budget forecasts' }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Owner role verified for user:", user.id);
+
     // Use service role for data operations (needed for cross-user data aggregation)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
 
