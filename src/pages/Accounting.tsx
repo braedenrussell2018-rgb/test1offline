@@ -10,6 +10,7 @@ import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "
 import { getExpenses, getCategoryLabel, EXPENSE_CATEGORY_GROUPS, type Expense } from "@/lib/expense-storage";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { FinancialReports } from "@/components/FinancialReports";
+import { QuickBooksConnection } from "@/components/QuickBooksConnection";
 
 const Accounting = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -725,7 +726,8 @@ const Accounting = () => {
         )}
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        <QuickBooksConnection onSyncComplete={loadData} />
         <FinancialReports />
       </div>
 

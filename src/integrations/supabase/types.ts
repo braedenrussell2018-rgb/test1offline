@@ -651,6 +651,81 @@ export type Database = {
           },
         ]
       }
+      quickbooks_connections: {
+        Row: {
+          access_token: string
+          connected_at: string
+          created_at: string
+          id: string
+          realm_id: string
+          refresh_token: string
+          refresh_token_expires_at: string
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string
+          created_at?: string
+          id?: string
+          realm_id: string
+          refresh_token: string
+          refresh_token_expires_at: string
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string
+          created_at?: string
+          id?: string
+          realm_id?: string
+          refresh_token?: string
+          refresh_token_expires_at?: string
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quickbooks_sync_log: {
+        Row: {
+          created_at: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          local_id: string
+          quickbooks_id: string
+          status: string
+          sync_direction: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          local_id: string
+          quickbooks_id: string
+          status?: string
+          sync_direction?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          local_id?: string
+          quickbooks_id?: string
+          status?: string
+          sync_direction?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       quotes: {
         Row: {
           created_at: string | null
