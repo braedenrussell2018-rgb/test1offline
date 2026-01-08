@@ -23,6 +23,7 @@ import Sync from "./pages/Sync";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import CustomerDashboard from "./pages/CustomerDashboard";
+import QuickBooksCallback from "./pages/QuickBooksCallback";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -110,6 +111,8 @@ const App = () => (
                   <CustomerDashboard />
                 </RoleProtectedRoute>
               } />
+              {/* QuickBooks OAuth callback */}
+              <Route path="/quickbooks/callback" element={<QuickBooksCallback />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
