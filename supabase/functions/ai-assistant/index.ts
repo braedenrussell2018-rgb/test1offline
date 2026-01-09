@@ -46,18 +46,23 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Use getClaims for JWT validation (works with signing-keys)
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !claimsData?.claims) {
-      console.error("Authentication failed:", authError?.message);
+    // Validate the JWT by getting the user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      console.error("Authentication failed:", authError.message, authError);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        JSON.stringify({ code: 401, message: 'Invalid JWT' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const user = { id: claimsData.claims.sub as string };
+    if (!user) {
+      console.error("No user found in token");
+      return new Response(
+        JSON.stringify({ code: 401, message: 'Invalid JWT' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log("Authenticated user:", user.id);
 
