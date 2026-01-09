@@ -24,6 +24,7 @@ import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import QuickBooksCallback from "./pages/QuickBooksCallback";
+import Legal from "./pages/Legal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,6 +114,8 @@ const App = () => (
               } />
               {/* QuickBooks OAuth callback */}
               <Route path="/quickbooks/callback" element={<QuickBooksCallback />} />
+              {/* Public legal page - no authentication required */}
+              <Route path="/legal" element={<Legal />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
