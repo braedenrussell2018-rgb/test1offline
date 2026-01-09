@@ -939,6 +939,13 @@ export type Database = {
         Args: { p_note_text: string; p_person_id: string }
         Returns: undefined
       }
+      get_qb_connection_status: {
+        Args: { p_user_id: string }
+        Returns: {
+          connected_at: string
+          realm_id: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

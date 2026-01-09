@@ -14,6 +14,62 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const QB_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 const QB_API_BASE = 'https://quickbooks.api.intuit.com/v3/company';
 
+// Sanitize strings for QuickBooks SQL-like queries
+// QuickBooks API queries are not true SQL but use a similar syntax
+// This prevents injection attacks through the query parameter
+function sanitizeForQBQuery(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  
+  // Limit length to prevent abuse
+  const sanitized = input.substring(0, 200);
+  
+  // Remove or escape dangerous characters for QuickBooks queries
+  // 1. Escape backslashes first
+  // 2. Escape single quotes properly
+  // 3. Remove SQL comment sequences
+  // 4. Remove semicolons (statement terminators)
+  // 5. Remove boolean operators that could modify query logic
+  return sanitized
+    .replace(/\\/g, '')           // Remove backslashes
+    .replace(/'/g, "\\'")         // Escape single quotes
+    .replace(/--/g, '')           // Remove SQL comments
+    .replace(/\/\*/g, '')         // Remove block comment start
+    .replace(/\*\//g, '')         // Remove block comment end
+    .replace(/;/g, '')            // Remove statement terminators
+    .replace(/\bOR\b/gi, '')      // Remove OR operators
+    .replace(/\bAND\b/gi, '')     // Remove AND operators
+    .replace(/\bUNION\b/gi, '')   // Remove UNION
+    .replace(/\bSELECT\b/gi, '')  // Remove nested SELECT
+    .replace(/\bDROP\b/gi, '')    // Remove DROP
+    .replace(/\bDELETE\b/gi, '')  // Remove DELETE
+    .replace(/\bINSERT\b/gi, '')  // Remove INSERT
+    .replace(/\bUPDATE\b/gi, '')  // Remove UPDATE
+    .trim();
+}
+
+// Validate date format for QuickBooks queries (YYYY-MM-DD)
+function sanitizeDate(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return new Date().toISOString().split('T')[0];
+  }
+  
+  // Only allow valid date format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(input)) {
+    return new Date().toISOString().split('T')[0];
+  }
+  
+  // Verify it's a valid date
+  const parsed = new Date(input);
+  if (isNaN(parsed.getTime())) {
+    return new Date().toISOString().split('T')[0];
+  }
+  
+  return input;
+}
+
 async function refreshTokenIfNeeded(supabase: any, connection: any): Promise<string> {
   const tokenExpiry = new Date(connection.token_expires_at);
   const now = new Date();
@@ -124,14 +180,19 @@ serve(async (req) => {
     if (action === 'sync_invoice') {
       const invoice = data;
       
-      // First, find or create customer
+      // First, find or create customer using sanitized name
       let customerId: string;
+      const sanitizedCustomerName = sanitizeForQBQuery(invoice.customer_name);
       
-      // Query for existing customer
+      if (!sanitizedCustomerName) {
+        throw new Error('Invalid customer name');
+      }
+      
+      // Query for existing customer with sanitized input
       const customerQuery = await qbRequest(
         accessToken, 
         realmId, 
-        `query?query=select * from Customer where DisplayName = '${invoice.customer_name.replace(/'/g, "\\'")}'`
+        `query?query=select * from Customer where DisplayName = '${sanitizedCustomerName}'`
       );
 
       if (customerQuery.QueryResponse?.Customer?.length > 0) {
@@ -270,7 +331,7 @@ serve(async (req) => {
 
     // Fetch recent transactions
     if (action === 'fetch_transactions') {
-      const startDate = data?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const startDate = sanitizeDate(data?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
       
       const invoices = await qbRequest(
         accessToken, 
