@@ -14,38 +14,44 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const QB_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 const QB_API_BASE = 'https://quickbooks.api.intuit.com/v3/company';
 
+// Strict whitelist validation for customer names
+// Only allows alphanumeric characters, spaces, and common name punctuation
+// This is more secure than a blocklist approach
+function validateCustomerName(name: string): boolean {
+  if (!name || typeof name !== 'string') {
+    return false;
+  }
+  // Whitelist approach: only allow safe characters used in business names
+  // Alphanumeric, spaces, hyphens, periods, commas, apostrophes, ampersands, parentheses
+  return /^[a-zA-Z0-9\s\-\.,'&()]{1,100}$/.test(name);
+}
+
 // Sanitize strings for QuickBooks SQL-like queries
 // QuickBooks API queries are not true SQL but use a similar syntax
 // This prevents injection attacks through the query parameter
+// SECURITY NOTE: This function uses a whitelist approach for maximum safety
 function sanitizeForQBQuery(input: string): string {
   if (!input || typeof input !== 'string') {
     return '';
   }
   
-  // Limit length to prevent abuse
-  const sanitized = input.substring(0, 200);
+  // First validate the input follows allowed pattern
+  // This provides defense-in-depth beyond just sanitization
+  if (!validateCustomerName(input)) {
+    console.warn('Customer name failed whitelist validation, applying strict sanitization');
+    // If validation fails, only keep strictly safe characters
+    const strictlySanitized = input.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 100).trim();
+    if (!strictlySanitized) {
+      return '';
+    }
+    return strictlySanitized;
+  }
   
-  // Remove or escape dangerous characters for QuickBooks queries
-  // 1. Escape backslashes first
-  // 2. Escape single quotes properly
-  // 3. Remove SQL comment sequences
-  // 4. Remove semicolons (statement terminators)
-  // 5. Remove boolean operators that could modify query logic
-  return sanitized
-    .replace(/\\/g, '')           // Remove backslashes
-    .replace(/'/g, "\\'")         // Escape single quotes
-    .replace(/--/g, '')           // Remove SQL comments
-    .replace(/\/\*/g, '')         // Remove block comment start
-    .replace(/\*\//g, '')         // Remove block comment end
-    .replace(/;/g, '')            // Remove statement terminators
-    .replace(/\bOR\b/gi, '')      // Remove OR operators
-    .replace(/\bAND\b/gi, '')     // Remove AND operators
-    .replace(/\bUNION\b/gi, '')   // Remove UNION
-    .replace(/\bSELECT\b/gi, '')  // Remove nested SELECT
-    .replace(/\bDROP\b/gi, '')    // Remove DROP
-    .replace(/\bDELETE\b/gi, '')  // Remove DELETE
-    .replace(/\bINSERT\b/gi, '')  // Remove INSERT
-    .replace(/\bUPDATE\b/gi, '')  // Remove UPDATE
+  // For validated input, still escape single quotes for query safety
+  // Limit to 100 chars (validated above, but enforce here too)
+  return input
+    .substring(0, 100)
+    .replace(/'/g, "\\'")  // Escape single quotes for QB query syntax
     .trim();
 }
 
