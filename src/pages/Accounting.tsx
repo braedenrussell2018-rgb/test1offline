@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard, Scale } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -729,6 +730,21 @@ const Accounting = () => {
       <div className="container mx-auto px-4 py-8 space-y-8">
         <QuickBooksConnection onSyncComplete={loadData} />
         <FinancialReports />
+      </div>
+
+      {/* Footer with Legal Link */}
+      <div className="border-t bg-muted/30">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Scale className="h-4 w-4" />
+            <Link 
+              to="/legal" 
+              className="hover:text-foreground hover:underline transition-colors"
+            >
+              End-User License Agreement & Privacy Policy
+            </Link>
+          </div>
+        </div>
       </div>
 
       <InvoicePDFPreview
