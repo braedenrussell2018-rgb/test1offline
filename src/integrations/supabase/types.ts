@@ -149,36 +149,66 @@ export type Database = {
       audit_logs: {
         Row: {
           action: string
-          created_at: string | null
+          action_category: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_role: string | null
+          created_at: string
+          failure_reason: string | null
           id: string
-          ip_address: string | null
-          new_data: Json | null
-          old_data: Json | null
-          record_id: string | null
-          table_name: string
-          user_id: string | null
+          ip_address: unknown
+          metadata: Json | null
+          request_id: string | null
+          result: string
+          risk_level: string | null
+          session_id: string | null
+          target_id: string | null
+          target_name: string | null
+          target_type: string | null
+          timestamp: string
+          user_agent: string | null
         }
         Insert: {
           action: string
-          created_at?: string | null
+          action_category: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          failure_reason?: string | null
           id?: string
-          ip_address?: string | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id?: string | null
-          table_name: string
-          user_id?: string | null
+          ip_address?: unknown
+          metadata?: Json | null
+          request_id?: string | null
+          result?: string
+          risk_level?: string | null
+          session_id?: string | null
+          target_id?: string | null
+          target_name?: string | null
+          target_type?: string | null
+          timestamp?: string
+          user_agent?: string | null
         }
         Update: {
           action?: string
-          created_at?: string | null
+          action_category?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          failure_reason?: string | null
           id?: string
-          ip_address?: string | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id?: string | null
-          table_name?: string
-          user_id?: string | null
+          ip_address?: unknown
+          metadata?: Json | null
+          request_id?: string | null
+          result?: string
+          risk_level?: string | null
+          session_id?: string | null
+          target_id?: string | null
+          target_name?: string | null
+          target_type?: string | null
+          timestamp?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -285,6 +315,42 @@ export type Database = {
           name?: string
           notes?: Json | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      data_export_logs: {
+        Row: {
+          download_completed: boolean | null
+          export_format: string
+          export_type: string
+          exported_at: string
+          filters_applied: Json | null
+          id: string
+          ip_address: unknown
+          record_count: number | null
+          user_id: string
+        }
+        Insert: {
+          download_completed?: boolean | null
+          export_format: string
+          export_type: string
+          exported_at?: string
+          filters_applied?: Json | null
+          id?: string
+          ip_address?: unknown
+          record_count?: number | null
+          user_id: string
+        }
+        Update: {
+          download_completed?: boolean | null
+          export_format?: string
+          export_type?: string
+          exported_at?: string
+          filters_applied?: Json | null
+          id?: string
+          ip_address?: unknown
+          record_count?: number | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -458,6 +524,33 @@ export type Database = {
           volume?: number | null
           warranty_months?: number | null
           weight?: number | null
+        }
+        Relationships: []
+      }
+      login_attempts: {
+        Row: {
+          attempted_at: string
+          email: string
+          id: string
+          ip_address: unknown
+          success: boolean | null
+          user_agent: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          email: string
+          id?: string
+          ip_address?: unknown
+          success?: boolean | null
+          user_agent?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          email?: string
+          id?: string
+          ip_address?: unknown
+          success?: boolean | null
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -894,6 +987,60 @@ export type Database = {
         }
         Relationships: []
       }
+      user_security_settings: {
+        Row: {
+          account_locked: boolean | null
+          account_locked_at: string | null
+          account_locked_reason: string | null
+          created_at: string
+          failed_login_attempts: number | null
+          id: string
+          last_activity: string | null
+          last_failed_login: string | null
+          mfa_enabled: boolean | null
+          mfa_verified_at: string | null
+          password_changed_at: string | null
+          require_password_change: boolean | null
+          session_timeout_minutes: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_locked?: boolean | null
+          account_locked_at?: string | null
+          account_locked_reason?: string | null
+          created_at?: string
+          failed_login_attempts?: number | null
+          id?: string
+          last_activity?: string | null
+          last_failed_login?: string | null
+          mfa_enabled?: boolean | null
+          mfa_verified_at?: string | null
+          password_changed_at?: string | null
+          require_password_change?: boolean | null
+          session_timeout_minutes?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_locked?: boolean | null
+          account_locked_at?: string | null
+          account_locked_reason?: string | null
+          created_at?: string
+          failed_login_attempts?: number | null
+          id?: string
+          last_activity?: string | null
+          last_failed_login?: string | null
+          mfa_enabled?: boolean | null
+          mfa_verified_at?: string | null
+          password_changed_at?: string | null
+          require_password_change?: boolean | null
+          session_timeout_minutes?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vendors: {
         Row: {
           address: string | null
@@ -939,6 +1086,7 @@ export type Database = {
         Args: { p_note_text: string; p_person_id: string }
         Returns: undefined
       }
+      check_account_status: { Args: { p_email: string }; Returns: Json }
       get_qb_connection_status: {
         Args: { p_user_id: string }
         Returns: {
