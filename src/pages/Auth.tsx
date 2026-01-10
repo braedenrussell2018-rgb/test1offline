@@ -9,7 +9,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, Eye, EyeOff, Check, X } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Check, X, Lock, Shield } from "lucide-react";
+import { checkRateLimit, recordLoginAttempt } from "@/hooks/useSecuritySettings";
+import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 
 // SECURITY FIX: Only allow safe self-registration roles
 // Owner role must be assigned by existing owners
@@ -94,6 +96,11 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<PublicUserRole>("employee");
   const [loading, setLoading] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    blocked: boolean;
+    remaining: number;
+    lockoutMinutes: number;
+  } | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -223,22 +230,71 @@ export default function Auth() {
 
     setLoading(true);
 
+    // Check rate limit before attempting login
+    const rateLimitStatus = await checkRateLimit(email);
+    
+    if (!rateLimitStatus.allowed) {
+      setLoading(false);
+      setRateLimitInfo({
+        blocked: true,
+        remaining: rateLimitStatus.remaining,
+        lockoutMinutes: rateLimitStatus.lockout_minutes_remaining,
+      });
+      
+      if (rateLimitStatus.account_locked) {
+        toast({
+          title: "Account Locked",
+          description: "Your account has been locked due to too many failed login attempts. Please contact an administrator.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Too Many Attempts",
+          description: `Please wait ${rateLimitStatus.lockout_minutes_remaining} minutes before trying again.`,
+          variant: "destructive",
+        });
+      }
+      
+      await logAuditEvent(AuditEvents.LOGIN_FAILED(email, 'Rate limited'));
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
+      
+      // Record failed attempt
+      await recordLoginAttempt(email, false);
+      
+      // Update rate limit info
+      const newStatus = await checkRateLimit(email);
+      setRateLimitInfo({
+        blocked: !newStatus.allowed,
+        remaining: newStatus.remaining,
+        lockoutMinutes: newStatus.lockout_minutes_remaining,
+      });
+      
+      await logAuditEvent(AuditEvents.LOGIN_FAILED(email, error.message));
+      
       toast({
         title: "Sign in failed",
-        description: error.message,
+        description: newStatus.remaining <= 2 
+          ? `${error.message}. ${newStatus.remaining} attempts remaining.`
+          : error.message,
         variant: "destructive",
       });
       return;
     }
 
+    // Record successful login
+    await recordLoginAttempt(email, true);
+    await logAuditEvent(AuditEvents.LOGIN_SUCCESS(email));
+    
+    setLoading(false);
     navigate("/");
   };
 
@@ -259,6 +315,26 @@ export default function Auth() {
             </TabsList>
 
             <TabsContent value="signin">
+              {rateLimitInfo?.blocked && (
+                <Alert variant="destructive" className="mb-4">
+                  <Lock className="h-4 w-4" />
+                  <AlertDescription>
+                    {rateLimitInfo.lockoutMinutes > 0 
+                      ? `Too many failed attempts. Please wait ${rateLimitInfo.lockoutMinutes} minutes.`
+                      : "Your account is locked. Please contact an administrator."}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {rateLimitInfo && !rateLimitInfo.blocked && rateLimitInfo.remaining <= 3 && (
+                <Alert className="mb-4">
+                  <Shield className="h-4 w-4" />
+                  <AlertDescription>
+                    {rateLimitInfo.remaining} login attempts remaining before temporary lockout.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
