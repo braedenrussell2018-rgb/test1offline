@@ -18,6 +18,7 @@ import AIAssistant from "./pages/AIAssistant";
 import ConversationAnalytics from "./pages/ConversationAnalytics";
 import SpiffProgram from "./pages/SpiffProgram";
 import SpiffAdmin from "./pages/SpiffAdmin";
+import SecurityAdmin from "./pages/SecurityAdmin";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
@@ -105,6 +106,9 @@ const App = () => (
                 <RoleProtectedRoute allowedRoles={["owner"]} redirectTo="/">
                   <SpiffAdmin />
                 </RoleProtectedRoute>
+              } />
+              {/* Security Admin - owners only */}
+              <Route path="/security" element={<SecurityAdmin />
               } />
               {/* Customer dashboard */}
               <Route path="/customer" element={
