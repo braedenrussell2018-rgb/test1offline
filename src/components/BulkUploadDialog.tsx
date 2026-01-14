@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { inventoryStorage } from "@/lib/inventory-storage";
-import * as XLSX from "xlsx";
+import { createAndDownloadExcel, readExcelFile, createTemplate } from "@/lib/excel-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,7 +33,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const template = [
       {
         "#": 1,
@@ -53,21 +53,12 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       },
     ];
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Items");
-    
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 5 },  // #
-      { wch: 25 }, // Name
-      { wch: 50 }, // Description
-      { wch: 10 }, // In Stock
-      { wch: 12 }, // Sales Price
-      { wch: 10 }, // Weight
-    ];
-    
-    XLSX.writeFile(wb, "inventory_template.xlsx");
+    await createTemplate(
+      template, 
+      "Items", 
+      "inventory_template.xlsx",
+      [5, 25, 50, 10, 12, 10]  // Column widths
+    );
     toast.success("Template downloaded");
   };
 
@@ -108,22 +99,13 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         return;
       }
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Items");
-      
-      // Set column widths
-      ws['!cols'] = [
-        { wch: 5 },  // #
-        { wch: 30 }, // Name
-        { wch: 60 }, // Description
-        { wch: 10 }, // In Stock
-        { wch: 12 }, // Sales Price
-        { wch: 10 }, // Weight
-      ];
-      
       const date = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(wb, `inventory_export_${date}.xlsx`);
+      await createAndDownloadExcel(
+        exportData,
+        "Items",
+        `inventory_export_${date}.xlsx`,
+        [5, 30, 60, 10, 12, 10]  // Column widths
+      );
       toast.success(`Exported ${exportData.length} items`);
     } catch (error) {
       console.error("Export error:", error);
@@ -168,11 +150,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
     setIsProcessing(true);
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = await readExcelFile(file);
 
       if (jsonData.length === 0) {
         toast.error("The Excel file is empty");

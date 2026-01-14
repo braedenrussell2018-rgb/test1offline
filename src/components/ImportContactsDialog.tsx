@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, Building2, Users, Mail, Phone, MapPin, Briefcase, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage, Company } from "@/lib/inventory-storage";
-import * as XLSX from "xlsx";
+import { createTemplate, readExcelFile } from "@/lib/excel-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,7 +40,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
   const [editForm, setEditForm] = useState<Partial<ParsedContact>>({});
   const { toast } = useToast();
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const template = [
       {
         Name: "John Doe",
@@ -60,10 +60,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       },
     ];
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contacts");
-    XLSX.writeFile(wb, "contacts_template.xlsx");
+    await createTemplate(template, "Contacts", "contacts_template.xlsx");
 
     toast({
       title: "Template Downloaded",
@@ -227,11 +224,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     setIsProcessing(true);
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = await readExcelFile(file);
 
       if (jsonData.length === 0) {
         toast({

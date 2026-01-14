@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
+import { createTemplate, readExcelFile } from "@/lib/excel-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,7 +54,7 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const template = [
       {
         PartNumber: "PN-001",
@@ -72,10 +72,7 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
       },
     ];
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "PO Items");
-    XLSX.writeFile(wb, "po_template.xlsx");
+    await createTemplate(template, "PO Items", "po_template.xlsx");
 
     toast({
       title: "Template Downloaded",
@@ -117,11 +114,7 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
     setIsProcessing(true);
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = await readExcelFile(file);
 
       if (jsonData.length === 0) {
         toast({
