@@ -1079,7 +1079,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      quickbooks_connection_status: {
+        Row: {
+          connected_at: string | null
+          is_token_valid: boolean | null
+          realm_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          connected_at?: string | null
+          is_token_valid?: never
+          realm_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          is_token_valid?: never
+          realm_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       add_note_to_contact: {

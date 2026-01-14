@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Check, Share2, FileText, Shield } from "lucide-react";
+import { Copy, Check, Share2, FileText, Shield, AlertTriangle, BookOpen, Lock, Database } from "lucide-react";
 import { toast } from "sonner";
 
 const Legal = () => {
@@ -25,16 +25,34 @@ const Legal = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Serial Stock Suite - Legal Documents',
-          text: 'End-User License Agreement and Privacy Policy',
+          title: 'Serial Stock Suite - Legal & Security Documents',
+          text: 'Legal and Security Policy Documents',
           url: shareUrl,
         });
       } catch (err) {
-        // User cancelled or error
         handleCopyLink();
       }
     } else {
       handleCopyLink();
+    }
+  };
+
+  const handleDownloadPolicy = (policyName: string) => {
+    const policyFiles: Record<string, string> = {
+      'Information Security': '/docs/INFORMATION-SECURITY-POLICY.md',
+      'Acceptable Use': '/docs/ACCEPTABLE-USE-POLICY.md',
+      'Incident Response': '/docs/INCIDENT-RESPONSE-POLICY.md',
+      'Data Handling': '/docs/DATA-HANDLING-POLICY.md',
+      'Access Control': '/docs/SOC2-ACCESS-CONTROL.md',
+      'Data Flow': '/docs/SOC2-DATA-FLOW.md',
+      'Encryption': '/docs/SOC2-ENCRYPTION.md',
+      'Logging & Monitoring': '/docs/SOC2-LOGGING-MONITORING.md',
+    };
+    
+    const filePath = policyFiles[policyName];
+    if (filePath) {
+      window.open(filePath, '_blank');
+      toast.success(`Opening ${policyName} Policy`);
     }
   };
 
@@ -43,18 +61,30 @@ const Legal = () => {
       <div className="container mx-auto py-8 px-4 max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Serial Stock Suite</h1>
-          <p className="text-muted-foreground">Legal Documents</p>
+          <p className="text-muted-foreground">Legal & Security Documents</p>
         </div>
 
         <Tabs defaultValue="eula" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="eula" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              EULA
+          <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsTrigger value="eula" className="flex items-center gap-1 text-xs sm:text-sm">
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">EULA</span>
+              <span className="sm:hidden">EULA</span>
             </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Privacy Policy
+            <TabsTrigger value="privacy" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Privacy</span>
+              <span className="sm:hidden">Privacy</span>
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Security</span>
+              <span className="sm:hidden">Security</span>
+            </TabsTrigger>
+            <TabsTrigger value="compliance" className="flex items-center gap-1 text-xs sm:text-sm">
+              <BookOpen className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">SOC 2</span>
+              <span className="sm:hidden">SOC 2</span>
             </TabsTrigger>
           </TabsList>
 
@@ -386,6 +416,220 @@ const Legal = () => {
                     </div>
 
                     <p className="text-sm text-muted-foreground mt-6">© 2026 [Your Company Name]. All rights reserved.</p>
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="security">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  Security Policies
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="space-y-6">
+                    <div className="bg-muted/50 p-4 rounded-lg border">
+                      <p className="text-sm text-muted-foreground">
+                        Our security policies define the standards and procedures we follow to protect your data. 
+                        These policies support our SOC 2 Type I compliance efforts.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4">
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-primary" />
+                            Information Security Policy
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Establishes the security framework and guidelines for protecting confidentiality, 
+                            integrity, and availability of information assets.
+                          </p>
+                          <ul className="text-sm space-y-1 mb-3">
+                            <li>• Access control and authentication requirements</li>
+                            <li>• Data protection and encryption standards</li>
+                            <li>• System security and network protection</li>
+                            <li>• Business continuity and disaster recovery</li>
+                          </ul>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Information Security')}>
+                            View Full Policy
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 text-primary" />
+                            Acceptable Use Policy
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Defines acceptable and prohibited uses of Serial Stock Suite and its services.
+                          </p>
+                          <ul className="text-sm space-y-1 mb-3">
+                            <li>• Authorized and prohibited activities</li>
+                            <li>• Account security requirements</li>
+                            <li>• Data handling responsibilities</li>
+                            <li>• Monitoring and enforcement</li>
+                          </ul>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Acceptable Use')}>
+                            View Full Policy
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-primary" />
+                            Incident Response Policy
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Procedures for detecting, responding to, and recovering from security incidents.
+                          </p>
+                          <ul className="text-sm space-y-1 mb-3">
+                            <li>• Incident classification and severity levels</li>
+                            <li>• Response phases and procedures</li>
+                            <li>• Communication and escalation</li>
+                            <li>• Post-incident review and improvement</li>
+                          </ul>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Incident Response')}>
+                            View Full Policy
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Database className="h-5 w-5 text-primary" />
+                            Data Handling Policy
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Requirements for handling, storage, transmission, and disposal of data.
+                          </p>
+                          <ul className="text-sm space-y-1 mb-3">
+                            <li>• Data classification levels</li>
+                            <li>• Collection, storage, and retention</li>
+                            <li>• Third-party data sharing</li>
+                            <li>• Data subject rights</li>
+                          </ul>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Data Handling')}>
+                            View Full Policy
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="compliance">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  SOC 2 Compliance Documentation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="space-y-6">
+                    <div className="bg-muted/50 p-4 rounded-lg border">
+                      <p className="text-sm text-muted-foreground">
+                        These documents provide detailed technical information about our security controls 
+                        and architecture for SOC 2 Type I compliance audits.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4">
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">Access Control Model</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Role-Based Access Control (RBAC) implementation, Row-Level Security policies, 
+                            and authentication mechanisms.
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Access Control')}>
+                            View Document
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">Data Flow Diagram</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            System architecture, data flows, trust boundaries, and security controls 
+                            at each processing stage.
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Data Flow')}>
+                            View Document
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">Encryption Strategy</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Encryption standards, key management, data classification, and protection 
+                            mechanisms for data at rest and in transit.
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Encryption')}>
+                            View Document
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">Logging & Monitoring Strategy</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Audit logging implementation, security monitoring, alerting procedures, 
+                            and SIEM integration capabilities.
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadPolicy('Logging & Monitoring')}>
+                            View Document
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <div className="bg-primary/10 p-4 rounded-lg border border-primary/20 mt-6">
+                      <h3 className="font-semibold mb-2">Request Compliance Documentation</h3>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        For SOC 2 audit reports, penetration test results, or additional compliance 
+                        documentation, please contact our security team.
+                      </p>
+                      <p className="text-sm">
+                        <strong>Email:</strong> security@[company-domain].com
+                      </p>
+                    </div>
                   </div>
                 </ScrollArea>
               </CardContent>
