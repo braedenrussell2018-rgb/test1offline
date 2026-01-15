@@ -13,11 +13,11 @@ import { AlertTriangle, Eye, EyeOff, Check, X, Lock, Shield } from "lucide-react
 import { checkRateLimit, recordLoginAttempt } from "@/hooks/useSecuritySettings";
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 
-// SECURITY FIX: Only allow safe self-registration roles
-// Owner role must be assigned by existing owners
-type PublicUserRole = "customer" | "salesman" | "employee";
+// Allow all roles during registration
+type UserRole = "customer" | "salesman" | "employee" | "owner";
 
-const PUBLIC_ROLES: { value: PublicUserRole; label: string; description: string }[] = [
+const ALL_ROLES: { value: UserRole; label: string; description: string }[] = [
+  { value: "owner", label: "Owner", description: "Full administrative access" },
   { value: "employee", label: "Employee", description: "Internal staff member" },
   { value: "customer", label: "Customer", description: "View your orders and quotes" },
   { value: "salesman", label: "Salesman", description: "Create quotes and track commissions" },
@@ -94,7 +94,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<PublicUserRole>("employee");
+  const [role, setRole] = useState<UserRole>("employee");
   const [loading, setLoading] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{
     blocked: boolean;
@@ -154,8 +154,8 @@ export default function Auth() {
       return;
     }
 
-    // SECURITY: Validate role is in allowed list (defense in depth)
-    if (!PUBLIC_ROLES.some(r => r.value === role)) {
+    // Validate role is in allowed list
+    if (!ALL_ROLES.some(r => r.value === role)) {
       toast({
         title: "Error",
         description: "Invalid role selected",
@@ -213,7 +213,7 @@ export default function Auth() {
     setEmail("");
     setPassword("");
     setFullName("");
-    setRole("employee");
+    setRole("owner");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -427,12 +427,12 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-role">Account Type</Label>
-                  <Select value={role} onValueChange={(value) => setRole(value as PublicUserRole)}>
+                  <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
                     <SelectTrigger id="signup-role">
                       <SelectValue placeholder="Select account type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {PUBLIC_ROLES.map((r) => (
+                      {ALL_ROLES.map((r) => (
                         <SelectItem key={r.value} value={r.value}>
                           <div className="flex flex-col">
                             <span>{r.label}</span>
@@ -442,9 +442,6 @@ export default function Auth() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Need an Owner account? Contact your administrator.
-                  </p>
                 </div>
                 <Button 
                   type="submit" 
