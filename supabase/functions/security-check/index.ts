@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
                 account_locked: shouldLock,
                 account_locked_at: shouldLock ? new Date().toISOString() : settings?.account_locked_at,
                 account_locked_reason: shouldLock ? 'Too many failed login attempts' : settings?.account_locked_reason,
-              });
+              }, { onConflict: 'user_id' });
 
             // Log security event
             await supabaseAdmin
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
                 user_id: user.id,
                 failed_login_attempts: 0,
                 last_activity: new Date().toISOString(),
-              });
+              }, { onConflict: 'user_id' });
 
             // Log successful login
             await supabaseAdmin

@@ -44,12 +44,12 @@ Deno.serve(async (req) => {
         userId = user.id;
         userEmail = user.email || null;
         
-        // Get user role
+        // Get user role (use maybeSingle to handle no role case)
         const { data: roleData } = await supabaseAdmin
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
         
         userRole = roleData?.role || null;
       }
