@@ -318,6 +318,54 @@ export type Database = {
         }
         Relationships: []
       }
+      company_meetings: {
+        Row: {
+          attendees: string[] | null
+          audio_url: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          location: string | null
+          meeting_date: string
+          meeting_type: string | null
+          notes: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attendees?: string[] | null
+          audio_url?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date: string
+          meeting_type?: string | null
+          notes?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attendees?: string[] | null
+          audio_url?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date?: string
+          meeting_type?: string | null
+          notes?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       data_export_logs: {
         Row: {
           download_completed: boolean | null
@@ -403,6 +451,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      internal_notes: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string
+          id: string
+          is_pinned: boolean | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       invoices: {
         Row: {
