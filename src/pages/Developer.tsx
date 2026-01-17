@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, Users, Check, Clock, Database, Shield, Activity } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
@@ -28,12 +32,36 @@ interface SystemStats {
   activeRoles: { role: string; count: number }[];
 }
 
+interface UserInfo {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string | null;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  phone: string | null;
+  mfa_enabled: boolean;
+  account_locked: boolean;
+}
+
 const DeveloperDashboard = () => {
   const { user } = useAuth();
   const { role } = useUserRole();
   const [notifications, setNotifications] = useState<SignupNotification[]>([]);
   const [stats, setStats] = useState<SystemStats>({ totalUsers: 0, recentSignups: 0, activeRoles: [] });
   const [loading, setLoading] = useState(true);
+  
+  // User management state
+  const [usersDialogOpen, setUsersDialogOpen] = useState(false);
+  const [users, setUsers] = useState<UserInfo[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editType, setEditType] = useState<"email" | "password" | "name" | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     if (user && (role === "developer" || role === "owner")) {
@@ -60,12 +88,10 @@ const DeveloperDashboard = () => {
 
   const fetchSystemStats = async () => {
     try {
-      // Get total users from profiles
       const { count: totalUsers } = await supabase
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
-      // Get recent signups (last 7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
@@ -74,7 +100,6 @@ const DeveloperDashboard = () => {
         .select("*", { count: "exact", head: true })
         .gte("signed_up_at", sevenDaysAgo.toISOString());
 
-      // Get role distribution
       const { data: rolesData } = await supabase
         .from("user_roles")
         .select("role");
@@ -96,6 +121,107 @@ const DeveloperDashboard = () => {
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "list_users" },
+      });
+
+      if (error) throw error;
+      setUsers(data.users || []);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to load users");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleOpenUsersDialog = () => {
+    setUsersDialogOpen(true);
+    fetchUsers();
+  };
+
+  const handleEditEmail = (user: UserInfo) => {
+    setSelectedUser(user);
+    setEditType("email");
+    setEditValue(user.email);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditPassword = (user: UserInfo) => {
+    setSelectedUser(user);
+    setEditType("password");
+    setEditValue("");
+    setEditDialogOpen(true);
+  };
+
+  const handleEditName = (user: UserInfo) => {
+    setSelectedUser(user);
+    setEditType("name");
+    setEditValue(user.full_name);
+    setEditDialogOpen(true);
+  };
+
+  const handleSendPasswordReset = async (user: UserInfo) => {
+    setProcessing(true);
+    try {
+      const { error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "send_password_reset", email: user.email },
+      });
+
+      if (error) throw error;
+      toast.success(`Password reset email sent to ${user.email}`);
+    } catch (error) {
+      console.error("Error sending password reset:", error);
+      toast.error("Failed to send password reset email");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedUser || !editType) return;
+    setProcessing(true);
+
+    try {
+      let action = "";
+      let params: Record<string, unknown> = { userId: selectedUser.id };
+
+      switch (editType) {
+        case "email":
+          action = "update_email";
+          params.newEmail = editValue;
+          break;
+        case "password":
+          action = "update_password";
+          params.newPassword = editValue;
+          break;
+        case "name":
+          action = "update_user_metadata";
+          params.metadata = { full_name: editValue };
+          break;
+      }
+
+      const { error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action, ...params },
+      });
+
+      if (error) throw error;
+
+      toast.success(`${editType === "email" ? "Email" : editType === "password" ? "Password" : "Name"} updated successfully`);
+      setEditDialogOpen(false);
+      fetchUsers();
+      fetchSystemStats();
+    } catch (error) {
+      console.error("Error updating user:", error);
+      toast.error(`Failed to update ${editType}`);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -144,6 +270,11 @@ const DeveloperDashboard = () => {
     }
   };
 
+  const filteredUsers = users.filter((user) =>
+    user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
@@ -162,13 +293,17 @@ const DeveloperDashboard = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={handleOpenUsersDialog}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground mt-1">Click to manage users</p>
           </CardContent>
         </Card>
 
@@ -359,6 +494,182 @@ const DeveloperDashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Users Management Dialog */}
+      <Dialog open={usersDialogOpen} onOpenChange={setUsersDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              User Management
+            </DialogTitle>
+            <DialogDescription>
+              View and manage user login information and credentials
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+
+            <ScrollArea className="h-[400px]">
+              {usersLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading users...
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No users found
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Last Sign In</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{u.full_name}</div>
+                            <div className="text-sm text-muted-foreground">{u.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {u.role || "No role"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {u.last_sign_in_at
+                            ? format(new Date(u.last_sign_in_at), "MMM d, yyyy HH:mm")
+                            : "Never"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {u.email_confirmed_at ? (
+                              <Badge className="bg-green-100 text-green-800 text-xs">Verified</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-yellow-600 text-xs">Unverified</Badge>
+                            )}
+                            {u.account_locked && (
+                              <Badge variant="destructive" className="text-xs">Locked</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditName(u)}
+                              title="Edit Name"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditEmail(u)}
+                              title="Edit Email"
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditPassword(u)}
+                              title="Set Password"
+                            >
+                              <Key className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSendPasswordReset(u)}
+                              disabled={processing}
+                              title="Send Password Reset Email"
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editType === "email" && "Update Email"}
+              {editType === "password" && "Set New Password"}
+              {editType === "name" && "Update Name"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedUser && `Updating ${editType} for ${selectedUser.full_name}`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editValue">
+                {editType === "email" && "New Email Address"}
+                {editType === "password" && "New Password"}
+                {editType === "name" && "Full Name"}
+              </Label>
+              <Input
+                id="editValue"
+                type={editType === "password" ? "password" : "text"}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                placeholder={
+                  editType === "email" ? "Enter new email" :
+                  editType === "password" ? "Enter new password (min 8 characters)" :
+                  "Enter full name"
+                }
+              />
+              {editType === "password" && (
+                <p className="text-xs text-muted-foreground">
+                  Password must be at least 8 characters long
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveEdit} 
+              disabled={processing || !editValue || (editType === "password" && editValue.length < 8)}
+            >
+              {processing ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
