@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Download, Search, Filter, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 
 interface AuditLog {
   id: string;
@@ -104,7 +105,7 @@ export function AuditLogViewer() {
     return matchesSearch && matchesCategory && matchesRisk && matchesResult;
   });
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const headers = [
       "Timestamp",
       "Action",
@@ -137,6 +138,13 @@ export function AuditLogViewer() {
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
 
+    // Log the export event for audit trail
+    await logAuditEvent(AuditEvents.DATA_EXPORTED(
+      'audit_logs',
+      'csv',
+      filteredLogs.length
+    ));
+
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -149,7 +157,7 @@ export function AuditLogViewer() {
     });
   };
 
-  const exportToJSON = () => {
+  const exportToJSON = async () => {
     const exportData = {
       exported_at: new Date().toISOString(),
       total_records: filteredLogs.length,
@@ -161,6 +169,13 @@ export function AuditLogViewer() {
       },
       logs: filteredLogs,
     };
+
+    // Log the export event for audit trail
+    await logAuditEvent(AuditEvents.DATA_EXPORTED(
+      'audit_logs',
+      'json',
+      filteredLogs.length
+    ));
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
