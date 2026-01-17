@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Eye, EyeOff, Check, X, Lock, Shield } from "lucide-react";
 import { checkRateLimit, recordLoginAttempt } from "@/hooks/useSecuritySettings";
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
+import { AppRole } from "@/hooks/useUserRole";
 
 // Allow all roles during registration
 type UserRole = "customer" | "salesman" | "employee" | "owner";
@@ -294,8 +295,33 @@ export default function Auth() {
     await recordLoginAttempt(email, true);
     await logAuditEvent(AuditEvents.LOGIN_SUCCESS(email));
     
-    setLoading(false);
-    navigate("/");
+    // Fetch user role and redirect accordingly
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (userId) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      
+      const userRole = roleData?.role as AppRole;
+      
+      setLoading(false);
+      
+      // Redirect based on role
+      if (userRole === "employee" || userRole === "owner" || userRole === "developer") {
+        navigate("/crm");
+      } else if (userRole === "salesman") {
+        navigate("/spiff-program");
+      } else if (userRole === "customer") {
+        navigate("/customer");
+      } else {
+        navigate("/");
+      }
+    } else {
+      setLoading(false);
+      navigate("/");
+    }
   };
 
   return (
