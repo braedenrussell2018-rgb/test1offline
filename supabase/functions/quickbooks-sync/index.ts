@@ -102,15 +102,15 @@ async function refreshTokenIfNeeded(supabase: any, connection: any): Promise<str
 
   const tokens = await response.json();
 
+  // Update tokens using encrypted storage function
   await supabase
-    .from('quickbooks_connections')
-    .update({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-      refresh_token_expires_at: new Date(Date.now() + tokens.x_refresh_token_expires_in * 1000).toISOString()
-    })
-    .eq('user_id', connection.user_id);
+    .rpc('update_qb_tokens', {
+      p_user_id: connection.user_id,
+      p_access_token: tokens.access_token,
+      p_refresh_token: tokens.refresh_token,
+      p_token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      p_refresh_token_expires_at: new Date(Date.now() + tokens.x_refresh_token_expires_in * 1000).toISOString()
+    });
 
   console.log('Token refreshed successfully');
   return tokens.access_token;
@@ -164,18 +164,22 @@ serve(async (req) => {
       throw new Error('Invalid user');
     }
 
-    // Get QuickBooks connection
-    const { data: connection, error: connError } = await supabase
-      .from('quickbooks_connections')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // Get QuickBooks connection using encrypted token retrieval function
+    const { data: connections, error: connError } = await supabase
+      .rpc('get_qb_tokens', { p_user_id: user.id });
 
-    if (connError || !connection) {
+    if (connError || !connections || connections.length === 0) {
       throw new Error('QuickBooks not connected');
     }
 
-    const accessToken = await refreshTokenIfNeeded(supabase, connection);
+    const connection = connections[0];
+    
+    // Check if tokens are available (decryption succeeded)
+    if (!connection.access_token || !connection.refresh_token) {
+      throw new Error('QuickBooks tokens unavailable - please reconnect');
+    }
+
+    const accessToken = await refreshTokenIfNeeded(supabase, { ...connection, user_id: user.id });
     const realmId = connection.realm_id;
 
     const { action, data } = await req.json();
