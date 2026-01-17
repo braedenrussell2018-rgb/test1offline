@@ -174,7 +174,7 @@ const DeveloperDashboard = () => {
   const handleChangeRole = (user: UserInfo) => {
     setSelectedUser(user);
     setEditType("role");
-    setEditValue(user.role || "");
+    setEditValue(user.role || "none");
     setEditDialogOpen(true);
   };
 
@@ -247,7 +247,8 @@ const DeveloperDashboard = () => {
           break;
         case "role":
           action = "change_role";
-          params.newRole = editValue === "" ? null : editValue;
+          params.newRole = editValue === "none" || editValue === "" ? null : editValue;
+          break;
           break;
       }
 
@@ -714,7 +715,7 @@ const DeveloperDashboard = () => {
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Role</SelectItem>
+                    <SelectItem value="none">No Role</SelectItem>
                     <SelectItem value="employee">Employee</SelectItem>
                     <SelectItem value="owner">Owner</SelectItem>
                     <SelectItem value="customer">Customer</SelectItem>
