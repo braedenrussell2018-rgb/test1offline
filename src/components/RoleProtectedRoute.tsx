@@ -24,7 +24,13 @@ export const RoleProtectedRoute = ({
       return;
     }
 
-    if (!authLoading && !roleLoading && user && role) {
+    if (!authLoading && !roleLoading && user) {
+      // Handle users with no role assigned - redirect to a default page
+      if (role === null) {
+        navigate("/auth");
+        return;
+      }
+      
       // Developer has owner privileges - check if we should treat as owner
       const effectiveRoles = [...allowedRoles];
       if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
@@ -54,12 +60,7 @@ export const RoleProtectedRoute = ({
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
-  // Wait for role to be determined before showing content
-  if (role === null) {
+  if (!user || role === null) {
     return null;
   }
 
