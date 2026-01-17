@@ -11,10 +11,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send } from "lucide-react";
+import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface SignupNotification {
   id: string;
@@ -59,9 +61,11 @@ const DeveloperDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editType, setEditType] = useState<"email" | "password" | "name" | null>(null);
+  const [editType, setEditType] = useState<"email" | "password" | "name" | "role" | null>(null);
   const [editValue, setEditValue] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserInfo | null>(null);
 
   useEffect(() => {
     if (user && (role === "developer" || role === "owner")) {
@@ -167,6 +171,42 @@ const DeveloperDashboard = () => {
     setEditDialogOpen(true);
   };
 
+  const handleChangeRole = (user: UserInfo) => {
+    setSelectedUser(user);
+    setEditType("role");
+    setEditValue(user.role || "");
+    setEditDialogOpen(true);
+  };
+
+  const handleDeleteUser = (user: UserInfo) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setProcessing(true);
+
+    try {
+      const { error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "delete_user", userId: userToDelete.id },
+      });
+
+      if (error) throw error;
+
+      toast.success(`User ${userToDelete.email} deleted successfully`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      fetchUsers();
+      fetchSystemStats();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error("Failed to delete user");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleSendPasswordReset = async (user: UserInfo) => {
     setProcessing(true);
     try {
@@ -205,6 +245,10 @@ const DeveloperDashboard = () => {
           action = "update_user_metadata";
           params.metadata = { full_name: editValue };
           break;
+        case "role":
+          action = "change_role";
+          params.newRole = editValue === "" ? null : editValue;
+          break;
       }
 
       const { error } = await supabase.functions.invoke("admin-user-management", {
@@ -213,7 +257,14 @@ const DeveloperDashboard = () => {
 
       if (error) throw error;
 
-      toast.success(`${editType === "email" ? "Email" : editType === "password" ? "Password" : "Name"} updated successfully`);
+      const successMessages: Record<string, string> = {
+        email: "Email updated successfully",
+        password: "Password updated successfully",
+        name: "Name updated successfully",
+        role: editValue ? `Role changed to ${editValue}` : "Role removed",
+      };
+
+      toast.success(successMessages[editType]);
       setEditDialogOpen(false);
       fetchUsers();
       fetchSystemStats();
@@ -591,6 +642,14 @@ const DeveloperDashboard = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => handleChangeRole(u)}
+                              title="Change Role"
+                            >
+                              <UserCog className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleEditPassword(u)}
                               title="Set Password"
                             >
@@ -604,6 +663,15 @@ const DeveloperDashboard = () => {
                               title="Send Password Reset Email"
                             >
                               <Send className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteUser(u)}
+                              title="Delete User"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -625,6 +693,7 @@ const DeveloperDashboard = () => {
               {editType === "email" && "Update Email"}
               {editType === "password" && "Set New Password"}
               {editType === "name" && "Update Name"}
+              {editType === "role" && "Change Role"}
             </DialogTitle>
             <DialogDescription>
               {selectedUser && `Updating ${editType} for ${selectedUser.full_name}`}
@@ -637,21 +706,43 @@ const DeveloperDashboard = () => {
                 {editType === "email" && "New Email Address"}
                 {editType === "password" && "New Password"}
                 {editType === "name" && "Full Name"}
+                {editType === "role" && "User Role"}
               </Label>
-              <Input
-                id="editValue"
-                type={editType === "password" ? "password" : "text"}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                placeholder={
-                  editType === "email" ? "Enter new email" :
-                  editType === "password" ? "Enter new password (min 8 characters)" :
-                  "Enter full name"
-                }
-              />
+              {editType === "role" ? (
+                <Select value={editValue} onValueChange={setEditValue}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Role</SelectItem>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="customer">Customer</SelectItem>
+                    <SelectItem value="salesman">Salesman</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="editValue"
+                  type={editType === "password" ? "password" : "text"}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  placeholder={
+                    editType === "email" ? "Enter new email" :
+                    editType === "password" ? "Enter new password (min 8 characters)" :
+                    "Enter full name"
+                  }
+                />
+              )}
               {editType === "password" && (
                 <p className="text-xs text-muted-foreground">
                   Password must be at least 8 characters long
+                </p>
+              )}
+              {editType === "role" && (
+                <p className="text-xs text-muted-foreground">
+                  Select "No Role" to remove the user's role
                 </p>
               )}
             </div>
@@ -663,13 +754,39 @@ const DeveloperDashboard = () => {
             </Button>
             <Button 
               onClick={handleSaveEdit} 
-              disabled={processing || !editValue || (editType === "password" && editValue.length < 8)}
+              disabled={processing || (editType !== "role" && !editValue) || (editType === "password" && editValue.length < 8)}
             >
               {processing ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{userToDelete?.full_name}</span> (
+              {userToDelete?.email})? This action cannot be undone. All user data
+              including their profile, role, and security settings will be
+              permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              disabled={processing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {processing ? "Deleting..." : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
