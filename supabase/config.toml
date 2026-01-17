@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.quickbooks-sync]
 verify_jwt = true
+
+[functions.admin-user-management]
+verify_jwt = false
