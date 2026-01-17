@@ -1,7 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Settings2, LayoutDashboard } from "lucide-react";
+import { Settings2, LayoutDashboard, Code } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut, RefreshCw, Download, Bot, BarChart3, Trophy } from "lucide-react";
@@ -14,7 +14,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 export function AppMenuBar() {
   const { user, signOut } = useAuth();
-  const { role, loading: roleLoading, isSalesman, isOwner, hasInternalAccess } = useUserRole();
+  const { role, loading: roleLoading, isSalesman, isOwner, isDeveloper, hasInternalAccess, hasOwnerAccess } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -139,7 +139,7 @@ export function AppMenuBar() {
                       </MenubarTrigger>
                     </NavLink>
                   </MenubarMenu>
-                  {isOwner() && (
+                  {hasOwnerAccess() && (
                     <>
                       <MenubarMenu>
                         <NavLink to="/spiff-program">
@@ -154,6 +154,14 @@ export function AppMenuBar() {
                           <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
                             <Settings2 className="h-5 w-5" strokeWidth={3} />
                             Spiff Admin
+                          </MenubarTrigger>
+                        </NavLink>
+                      </MenubarMenu>
+                      <MenubarMenu>
+                        <NavLink to="/developer">
+                          <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                            <Code className="h-5 w-5" strokeWidth={3} />
+                            Developer
                           </MenubarTrigger>
                         </NavLink>
                       </MenubarMenu>

@@ -25,12 +25,20 @@ export const RoleProtectedRoute = ({
     }
 
     if (!authLoading && !roleLoading && user && role) {
-      if (!allowedRoles.includes(role)) {
+      // Developer has owner privileges - check if we should treat as owner
+      const effectiveRoles = [...allowedRoles];
+      if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
+        effectiveRoles.push("developer");
+      }
+      
+      if (!effectiveRoles.includes(role)) {
         // Redirect based on user's actual role
         if (role === "salesman") {
           navigate("/spiff-program");
         } else if (role === "customer") {
           navigate("/customer");
+        } else if (role === "developer") {
+          navigate("/developer");
         } else {
           navigate(redirectTo);
         }
@@ -55,7 +63,13 @@ export const RoleProtectedRoute = ({
     return null;
   }
 
-  if (!allowedRoles.includes(role)) {
+  // Developer has owner privileges
+  const effectiveRoles = [...allowedRoles];
+  if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
+    effectiveRoles.push("developer");
+  }
+  
+  if (!effectiveRoles.includes(role)) {
     return null;
   }
 

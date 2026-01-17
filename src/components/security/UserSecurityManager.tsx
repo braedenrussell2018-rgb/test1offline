@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { lockAccount, unlockAccount } from "@/hooks/useSecuritySettings";
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 
-type AppRole = "employee" | "owner" | "customer" | "salesman";
+type AppRole = "employee" | "owner" | "customer" | "salesman" | "developer";
 
 interface UserSecurityInfo {
   id: string;
@@ -32,13 +32,14 @@ interface UserSecurityInfo {
 
 const ROLE_COLORS: Record<AppRole, string> = {
   owner: "bg-red-100 text-red-800",
+  developer: "bg-purple-100 text-purple-800",
   employee: "bg-blue-100 text-blue-800",
   salesman: "bg-green-100 text-green-800",
   customer: "bg-gray-100 text-gray-800",
 };
 
 export function UserSecurityManager() {
-  const { isOwner, loading: roleLoading } = useUserRole();
+  const { isOwner, hasOwnerAccess, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserSecurityInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +51,10 @@ export function UserSecurityManager() {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (isOwner()) {
+    if (hasOwnerAccess()) {
       fetchUsers();
     }
-  }, [isOwner]);
+  }, [hasOwnerAccess]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -203,12 +204,12 @@ export function UserSecurityManager() {
     return <div className="p-4">Loading...</div>;
   }
 
-  if (!isOwner()) {
+  if (!hasOwnerAccess()) {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Access denied. Only owners can manage user security.
+          Access denied. Only owners and developers can manage user security.
         </AlertDescription>
       </Alert>
     );
@@ -445,6 +446,7 @@ export function UserSecurityManager() {
                   <SelectItem value="customer">Customer</SelectItem>
                   <SelectItem value="salesman">Salesman</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="owner">Owner</SelectItem>
                 </SelectContent>
               </Select>
