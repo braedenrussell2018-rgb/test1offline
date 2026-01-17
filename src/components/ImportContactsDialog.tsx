@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, Building2, Users, Mail, Phone, MapPin, Briefcase, Pencil } from "lucide-react";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2, Building2, Users, Mail, Phone, MapPin, Briefcase, Pencil, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryStorage, Company } from "@/lib/inventory-storage";
 import { createTemplate, readExcelFile } from "@/lib/excel-utils";
@@ -35,9 +35,11 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
   const [existingCompanies, setExistingCompanies] = useState<Company[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [previewTab, setPreviewTab] = useState("all");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Partial<ParsedContact>>({});
+  const [existingPersons, setExistingPersons] = useState<{ id: string; name: string; email?: string; jobTitle?: string }[]>([]);
   const { toast } = useToast();
 
   const downloadTemplate = async () => {
@@ -213,10 +215,10 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       ""
     ).trim() || undefined;
     
-    // Support multiple job title column formats (Pipedrive uses both "Person - Job Title" and "Person - Job title")
+    // Support multiple job title column formats - prioritize "Person - Job title" (column Z) over "Person - Job Title" (column X)
     const jobTitle = String(
-      item["Person - Job Title"] ||
-      item["Person - Job title"] ||
+      item["Person - Job title"] ||  // Column Z - primary job titles
+      item["Person - Job Title"] ||  // Column X - secondary/contact type
       item["Person - Contact Type"] ||
       item.JobTitle || 
       item.jobTitle || 
@@ -312,13 +314,14 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       const jsonData = preprocessRows(rawData);
 
       // Get existing data for validation
-      const [existingPersons, companies] = await Promise.all([
+      const [existingPersonsData, companies] = await Promise.all([
         inventoryStorage.getPersons(),
         inventoryStorage.getCompanies()
       ]);
       
       setExistingCompanies(companies);
-      const existingForCheck = existingPersons.map(p => ({ name: p.name, email: p.email }));
+      setExistingPersons(existingPersonsData.map(p => ({ id: p.id, name: p.name, email: p.email, jobTitle: p.jobTitle })));
+      const existingForCheck = existingPersonsData.map(p => ({ name: p.name, email: p.email }));
 
       // Validate sequentially to check for duplicates within the import batch
       const validated: ParsedContact[] = [];
@@ -469,6 +472,74 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       return { imported, failed: [...failed, ...validContacts.filter(c => !imported.includes(c))] };
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  // Update existing contacts with job titles from the parsed data
+  const handleUpdateJobTitles = async () => {
+    const duplicateContacts = parsedContacts.filter(c => c.isDuplicate && c.jobTitle);
+    
+    if (duplicateContacts.length === 0) {
+      toast({
+        title: "No Updates",
+        description: "No duplicate contacts with job titles found to update",
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    let updatedCount = 0;
+    const updateResults: string[] = [];
+
+    try {
+      // Get fresh list of existing persons
+      const allPersons = await inventoryStorage.getPersons();
+      
+      for (const contact of duplicateContacts) {
+        // Find matching person by name or email
+        const matchingPerson = allPersons.find(p => 
+          p.name.toLowerCase() === contact.name.toLowerCase() ||
+          (contact.email && p.email?.toLowerCase() === contact.email.toLowerCase())
+        );
+        
+        if (matchingPerson && contact.jobTitle) {
+          // Only update if job title is different
+          if (matchingPerson.jobTitle !== contact.jobTitle) {
+            try {
+              await inventoryStorage.updatePerson({
+                ...matchingPerson,
+                jobTitle: contact.jobTitle,
+              });
+              updatedCount++;
+              updateResults.push(`✓ ${contact.name}: ${contact.jobTitle}`);
+            } catch (err) {
+              console.error(`Failed to update ${contact.name}:`, err);
+              updateResults.push(`✗ ${contact.name}: Failed to update`);
+            }
+          } else {
+            updateResults.push(`○ ${contact.name}: Already has job title`);
+          }
+        }
+      }
+
+      toast({
+        title: "Job Titles Updated",
+        description: `Updated ${updatedCount} of ${duplicateContacts.length} contacts`,
+      });
+
+      // Refresh the data
+      setParsedContacts([]);
+      setOpen(false);
+      onContactsImported();
+    } catch (error) {
+      console.error("Error updating job titles:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update job titles",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -870,7 +941,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
                 >
                   Upload Different File
                 </Button>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     type="button"
                     variant="ghost"
@@ -881,12 +952,23 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
                   >
                     Cancel
                   </Button>
+                  {stats.duplicates > 0 && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleUpdateJobTitles}
+                      disabled={isUpdating || isImporting}
+                    >
+                      {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Update {stats.duplicates} Existing
+                    </Button>
+                  )}
                   <Button
                     onClick={handleImport}
-                    disabled={stats.valid === 0 || isImporting}
+                    disabled={stats.valid === 0 || isImporting || isUpdating}
                   >
                     {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Import {stats.valid} {stats.valid === 1 ? 'Contact' : 'Contacts'}
+                    Import {stats.valid} New
                   </Button>
                 </div>
               </div>
