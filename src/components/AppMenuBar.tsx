@@ -1,7 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Settings2 } from "lucide-react";
+import { Settings2, LayoutDashboard } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut, RefreshCw, Download, Bot, BarChart3, Trophy } from "lucide-react";
@@ -84,6 +84,14 @@ export function AppMenuBar() {
               {/* Internal access only - owners and employees */}
               {hasInternalAccess() && (
                 <>
+                  <MenubarMenu>
+                    <NavLink to="/dashboard">
+                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
+                        <LayoutDashboard className="h-5 w-5" strokeWidth={3} />
+                        Dashboard
+                      </MenubarTrigger>
+                    </NavLink>
+                  </MenubarMenu>
                   <MenubarMenu>
                     <NavLink to="/">
                       <MenubarTrigger className="cursor-pointer text-sm px-2 py-1">Inventory</MenubarTrigger>

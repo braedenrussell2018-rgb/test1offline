@@ -19,6 +19,7 @@ import ConversationAnalytics from "./pages/ConversationAnalytics";
 import SpiffProgram from "./pages/SpiffProgram";
 import SpiffAdmin from "./pages/SpiffAdmin";
 import SecurityAdmin from "./pages/SecurityAdmin";
+import EmployeeDashboard from "./pages/EmployeeDashboard";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
@@ -95,7 +96,12 @@ const App = () => (
                   <ConversationAnalytics />
                 </RoleProtectedRoute>
               } />
-              {/* Spiff Program - salesmen, owners, and employees can view */}
+              {/* Employee Dashboard - employees and owners */}
+              <Route path="/dashboard" element={
+                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                  <EmployeeDashboard />
+                </RoleProtectedRoute>
+              } />
               <Route path="/spiff-program" element={
                 <RoleProtectedRoute allowedRoles={["salesman", "owner", "employee"]} redirectTo="/">
                   <SpiffProgram />
