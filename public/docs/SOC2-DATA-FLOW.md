@@ -176,8 +176,8 @@
 
 | Integration | Data Exchanged | Security Controls |
 |-------------|----------------|-------------------|
-| QuickBooks | Financial data | OAuth 2.0, encrypted tokens |
-| OpenAI | Conversation data | API key in secrets, no PII |
+| QuickBooks | Financial data | OAuth 2.0, tokens encrypted at rest (pgcrypto) |
+| Lovable AI | Conversation data | Server-side API key in secrets, no PII stored |
 | Mapbox | Location data | API key in secrets |
 
 ## 7. Data Retention

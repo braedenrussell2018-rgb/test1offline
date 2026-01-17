@@ -155,9 +155,8 @@ All sensitive configuration is stored in environment variables:
 
 | Table | Field | Encryption |
 |-------|-------|------------|
-| quickbooks_connections | access_token | Application-level |
-| quickbooks_connections | refresh_token | Application-level |
-| user_ai_settings | openai_api_key | Application-level |
+| quickbooks_connections | access_token_encrypted | pgcrypto (PGP symmetric) |
+| quickbooks_connections | refresh_token_encrypted | pgcrypto (PGP symmetric) |
 
 ### 7.2 PII Protection
 
