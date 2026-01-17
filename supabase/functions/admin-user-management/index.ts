@@ -287,6 +287,122 @@ Deno.serve(async (req) => {
         );
       }
 
+      case 'change_role': {
+        const { userId, newRole } = params;
+        if (!userId) {
+          return new Response(
+            JSON.stringify({ error: 'userId is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const validRoles = ['employee', 'owner', 'customer', 'salesman', 'developer', null];
+        if (!validRoles.includes(newRole)) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid role. Valid roles: employee, owner, customer, salesman, developer, or null to remove' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`Changing role for user ${userId} to ${newRole}`);
+
+        if (newRole === null) {
+          // Remove role
+          const { error: deleteError } = await supabaseAdmin
+            .from('user_roles')
+            .delete()
+            .eq('user_id', userId);
+
+          if (deleteError) {
+            console.error('Error removing role:', deleteError);
+            throw deleteError;
+          }
+        } else {
+          // Upsert role
+          const { error: upsertError } = await supabaseAdmin
+            .from('user_roles')
+            .upsert({ user_id: userId, role: newRole }, { onConflict: 'user_id' });
+
+          if (upsertError) {
+            console.error('Error updating role:', upsertError);
+            throw upsertError;
+          }
+        }
+
+        // Log audit event
+        await supabaseAdmin.from('audit_logs').insert({
+          action: 'USER_ROLE_CHANGED',
+          action_category: 'USER_MANAGEMENT',
+          actor_id: user.id,
+          actor_role: roleData.role,
+          target_id: userId,
+          target_type: 'user',
+          result: 'success',
+          metadata: { new_role: newRole },
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: `Role ${newRole ? `changed to ${newRole}` : 'removed'}` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'delete_user': {
+        const { userId: targetUserId } = params;
+        if (!targetUserId) {
+          return new Response(
+            JSON.stringify({ error: 'userId is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Prevent self-deletion
+        if (targetUserId === user.id) {
+          return new Response(
+            JSON.stringify({ error: 'Cannot delete your own account' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`Deleting user ${targetUserId}`);
+
+        // Get user info for audit log before deletion
+        const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(targetUserId);
+        const targetEmail = targetUser?.user?.email || 'unknown';
+
+        // Delete from related tables first
+        await supabaseAdmin.from('user_roles').delete().eq('user_id', targetUserId);
+        await supabaseAdmin.from('user_security_settings').delete().eq('user_id', targetUserId);
+        await supabaseAdmin.from('profiles').delete().eq('user_id', targetUserId);
+        await supabaseAdmin.from('signup_notifications').delete().eq('user_id', targetUserId);
+
+        // Delete the auth user
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+
+        if (deleteError) {
+          console.error('Error deleting user:', deleteError);
+          throw deleteError;
+        }
+
+        // Log audit event
+        await supabaseAdmin.from('audit_logs').insert({
+          action: 'USER_DELETED',
+          action_category: 'USER_MANAGEMENT',
+          actor_id: user.id,
+          actor_role: roleData.role,
+          target_id: targetUserId,
+          target_type: 'user',
+          target_name: targetEmail,
+          result: 'success',
+          risk_level: 'high',
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'User deleted successfully' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
