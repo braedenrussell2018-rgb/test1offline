@@ -22,6 +22,8 @@ interface ParsedContact {
   address?: string;
   companyName?: string;
   jobTitle?: string;
+  notes?: string;
+  excavatorLines?: string[];
   valid: boolean;
   errors: string[];
   warnings: string[];
@@ -228,6 +230,25 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       ""
     ).trim() || undefined;
 
+    // Parse notes from column L (Person - Notes)
+    const notes = String(
+      item["Person - Notes"] ||
+      item.Notes ||
+      item.notes ||
+      ""
+    ).trim() || undefined;
+
+    // Parse excavator lines from column M (Person - Excavator line)
+    const excavatorLinesRaw = String(
+      item["Person - Excavator line"] ||
+      item["Excavator Lines"] ||
+      item.excavatorLines ||
+      ""
+    ).trim();
+    const excavatorLines = excavatorLinesRaw 
+      ? excavatorLinesRaw.split(",").map(s => s.trim()).filter(Boolean)
+      : undefined;
+
     let isDuplicate = false;
     let isNewCompany = false;
 
@@ -283,6 +304,8 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       address,
       companyName,
       jobTitle,
+      notes,
+      excavatorLines,
       valid: errors.length === 0,
       errors,
       warnings,
@@ -475,56 +498,108 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     }
   };
 
-  // Update existing contacts with job titles from the parsed data
-  const handleUpdateJobTitles = async () => {
-    const duplicateContacts = parsedContacts.filter(c => c.isDuplicate && c.jobTitle);
+  // Update existing contacts with job titles, notes, and excavator lines from the parsed data
+  const handleUpdateExisting = async () => {
+    // Get all duplicate contacts that have job title, notes, or excavator lines
+    const duplicateContacts = parsedContacts.filter(c => 
+      c.isDuplicate && (c.jobTitle || c.notes || (c.excavatorLines && c.excavatorLines.length > 0))
+    );
     
     if (duplicateContacts.length === 0) {
       toast({
         title: "No Updates",
-        description: "No duplicate contacts with job titles found to update",
+        description: "No duplicate contacts with data to update",
       });
       return;
     }
 
     setIsUpdating(true);
     let updatedCount = 0;
-    const updateResults: string[] = [];
+    let jobTitlesUpdated = 0;
+    let notesAdded = 0;
+    let excavatorLinesUpdated = 0;
 
     try {
       // Get fresh list of existing persons
       const allPersons = await inventoryStorage.getPersons();
       
-      for (const contact of duplicateContacts) {
-        // Find matching person by name or email
-        const matchingPerson = allPersons.find(p => 
-          p.name.toLowerCase() === contact.name.toLowerCase() ||
-          (contact.email && p.email?.toLowerCase() === contact.email.toLowerCase())
-        );
+      // Process in batches
+      const batchSize = 10;
+      for (let i = 0; i < duplicateContacts.length; i += batchSize) {
+        const batch = duplicateContacts.slice(i, Math.min(i + batchSize, duplicateContacts.length));
         
-        if (matchingPerson && contact.jobTitle) {
-          // Only update if job title is different
-          if (matchingPerson.jobTitle !== contact.jobTitle) {
-            try {
-              await inventoryStorage.updatePerson({
-                ...matchingPerson,
-                jobTitle: contact.jobTitle,
-              });
-              updatedCount++;
-              updateResults.push(`✓ ${contact.name}: ${contact.jobTitle}`);
-            } catch (err) {
-              console.error(`Failed to update ${contact.name}:`, err);
-              updateResults.push(`✗ ${contact.name}: Failed to update`);
+        for (const contact of batch) {
+          // Find matching person by name or email
+          const matchingPerson = allPersons.find(p => 
+            p.name.toLowerCase() === contact.name.toLowerCase() ||
+            (contact.email && p.email?.toLowerCase() === contact.email.toLowerCase())
+          );
+          
+          if (matchingPerson) {
+            let needsUpdate = false;
+            const updates: Partial<typeof matchingPerson> = {};
+            
+            // Update job title if different and available
+            if (contact.jobTitle && matchingPerson.jobTitle !== contact.jobTitle) {
+              updates.jobTitle = contact.jobTitle;
+              needsUpdate = true;
+              jobTitlesUpdated++;
             }
-          } else {
-            updateResults.push(`○ ${contact.name}: Already has job title`);
+            
+            // Add notes if available (append to existing notes)
+            if (contact.notes) {
+              const existingNotes = matchingPerson.notes || [];
+              // Check if this note already exists
+              const noteExists = existingNotes.some(n => n.text === contact.notes);
+              if (!noteExists) {
+                updates.notes = [
+                  ...existingNotes,
+                  { id: crypto.randomUUID(), text: contact.notes, timestamp: new Date().toISOString() }
+                ];
+                needsUpdate = true;
+                notesAdded++;
+              }
+            }
+            
+            // Update excavator lines if available
+            if (contact.excavatorLines && contact.excavatorLines.length > 0) {
+              const existingLines = matchingPerson.excavatorLines || [];
+              const newLines = [...new Set([...existingLines, ...contact.excavatorLines])];
+              if (newLines.length !== existingLines.length) {
+                updates.excavatorLines = newLines;
+                needsUpdate = true;
+                excavatorLinesUpdated++;
+              }
+            }
+            
+            if (needsUpdate) {
+              try {
+                await inventoryStorage.updatePerson({
+                  ...matchingPerson,
+                  ...updates,
+                });
+                updatedCount++;
+              } catch (err) {
+                console.error(`Failed to update ${contact.name}:`, err);
+              }
+            }
           }
+        }
+        
+        // Small delay between batches
+        if (i + batchSize < duplicateContacts.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
+      const details = [];
+      if (jobTitlesUpdated > 0) details.push(`${jobTitlesUpdated} job titles`);
+      if (notesAdded > 0) details.push(`${notesAdded} notes`);
+      if (excavatorLinesUpdated > 0) details.push(`${excavatorLinesUpdated} excavator lines`);
+
       toast({
-        title: "Job Titles Updated",
-        description: `Updated ${updatedCount} of ${duplicateContacts.length} contacts`,
+        title: "Contacts Updated",
+        description: `Updated ${updatedCount} contacts: ${details.join(', ') || 'no changes needed'}`,
       });
 
       // Refresh the data
@@ -532,10 +607,10 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       setOpen(false);
       onContactsImported();
     } catch (error) {
-      console.error("Error updating job titles:", error);
+      console.error("Error updating contacts:", error);
       toast({
         title: "Error",
-        description: "Failed to update job titles",
+        description: "Failed to update contacts",
         variant: "destructive",
       });
     } finally {
@@ -955,7 +1030,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
                   {stats.duplicates > 0 && (
                     <Button
                       variant="secondary"
-                      onClick={handleUpdateJobTitles}
+                      onClick={handleUpdateExisting}
                       disabled={isUpdating || isImporting}
                     >
                       {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
