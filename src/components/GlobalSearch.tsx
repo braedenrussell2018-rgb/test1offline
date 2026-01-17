@@ -1,15 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Package, Building2, User, FileText, Receipt } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { inventoryStorage } from "@/lib/inventory-storage";
+import { inventoryStorage } from "@/lib/inventory-storage-adapter";
 
 type SearchResult = {
   id: string;
@@ -20,10 +15,12 @@ type SearchResult = {
 };
 
 export function GlobalSearch() {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -144,9 +141,28 @@ export function GlobalSearch() {
     return () => clearTimeout(debounce);
   }, [query]);
 
+  // Handle click outside to close results
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowResults(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleResultClick = (result: SearchResult) => {
-    navigate(result.route);
-    setOpen(false);
+    // Navigate to the page with state to open the specific item
+    navigate(result.route, { 
+      state: { 
+        selectedId: result.id, 
+        selectedType: result.type 
+      } 
+    });
+    
+    setShowResults(false);
     setQuery("");
   };
 
@@ -181,67 +197,73 @@ export function GlobalSearch() {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search everything..."
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => query.length >= 2 && setOpen(true)}
-            className="pl-9 pr-4"
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="w-96 p-0" align="end">
-        <ScrollArea className="max-h-[400px]">
-          {isLoading ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              Searching...
-            </div>
-          ) : results.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              {query.length < 2
-                ? "Type at least 2 characters to search"
-                : "No results found"}
-            </div>
-          ) : (
-            <div className="p-2">
-              {results.map((result) => (
-                <Button
-                  key={`${result.type}-${result.id}`}
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-3 px-3 mb-1"
-                  onClick={() => handleResultClick(result)}
-                >
-                  <div className="flex items-start gap-3 w-full">
-                    <div className="mt-0.5 text-muted-foreground">
-                      {getIcon(result.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-medium truncate">{result.title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {getTypeLabel(result.type)}
-                        </span>
+    <div ref={containerRef} className="relative w-64">
+      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+      <Input
+        ref={inputRef}
+        placeholder="Search everything..."
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          if (e.target.value.length >= 2) {
+            setShowResults(true);
+          }
+        }}
+        onFocus={() => {
+          if (query.length >= 2) {
+            setShowResults(true);
+          }
+        }}
+        className="pl-9 pr-4"
+      />
+      
+      {showResults && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50">
+          <ScrollArea className="max-h-[400px]">
+            {isLoading ? (
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                Searching...
+              </div>
+            ) : results.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                {query.length < 2
+                  ? "Type at least 2 characters to search"
+                  : "No results found"}
+              </div>
+            ) : (
+              <div className="p-2">
+                {results.map((result) => (
+                  <Button
+                    key={`${result.type}-${result.id}`}
+                    variant="ghost"
+                    className="w-full justify-start text-left h-auto py-3 px-3 mb-1"
+                    onClick={() => handleResultClick(result)}
+                  >
+                    <div className="flex items-start gap-3 w-full">
+                      <div className="mt-0.5 text-muted-foreground">
+                        {getIcon(result.type)}
                       </div>
-                      {result.subtitle && (
-                        <div className="text-sm text-muted-foreground truncate">
-                          {result.subtitle}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-medium truncate">{result.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {getTypeLabel(result.type)}
+                          </span>
                         </div>
-                      )}
+                        {result.subtitle && (
+                          <div className="text-sm text-muted-foreground truncate">
+                            {result.subtitle}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Button>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      )}
+    </div>
   );
 }
