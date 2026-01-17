@@ -958,6 +958,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          email_encrypted: string | null
           full_name: string | null
           id: string
           read_at: string | null
@@ -967,6 +968,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          email_encrypted?: string | null
           full_name?: string | null
           id?: string
           read_at?: string | null
@@ -976,6 +978,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          email_encrypted?: string | null
           full_name?: string | null
           id?: string
           read_at?: string | null
@@ -1208,6 +1211,36 @@ export type Database = {
         }
         Relationships: []
       }
+      signup_notifications_decrypted: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          read_at: string | null
+          signed_up_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: never
+          full_name?: string | null
+          id?: string | null
+          read_at?: string | null
+          signed_up_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: never
+          full_name?: string | null
+          id?: string | null
+          read_at?: string | null
+          signed_up_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       add_note_to_contact: {
@@ -1215,10 +1248,12 @@ export type Database = {
         Returns: undefined
       }
       check_account_status: { Args: { p_email: string }; Returns: Json }
+      decrypt_email: { Args: { encrypted_email: string }; Returns: string }
       decrypt_token: {
         Args: { encrypted_token: string; user_id: string }
         Returns: string
       }
+      encrypt_email: { Args: { email_text: string }; Returns: string }
       encrypt_token: {
         Args: { token: string; user_id: string }
         Returns: string
