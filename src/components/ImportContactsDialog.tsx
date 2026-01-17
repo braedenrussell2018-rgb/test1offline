@@ -87,10 +87,69 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     return trimmed;
   };
 
+  // Extract all emails from a row
+  const extractEmails = (item: Record<string, unknown>): string[] => {
+    const emails: string[] = [];
+    
+    // Check all possible email columns
+    const emailColumns = [
+      "Person - Email - Work",
+      "Person - Email - Home", 
+      "Person - Email - Other",
+      "Email",
+      "email",
+      "Email Address"
+    ];
+    
+    for (const col of emailColumns) {
+      const val = item[col];
+      if (val && typeof val === 'string') {
+        const cleaned = val.trim();
+        // Handle escaped @ symbols like "email\@domain.com"
+        const unescaped = cleaned.replace(/\\@/g, '@');
+        if (unescaped && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(unescaped)) {
+          emails.push(unescaped);
+        }
+      }
+    }
+    
+    return [...new Set(emails)]; // Remove duplicates
+  };
+
+  // Pre-process rows to expand multiple emails into separate contacts
+  const preprocessRows = (rows: Record<string, unknown>[]): Record<string, unknown>[] => {
+    const expandedRows: Record<string, unknown>[] = [];
+    
+    for (const row of rows) {
+      const emails = extractEmails(row);
+      
+      if (emails.length <= 1) {
+        // Single or no email - keep as is but clean up the email
+        const cleanedRow = { ...row };
+        if (emails.length === 1) {
+          cleanedRow['_processedEmail'] = emails[0];
+        }
+        expandedRows.push(cleanedRow);
+      } else {
+        // Multiple emails - create a row for each email
+        for (const email of emails) {
+          expandedRows.push({
+            ...row,
+            '_processedEmail': email,
+            '_isAdditionalEmail': email !== emails[0]
+          });
+        }
+      }
+    }
+    
+    return expandedRows;
+  };
+
   const validateContact = async (
     item: Record<string, unknown>,
     existingPersons: { name: string; email?: string }[],
-    companies: Company[]
+    companies: Company[],
+    alreadyParsed: { name: string; email?: string }[] = []
   ): Promise<ParsedContact> => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -108,16 +167,14 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     const lastName = String(item["Last Name"] || item.lastName || "").trim();
     const fullName = lastName ? `${parseFullName(rawName)} ${lastName}` : parseFullName(rawName);
     
-    // Support multiple email column formats (work, home, other)
-    const email = String(
-      item["Person - Email - Work"] ||
-      item["Person - Email - Home"] ||
-      item["Person - Email - Other"] ||
-      item.Email || 
-      item.email || 
-      item["Email Address"] || 
-      ""
-    ).trim() || undefined;
+    // Use preprocessed email if available, otherwise extract
+    let email: string | undefined;
+    if (item['_processedEmail']) {
+      email = String(item['_processedEmail']).trim();
+    } else {
+      const emails = extractEmails(item);
+      email = emails[0];
+    }
     
     // Support multiple phone column formats (work, home, mobile, other) - take first non-empty
     const phoneRaw = String(
@@ -134,8 +191,11 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     // Handle comma-separated phone numbers (take first one)
     const phone = phoneRaw.split(",")[0].trim() || undefined;
     
-    // Support state/address column
+    // Support state/address column - prefer full address
     const address = String(
+      item["Person - Full/combined address of State"] ||
+      item["Person - Full/combined address of Postal address"] ||
+      item["Person - Postal address"] ||
       item["Person - State"] ||
       item.Address || 
       item.address || 
@@ -153,7 +213,11 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       ""
     ).trim() || undefined;
     
+    // Support multiple job title column formats (Pipedrive uses both "Person - Job Title" and "Person - Job title")
     const jobTitle = String(
+      item["Person - Job Title"] ||
+      item["Person - Job title"] ||
+      item["Person - Contact Type"] ||
       item.JobTitle || 
       item.jobTitle || 
       item["Job Title"] || 
@@ -170,12 +234,20 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       errors.push("Missing name (required)");
     }
 
-    // Check for duplicate by name or email
-    if (fullName && existingPersons.some(p => p.name.toLowerCase() === fullName.toLowerCase())) {
-      errors.push("Duplicate: Contact with this name already exists");
-      isDuplicate = true;
+    // Combine existing persons with already parsed contacts for duplicate checking
+    const allExisting = [...existingPersons, ...alreadyParsed];
+
+    // Check for duplicate by name or email (only if not an additional email for same person)
+    const isAdditionalEmail = item['_isAdditionalEmail'] === true;
+    
+    if (!isAdditionalEmail) {
+      if (fullName && existingPersons.some(p => p.name.toLowerCase() === fullName.toLowerCase())) {
+        errors.push("Duplicate: Contact with this name already exists");
+        isDuplicate = true;
+      }
     }
-    if (email && existingPersons.some(p => p.email?.toLowerCase() === email.toLowerCase())) {
+    
+    if (email && allExisting.some(p => p.email?.toLowerCase() === email?.toLowerCase())) {
       errors.push("Duplicate: Contact with this email already exists");
       isDuplicate = true;
     }
@@ -224,9 +296,9 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     setIsProcessing(true);
 
     try {
-      const jsonData = await readExcelFile(file);
+      const rawData = await readExcelFile(file);
 
-      if (jsonData.length === 0) {
+      if (rawData.length === 0) {
         toast({
           title: "Error",
           description: "The Excel file is empty",
@@ -235,6 +307,9 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
         setIsProcessing(false);
         return;
       }
+
+      // Pre-process to expand multiple emails into separate rows
+      const jsonData = preprocessRows(rawData);
 
       // Get existing data for validation
       const [existingPersons, companies] = await Promise.all([
@@ -245,14 +320,16 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
       setExistingCompanies(companies);
       const existingForCheck = existingPersons.map(p => ({ name: p.name, email: p.email }));
 
-      const validated = await Promise.all(
-        jsonData.map((item) => validateContact(item as Record<string, unknown>, existingForCheck, companies))
-      );
+      // Validate sequentially to check for duplicates within the import batch
+      const validated: ParsedContact[] = [];
+      for (const item of jsonData) {
+        const alreadyParsed = validated.map(c => ({ name: c.name, email: c.email }));
+        const contact = await validateContact(item as Record<string, unknown>, existingForCheck, companies, alreadyParsed);
+        validated.push(contact);
+      }
+      
       setParsedContacts(validated);
       setPreviewTab("all");
-
-      const validCount = validated.filter(item => item.valid).length;
-      const invalidCount = validated.length - validCount;
 
       toast({
         title: "File Loaded",
@@ -271,7 +348,7 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
     }
   };
 
-  const handleImport = async () => {
+  const handleImport = async (): Promise<{ imported: ParsedContact[], failed: ParsedContact[] }> => {
     const validContacts = parsedContacts.filter(contact => contact.valid);
     
     if (validContacts.length === 0) {
@@ -280,72 +357,116 @@ export const ImportContactsDialog = ({ onContactsImported }: ImportContactsDialo
         description: "No valid contacts to import",
         variant: "destructive",
       });
-      return;
+      return { imported: [], failed: parsedContacts };
     }
 
     setIsImporting(true);
+    
+    const imported: ParsedContact[] = [];
+    const failed: ParsedContact[] = [];
 
     try {
       let companies = [...existingCompanies];
       const createdCompanies = new Map<string, string>();
       let newCompaniesCount = 0;
       
-      for (const contact of validContacts) {
-        let companyId: string | undefined;
+      // Process contacts in batches of 10 to avoid overwhelming the database
+      const batchSize = 10;
+      
+      for (let i = 0; i < validContacts.length; i += batchSize) {
+        const batch = validContacts.slice(i, Math.min(i + batchSize, validContacts.length));
         
-        if (contact.companyName) {
-          const companyNameLower = contact.companyName.toLowerCase();
-          
-          if (createdCompanies.has(companyNameLower)) {
-            companyId = createdCompanies.get(companyNameLower);
-          } else {
-            const matchingCompany = companies.find(
-              c => c.name.toLowerCase() === companyNameLower
-            );
+        for (const contact of batch) {
+          try {
+            let companyId: string | undefined;
             
-            if (matchingCompany) {
-              companyId = matchingCompany.id;
-            } else {
-              const newCompany = await inventoryStorage.addCompany(contact.companyName);
-              companyId = newCompany.id;
-              createdCompanies.set(companyNameLower, companyId);
-              companies = [...companies, newCompany];
-              newCompaniesCount++;
+            if (contact.companyName) {
+              const companyNameLower = contact.companyName.toLowerCase();
+              
+              if (createdCompanies.has(companyNameLower)) {
+                companyId = createdCompanies.get(companyNameLower);
+              } else {
+                const matchingCompany = companies.find(
+                  c => c.name.toLowerCase() === companyNameLower
+                );
+                
+                if (matchingCompany) {
+                  companyId = matchingCompany.id;
+                } else {
+                  const newCompany = await inventoryStorage.addCompany(contact.companyName);
+                  companyId = newCompany.id;
+                  createdCompanies.set(companyNameLower, companyId);
+                  companies = [...companies, newCompany];
+                  newCompaniesCount++;
+                }
+              }
             }
+
+            await inventoryStorage.addPerson({
+              name: contact.name,
+              email: contact.email,
+              phone: contact.phone,
+              address: contact.address,
+              companyId,
+              jobTitle: contact.jobTitle,
+              notes: [],
+              excavatorLines: [],
+            });
+            
+            imported.push(contact);
+          } catch (contactError) {
+            console.error(`Failed to import contact ${contact.name}:`, contactError);
+            failed.push({
+              ...contact,
+              valid: false,
+              errors: [...contact.errors, `Import failed: ${contactError instanceof Error ? contactError.message : 'Unknown error'}`]
+            });
           }
         }
-
-        await inventoryStorage.addPerson({
-          name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
-          address: contact.address,
-          companyId,
-          jobTitle: contact.jobTitle,
-          notes: [],
-          excavatorLines: [],
-        });
+        
+        // Small delay between batches to prevent overwhelming the API
+        if (i + batchSize < validContacts.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
+
+      // Add invalid contacts to failed list
+      const invalidContacts = parsedContacts.filter(c => !c.valid);
+      failed.push(...invalidContacts);
 
       const companiesMessage = newCompaniesCount > 0 
         ? ` and created ${newCompaniesCount} new ${newCompaniesCount === 1 ? 'company' : 'companies'}`
         : '';
       
+      const failedMessage = failed.length > 0
+        ? `. ${failed.length} contacts could not be imported.`
+        : '';
+      
       toast({
-        title: "Success",
-        description: `Imported ${validContacts.length} contacts${companiesMessage}`,
+        title: imported.length > 0 ? "Import Complete" : "Import Failed",
+        description: `Imported ${imported.length} contacts${companiesMessage}${failedMessage}`,
+        variant: imported.length > 0 ? "default" : "destructive",
       });
 
-      setParsedContacts([]);
-      setOpen(false);
+      // If there were failures, show them instead of closing
+      if (failed.length > 0) {
+        setParsedContacts(failed);
+        setPreviewTab("errors");
+      } else {
+        setParsedContacts([]);
+        setOpen(false);
+      }
+      
       onContactsImported();
+      return { imported, failed };
     } catch (error) {
       console.error("Error importing contacts:", error);
       toast({
         title: "Error",
-        description: "Failed to import some contacts",
+        description: "Failed to import contacts. Please try again.",
         variant: "destructive",
       });
+      return { imported, failed: [...failed, ...validContacts.filter(c => !imported.includes(c))] };
     } finally {
       setIsImporting(false);
     }
