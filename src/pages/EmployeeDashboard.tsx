@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
+import { EmployeeSelector } from "@/components/EmployeeSelector";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -82,6 +84,7 @@ interface AuditLog {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
+  const { hasOwnerAccess } = useUserRole();
   const [activeTab, setActiveTab] = useState("conversations");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [notes, setNotes] = useState<InternalNote[]>([]);
@@ -91,6 +94,10 @@ export default function EmployeeDashboard() {
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Selected user for viewing (owner/developer can view other employees)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string | null>(null);
 
   // Note dialog state
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -111,11 +118,34 @@ export default function EmployeeDashboard() {
     attendees: ""
   });
 
+  // The effective user ID to load data for
+  const effectiveUserId = selectedUserId || user?.id;
+  const isViewingOther = selectedUserId && selectedUserId !== user?.id;
+
   useEffect(() => {
-    if (user) {
+    if (effectiveUserId) {
       loadData();
     }
-  }, [user]);
+  }, [effectiveUserId]);
+
+  // Load selected user's name
+  useEffect(() => {
+    if (selectedUserId && selectedUserId !== user?.id) {
+      loadSelectedUserName(selectedUserId);
+    } else {
+      setSelectedUserName(null);
+    }
+  }, [selectedUserId, user?.id]);
+
+  const loadSelectedUserName = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    
+    setSelectedUserName(data?.full_name || "Unknown User");
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -138,7 +168,7 @@ export default function EmployeeDashboard() {
     const { data, error } = await supabase
       .from("ai_conversations")
       .select("*")
-      .eq("user_id", user?.id)
+      .eq("user_id", effectiveUserId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -155,6 +185,7 @@ export default function EmployeeDashboard() {
     const { data, error } = await supabase
       .from("internal_notes")
       .select("*")
+      .eq("user_id", effectiveUserId)
       .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false });
 
@@ -166,6 +197,7 @@ export default function EmployeeDashboard() {
     const { data, error } = await supabase
       .from("company_meetings")
       .select("*")
+      .eq("created_by", effectiveUserId)
       .order("meeting_date", { ascending: false });
 
     if (error) throw error;
@@ -176,7 +208,7 @@ export default function EmployeeDashboard() {
     const { data, error } = await supabase
       .from("audit_logs")
       .select("id, action, action_category, target_type, target_name, timestamp, result")
-      .eq("actor_id", user?.id)
+      .eq("actor_id", effectiveUserId)
       .order("timestamp", { ascending: false })
       .limit(100);
 
@@ -411,11 +443,23 @@ export default function EmployeeDashboard() {
       
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Employee Dashboard</h1>
-          <p className="text-muted-foreground">Your personal workspace and activity overview</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            {isViewingOther ? `${selectedUserName}'s Dashboard` : "Employee Dashboard"}
+          </h1>
+          <p className="text-muted-foreground">
+            {isViewingOther 
+              ? `Viewing ${selectedUserName}'s workspace and activity` 
+              : "Your personal workspace and activity overview"}
+          </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {hasOwnerAccess() && (
+            <EmployeeSelector
+              selectedUserId={selectedUserId}
+              onSelectUser={setSelectedUserId}
+            />
+          )}
+          <div className="relative flex-1 sm:w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search..."
