@@ -20,6 +20,7 @@ import SpiffProgram from "./pages/SpiffProgram";
 import SpiffAdmin from "./pages/SpiffAdmin";
 import SecurityAdmin from "./pages/SecurityAdmin";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
+import Developer from "./pages/Developer";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
 import Install from "./pages/Install";
@@ -114,8 +115,9 @@ const App = () => (
                 </RoleProtectedRoute>
               } />
               {/* Security Admin - owners only */}
-              <Route path="/security" element={<SecurityAdmin />
-              } />
+              <Route path="/security" element={<SecurityAdmin />} />
+              {/* Developer Dashboard - developers and owners only */}
+              <Route path="/developer" element={<Developer />} />
               {/* Customer dashboard */}
               <Route path="/customer" element={
                 <RoleProtectedRoute allowedRoles={["customer"]} redirectTo="/">

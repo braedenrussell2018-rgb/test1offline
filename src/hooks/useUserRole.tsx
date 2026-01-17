@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
-export type AppRole = "employee" | "owner" | "customer" | "salesman" | null;
+export type AppRole = "employee" | "owner" | "customer" | "salesman" | "developer" | null;
 
 export const useUserRole = () => {
   const { user, loading: authLoading } = useAuth();
@@ -57,9 +57,16 @@ export const useUserRole = () => {
   const isEmployee = (): boolean => role === "employee";
   const isCustomer = (): boolean => role === "customer";
 
-  // Check if user has internal access (owner or employee)
+  // Check if user has internal access (owner, employee, or developer)
   const hasInternalAccess = (): boolean => {
-    return role === "owner" || role === "employee";
+    return role === "owner" || role === "employee" || role === "developer";
+  };
+
+  const isDeveloper = (): boolean => role === "developer";
+  
+  // Developer has owner privileges
+  const hasOwnerAccess = (): boolean => {
+    return role === "owner" || role === "developer";
   };
 
   return {
@@ -70,6 +77,8 @@ export const useUserRole = () => {
     isOwner,
     isEmployee,
     isCustomer,
+    isDeveloper,
     hasInternalAccess,
+    hasOwnerAccess,
   };
 };

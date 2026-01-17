@@ -960,6 +960,36 @@ export type Database = {
         }
         Relationships: []
       }
+      signup_notifications: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          read_at: string | null
+          signed_up_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          read_at?: string | null
+          signed_up_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          read_at?: string | null
+          signed_up_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       spiff_prizes: {
         Row: {
           created_at: string | null
@@ -1220,13 +1250,21 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
       store_qb_tokens: {
         Args: {
           p_access_token: string
@@ -1251,7 +1289,7 @@ export type Database = {
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
-      app_role: "employee" | "owner" | "customer" | "salesman"
+      app_role: "employee" | "owner" | "customer" | "salesman" | "developer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1380,7 +1418,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "revenue", "expense"],
-      app_role: ["employee", "owner", "customer", "salesman"],
+      app_role: ["employee", "owner", "customer", "salesman", "developer"],
     },
   },
 } as const
