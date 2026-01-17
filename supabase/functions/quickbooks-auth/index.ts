@@ -96,19 +96,15 @@ serve(async (req) => {
         throw new Error('Invalid user token');
       }
 
-      // Store tokens securely
+      // Store tokens securely using encrypted storage function
       const { error: upsertError } = await supabase
-        .from('quickbooks_connections')
-        .upsert({
-          user_id: user.id,
-          realm_id: realmId,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          refresh_token_expires_at: new Date(Date.now() + tokens.x_refresh_token_expires_in * 1000).toISOString(),
-          connected_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
+        .rpc('store_qb_tokens', {
+          p_user_id: user.id,
+          p_realm_id: realmId,
+          p_access_token: tokens.access_token,
+          p_refresh_token: tokens.refresh_token,
+          p_token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          p_refresh_token_expires_at: new Date(Date.now() + tokens.x_refresh_token_expires_in * 1000).toISOString()
         });
 
       if (upsertError) {

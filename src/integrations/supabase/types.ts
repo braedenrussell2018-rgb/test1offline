@@ -747,11 +747,13 @@ export type Database = {
       quickbooks_connections: {
         Row: {
           access_token: string
+          access_token_encrypted: string | null
           connected_at: string
           created_at: string
           id: string
           realm_id: string
           refresh_token: string
+          refresh_token_encrypted: string | null
           refresh_token_expires_at: string
           token_expires_at: string
           updated_at: string
@@ -759,11 +761,13 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          access_token_encrypted?: string | null
           connected_at?: string
           created_at?: string
           id?: string
           realm_id: string
           refresh_token: string
+          refresh_token_encrypted?: string | null
           refresh_token_expires_at: string
           token_expires_at: string
           updated_at?: string
@@ -771,11 +775,13 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          access_token_encrypted?: string | null
           connected_at?: string
           created_at?: string
           id?: string
           realm_id?: string
           refresh_token?: string
+          refresh_token_encrypted?: string | null
           refresh_token_expires_at?: string
           token_expires_at?: string
           updated_at?: string
@@ -1107,11 +1113,29 @@ export type Database = {
         Returns: undefined
       }
       check_account_status: { Args: { p_email: string }; Returns: Json }
+      decrypt_token: {
+        Args: { encrypted_token: string; user_id: string }
+        Returns: string
+      }
+      encrypt_token: {
+        Args: { token: string; user_id: string }
+        Returns: string
+      }
       get_qb_connection_status: {
         Args: { p_user_id: string }
         Returns: {
           connected_at: string
           realm_id: string
+        }[]
+      }
+      get_qb_tokens: {
+        Args: { p_user_id: string }
+        Returns: {
+          access_token: string
+          realm_id: string
+          refresh_token: string
+          refresh_token_expires_at: string
+          token_expires_at: string
         }[]
       }
       get_user_role: {
@@ -1124,6 +1148,27 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      store_qb_tokens: {
+        Args: {
+          p_access_token: string
+          p_realm_id: string
+          p_refresh_token: string
+          p_refresh_token_expires_at: string
+          p_token_expires_at: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      update_qb_tokens: {
+        Args: {
+          p_access_token: string
+          p_refresh_token: string
+          p_refresh_token_expires_at: string
+          p_token_expires_at: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
