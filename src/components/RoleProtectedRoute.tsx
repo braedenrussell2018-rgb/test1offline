@@ -43,8 +43,8 @@ export const RoleProtectedRoute = ({
           navigate("/spiff-program");
         } else if (role === "customer") {
           navigate("/customer");
-        } else if (role === "developer") {
-          navigate("/developer");
+        } else if (role === "developer" || role === "owner" || role === "employee") {
+          navigate("/crm");
         } else {
           navigate(redirectTo);
         }
