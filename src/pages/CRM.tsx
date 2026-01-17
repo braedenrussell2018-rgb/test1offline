@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,7 @@ import { LoadingSpinner, CardSkeleton, StatsCardSkeleton } from "@/components/Lo
 import { toast } from "sonner";
 
 const CRMContent = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(() => {
     return sessionStorage.getItem('crm_active_tab') || "companies";
   });
@@ -30,6 +32,7 @@ const CRMContent = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [previewQuote, setPreviewQuote] = useState<Quote | null>(null);
   const [quotePreviewOpen, setQuotePreviewOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
@@ -94,6 +97,28 @@ const CRMContent = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  // Handle navigation from GlobalSearch - open specific person/company dialog
+  useEffect(() => {
+    const state = location.state as { selectedId?: string; selectedType?: string } | null;
+    if (state?.selectedId && state?.selectedType && !loading && persons.length > 0) {
+      if (state.selectedType === "person") {
+        const person = persons.find(p => p.id === state.selectedId);
+        if (person) {
+          setSelectedPerson(person);
+          setActiveTab("contacts");
+        }
+      } else if (state.selectedType === "company") {
+        const company = companies.find(c => c.id === state.selectedId);
+        if (company) {
+          setSelectedCompany(company);
+          setActiveTab("companies");
+        }
+      }
+      // Clear the state to prevent reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, loading, persons, companies]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -616,6 +641,32 @@ const CRMContent = () => {
           onOpenChange={setMergeDuplicatesOpen}
           onMerged={handleRefresh}
         />
+
+        {/* Controlled Person Detail Dialog from search */}
+        {selectedPerson && (
+          <PersonDetailDialog
+            person={selectedPerson}
+            companyName={getCompanyName(selectedPerson.companyId)}
+            onUpdate={handleRefresh}
+            open={!!selectedPerson}
+            onOpenChange={(open) => !open && setSelectedPerson(null)}
+          />
+        )}
+
+        {/* Controlled Company Detail Dialog from search */}
+        {selectedCompany && (
+          <CompanyDetailDialog
+            company={selectedCompany}
+            persons={persons.filter(p => p.companyId === selectedCompany.id)}
+            onPersonClick={(person) => {
+              setSelectedCompany(null);
+              setSelectedPerson(person);
+            }}
+            onUpdate={handleRefresh}
+            open={!!selectedCompany}
+            onOpenChange={(open) => !open && setSelectedCompany(null)}
+          />
+        )}
       </div>
     </div>
   );

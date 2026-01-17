@@ -30,11 +30,15 @@ interface PersonDetailDialogProps {
   person: Person;
   companyName: string;
   onUpdate: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const PersonDetailDialog = ({ person, companyName, onUpdate, children }: PersonDetailDialogProps) => {
-  const [open, setOpen] = useState(false);
+export const PersonDetailDialog = ({ person, companyName, onUpdate, children, open: controlledOpen, onOpenChange }: PersonDetailDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [newNote, setNewNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

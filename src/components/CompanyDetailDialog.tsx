@@ -32,11 +32,15 @@ interface CompanyDetailDialogProps {
   persons: Person[];
   onPersonClick: (person: Person) => void;
   onUpdate: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate, children }: CompanyDetailDialogProps) => {
-  const [open, setOpen] = useState(false);
+export const CompanyDetailDialog = ({ company, persons, onPersonClick, onUpdate, children, open: controlledOpen, onOpenChange }: CompanyDetailDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [isEditing, setIsEditing] = useState(false);
   const [editedCompany, setEditedCompany] = useState<Company>(company);
   const [branches, setBranches] = useState<Branch[]>([]);
