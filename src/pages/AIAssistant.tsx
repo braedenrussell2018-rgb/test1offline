@@ -31,8 +31,10 @@ import {
   RefreshCw,
   Play,
   Pause,
-  Volume2
+  Volume2,
+  Users
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface Contact {
   id: string;
@@ -88,6 +90,8 @@ export default function AIAssistant() {
   const [selectedContactOverride, setSelectedContactOverride] = useState<string | null>(null);
   const [pendingAudioBlob, setPendingAudioBlob] = useState<Blob | null>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [saveAsType, setSaveAsType] = useState<"contact" | "internal_meeting">("contact");
+  const [meetingTitle, setMeetingTitle] = useState("");
   
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   
@@ -396,6 +400,63 @@ export default function AIAssistant() {
     resetTranscript();
     resetRecording();
     setSelectedContactOverride(null);
+    setSaveAsType("contact");
+    setMeetingTitle("");
+    sessionStorage.removeItem('pendingTranscript');
+    sessionStorage.removeItem('pendingDuration');
+    setIsSaving(false);
+  };
+
+  const saveAsInternalMeeting = async () => {
+    if (isSaving) return;
+    if (!meetingTitle.trim()) {
+      toast.error("Please enter a meeting title");
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    const transcriptText = sessionStorage.getItem('pendingTranscript') || getCurrentTranscript();
+    const duration = parseInt(sessionStorage.getItem('pendingDuration') || '0');
+    
+    let audioUrl: string | null = null;
+
+    // Upload audio if available
+    if (pendingAudioBlob) {
+      audioUrl = await uploadAudio(pendingAudioBlob);
+    }
+
+    // Save as company meeting
+    const { error } = await supabase
+      .from("company_meetings")
+      .insert({
+        created_by: user?.id,
+        title: meetingTitle,
+        description: pendingAnalysis?.summary || null,
+        meeting_date: new Date().toISOString(),
+        duration_minutes: Math.ceil(duration / 60),
+        meeting_type: "internal",
+        notes: transcriptText,
+        audio_url: audioUrl,
+      });
+
+    if (error) {
+      console.error("Error saving meeting:", error);
+      toast.error("Failed to save internal meeting");
+    } else {
+      toast.success("Internal meeting saved to dashboard!");
+    }
+
+    // Cleanup
+    setShowContactConfirm(false);
+    setPendingAnalysis(null);
+    setPendingAudioBlob(null);
+    setManualTranscript("");
+    resetTranscript();
+    resetRecording();
+    setSelectedContactOverride(null);
+    setSaveAsType("contact");
+    setMeetingTitle("");
     sessionStorage.removeItem('pendingTranscript');
     sessionStorage.removeItem('pendingDuration');
     setIsSaving(false);
@@ -899,11 +960,11 @@ export default function AIAssistant() {
 
       {/* Contact Confirmation Dialog */}
       <Dialog open={showContactConfirm} onOpenChange={setShowContactConfirm}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Link to Contact</DialogTitle>
+            <DialogTitle>Save Recording</DialogTitle>
             <DialogDescription>
-              Review the AI analysis and confirm the contact
+              Choose how to save this recording
             </DialogDescription>
           </DialogHeader>
           
@@ -925,88 +986,172 @@ export default function AIAssistant() {
                 </div>
               )}
 
+              {/* Save Type Selection */}
               <div className="border rounded-lg p-4 space-y-3">
-                {pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' ? (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="font-medium">
-                        Matched: {getContactName(pendingAnalysis.matchedContactId)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Confidence: {pendingAnalysis.matchConfidence}
-                      </p>
-                    </div>
+                <Label className="text-sm font-medium">Save as:</Label>
+                <RadioGroup 
+                  value={saveAsType} 
+                  onValueChange={(value) => setSaveAsType(value as "contact" | "internal_meeting")}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="contact" id="save-contact" />
+                    <Label htmlFor="save-contact" className="flex items-center gap-2 cursor-pointer">
+                      <User className="h-4 w-4" />
+                      Contact Conversation
+                    </Label>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-5 w-5 text-yellow-500" />
-                    <p>No matching contact found</p>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="internal_meeting" id="save-meeting" />
+                    <Label htmlFor="save-meeting" className="flex items-center gap-2 cursor-pointer">
+                      <Users className="h-4 w-4" />
+                      Internal Meeting
+                    </Label>
                   </div>
-                )}
-
-                {/* Manual Contact Override */}
-                <div className="border-t pt-3">
-                  <Label className="text-sm">Or select a different contact:</Label>
-                  <Select value={selectedContactOverride || ""} onValueChange={setSelectedContactOverride}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Choose existing contact..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contacts.map(c => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} {c.company_id ? `(${companies.find(co => co.id === c.company_id)?.name})` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {pendingAnalysis.suggestedNewContact && (
-                  <div className="border-t pt-3">
-                    <p className="text-sm font-medium mb-2">Suggested New Contact:</p>
-                    <div className="text-sm space-y-1 text-muted-foreground">
-                      <p>Name: {pendingAnalysis.suggestedNewContact.name}</p>
-                      {pendingAnalysis.suggestedNewContact.company && (
-                        <p>Company: {pendingAnalysis.suggestedNewContact.company}</p>
-                      )}
-                      {pendingAnalysis.suggestedNewContact.email && (
-                        <p>Email: {pendingAnalysis.suggestedNewContact.email}</p>
-                      )}
-                      {pendingAnalysis.suggestedNewContact.phone && (
-                        <p>Phone: {pendingAnalysis.suggestedNewContact.phone}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                </RadioGroup>
               </div>
 
+              {/* Internal Meeting Form */}
+              {saveAsType === "internal_meeting" && (
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="meeting-title">Meeting Title *</Label>
+                    <Input
+                      id="meeting-title"
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      placeholder="e.g., Team Standup, Sales Strategy Meeting"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This recording will be saved to the Employee Dashboard under Meetings.
+                  </p>
+                </div>
+              )}
+
+              {/* Contact Selection (only shown when saveAsType is contact) */}
+              {saveAsType === "contact" && (
+                <div className="border rounded-lg p-4 space-y-3">
+                  {pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' ? (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <div>
+                        <p className="font-medium">
+                          Matched: {getContactName(pendingAnalysis.matchedContactId)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Confidence: {pendingAnalysis.matchConfidence}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <XCircle className="h-5 w-5 text-yellow-500" />
+                      <p>No matching contact found</p>
+                    </div>
+                  )}
+
+                  {/* Manual Contact Override */}
+                  <div className="border-t pt-3">
+                    <Label className="text-sm">Or select a different contact:</Label>
+                    <Select value={selectedContactOverride || ""} onValueChange={setSelectedContactOverride}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose existing contact..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contacts.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} {c.company_id ? `(${companies.find(co => co.id === c.company_id)?.name})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {pendingAnalysis.suggestedNewContact && (
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium mb-2">Suggested New Contact:</p>
+                      <div className="text-sm space-y-1 text-muted-foreground">
+                        <p>Name: {pendingAnalysis.suggestedNewContact.name}</p>
+                        {pendingAnalysis.suggestedNewContact.company && (
+                          <p>Company: {pendingAnalysis.suggestedNewContact.company}</p>
+                        )}
+                        {pendingAnalysis.suggestedNewContact.email && (
+                          <p>Email: {pendingAnalysis.suggestedNewContact.email}</p>
+                        )}
+                        {pendingAnalysis.suggestedNewContact.phone && (
+                          <p>Phone: {pendingAnalysis.suggestedNewContact.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex flex-col gap-2">
-                {selectedContactOverride ? (
-                  <Button onClick={() => confirmContactMatch(selectedContactOverride)}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Link to {getContactName(selectedContactOverride)}
+                {saveAsType === "internal_meeting" ? (
+                  <Button onClick={saveAsInternalMeeting} disabled={!meetingTitle.trim() || isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-4 w-4 mr-2" />
+                        Save as Internal Meeting
+                      </>
+                    )}
                   </Button>
-                ) : pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' ? (
-                  <Button onClick={() => confirmContactMatch(pendingAnalysis.matchedContactId)}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Confirm Match
-                  </Button>
-                ) : null}
-                
-                {pendingAnalysis.suggestedNewContact && !selectedContactOverride && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => confirmContactMatch(null, true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create New Contact
-                  </Button>
+                ) : (
+                  <>
+                    {selectedContactOverride ? (
+                      <Button onClick={() => confirmContactMatch(selectedContactOverride)} disabled={isSaving}>
+                        {isSaving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Link to {getContactName(selectedContactOverride)}
+                          </>
+                        )}
+                      </Button>
+                    ) : pendingAnalysis.matchedContactId && pendingAnalysis.matchConfidence !== 'no_match' ? (
+                      <Button onClick={() => confirmContactMatch(pendingAnalysis.matchedContactId)} disabled={isSaving}>
+                        {isSaving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Confirm Match
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                    
+                    {pendingAnalysis.suggestedNewContact && !selectedContactOverride && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => confirmContactMatch(null, true)}
+                        disabled={isSaving}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Contact
+                      </Button>
+                    )}
+                    
+                    <Button variant="ghost" onClick={() => confirmContactMatch(null)} disabled={isSaving}>
+                      Save Without Contact
+                    </Button>
+                  </>
                 )}
-                
-                <Button variant="ghost" onClick={() => confirmContactMatch(null)}>
-                  Save Without Contact
-                </Button>
               </div>
             </div>
           )}
