@@ -827,42 +827,36 @@ export type Database = {
       }
       quickbooks_connections: {
         Row: {
-          access_token: string
-          access_token_encrypted: string | null
+          access_token_encrypted: string
           connected_at: string
           created_at: string
           id: string
           realm_id: string
-          refresh_token: string
-          refresh_token_encrypted: string | null
+          refresh_token_encrypted: string
           refresh_token_expires_at: string
           token_expires_at: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          access_token: string
-          access_token_encrypted?: string | null
+          access_token_encrypted: string
           connected_at?: string
           created_at?: string
           id?: string
           realm_id: string
-          refresh_token: string
-          refresh_token_encrypted?: string | null
+          refresh_token_encrypted: string
           refresh_token_expires_at: string
           token_expires_at: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          access_token?: string
-          access_token_encrypted?: string | null
+          access_token_encrypted?: string
           connected_at?: string
           created_at?: string
           id?: string
           realm_id?: string
-          refresh_token?: string
-          refresh_token_encrypted?: string | null
+          refresh_token_encrypted?: string
           refresh_token_expires_at?: string
           token_expires_at?: string
           updated_at?: string
