@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingSpinner, CardSkeleton, StatsCardSkeleton } from "@/components/LoadingState";
 import { toast } from "sonner";
+import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 
 const CRMContent = () => {
   const location = useLocation();
@@ -183,41 +184,55 @@ const CRMContent = () => {
     .map(([name, stats]) => ({ name, ...stats }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  const exportContactsToCSV = () => {
-    // Create CSV header
-    const headers = ['First Name', 'Last Name', 'Email', 'Phone Number'];
-    
-    // Create CSV rows
-    const rows = persons.map(person => {
-      // Split name into first and last name
-      const nameParts = person.name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+  const exportContactsToCSV = async () => {
+    try {
+      // Create CSV header
+      const headers = ['First Name', 'Last Name', 'Email', 'Phone Number'];
       
-      return [
-        firstName,
-        lastName,
-        person.email || '',
-        person.phone || ''
-      ];
-    });
-    
-    // Combine headers and rows
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `contacts_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Create CSV rows
+      const rows = persons.map(person => {
+        // Split name into first and last name
+        const nameParts = person.name.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        return [
+          firstName,
+          lastName,
+          person.email || '',
+          person.phone || ''
+        ];
+      });
+      
+      // Combine headers and rows
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      // Log the export event BEFORE download for audit trail
+      await logAuditEvent(AuditEvents.DATA_EXPORTED(
+        'contacts',
+        'csv',
+        persons.length
+      ));
+      
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `contacts_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`Exported ${persons.length} contacts`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export contacts');
+    }
   };
 
   return (
