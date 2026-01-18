@@ -49,57 +49,57 @@ const App = () => (
           <BrowserRouter>
             <AppMenuBar />
             <Routes>
-              {/* Internal pages - owners and employees only */}
+              {/* Internal pages - owners, employees, and developers */}
               <Route path="/" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Index />
                 </RoleProtectedRoute>
               } />
               <Route path="/auth" element={<Auth />} />
               <Route path="/quotes" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Quotes />
                 </RoleProtectedRoute>
               } />
               <Route path="/sold-items" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <SoldItems />
                 </RoleProtectedRoute>
               } />
               <Route path="/expenses" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Expenses />
                 </RoleProtectedRoute>
               } />
               <Route path="/crm" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <CRM />
                 </RoleProtectedRoute>
               } />
               <Route path="/sync" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Sync />
                 </RoleProtectedRoute>
               } />
               <Route path="/install" element={<Install />} />
               <Route path="/accounting" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Accounting />
                 </RoleProtectedRoute>
               } />
               <Route path="/ai-assistant" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <AIAssistant />
                 </RoleProtectedRoute>
               } />
               <Route path="/analytics" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <ConversationAnalytics />
                 </RoleProtectedRoute>
               } />
-              {/* Employee Dashboard - employees and owners */}
+              {/* Employee Dashboard - employees, owners, and developers */}
               <Route path="/dashboard" element={
-                <RoleProtectedRoute allowedRoles={["owner", "employee"]} redirectTo="/spiff-program">
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <EmployeeDashboard />
                 </RoleProtectedRoute>
               } />
