@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.admin-user-management]
 verify_jwt = false
+
+[functions.bulk-import-contacts]
+verify_jwt = false
