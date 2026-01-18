@@ -54,77 +54,66 @@ function levenshteinDistance(str1: string, str2: string): number {
   return dp[m][n];
 }
 
+function countMatchingFields(person1: Person, person2: Person): { count: number; reasons: string[] } {
+  const reasons: string[] = [];
+  
+  // Check name match
+  const name1 = normalizeString(person1.name);
+  const name2 = normalizeString(person2.name);
+  if (name1 && name2 && (
+    name1 === name2 ||
+    name1.includes(name2) ||
+    name2.includes(name1) ||
+    levenshteinDistance(name1, name2) <= 2
+  )) {
+    reasons.push("name");
+  }
+  
+  // Check email match
+  const email1 = normalizeString(person1.email);
+  const email2 = normalizeString(person2.email);
+  if (email1 && email2 && email1 === email2) {
+    reasons.push("email");
+  }
+  
+  // Check phone match
+  const phone1 = (person1.phone || "").replace(/\D/g, "");
+  const phone2 = (person2.phone || "").replace(/\D/g, "");
+  if (phone1.length >= 7 && phone2.length >= 7 && phone1 === phone2) {
+    reasons.push("phone");
+  }
+  
+  return { count: reasons.length, reasons };
+}
+
 function findPersonDuplicates(persons: Person[]): DuplicateGroup<Person>[] {
   const groups: DuplicateGroup<Person>[] = [];
   const processed = new Set<string>();
 
-  // Find by similar name
+  // Find contacts with 2+ matching fields
   persons.forEach((person, index) => {
     if (processed.has(person.id)) return;
 
-    const normalizedName = normalizeString(person.name);
-    const similar = persons.filter((p, i) => {
+    const matches = persons.filter((p, i) => {
       if (i === index || processed.has(p.id)) return false;
-      const otherName = normalizeString(p.name);
-      return (
-        normalizedName === otherName ||
-        normalizedName.includes(otherName) ||
-        otherName.includes(normalizedName) ||
-        levenshteinDistance(normalizedName, otherName) <= 2
-      );
+      const { count } = countMatchingFields(person, p);
+      return count >= 2; // Require at least 2 matching fields
     });
 
-    if (similar.length > 0) {
-      const allInGroup = [person, ...similar];
+    if (matches.length > 0) {
+      const allInGroup = [person, ...matches];
+      
+      // Determine the reason string based on what fields match
+      const sampleMatch = countMatchingFields(person, matches[0]);
+      const reasonText = sampleMatch.reasons.length === 3 
+        ? "Same name, email & phone" 
+        : `Same ${sampleMatch.reasons.join(" & ")}`;
+      
       allInGroup.forEach((p) => processed.add(p.id));
       groups.push({
-        key: `name-${person.id}`,
+        key: `multi-${person.id}`,
         items: allInGroup,
-        reason: "Similar names",
-      });
-    }
-  });
-
-  // Find by same email
-  const emailMap = new Map<string, Person[]>();
-  persons.forEach((person) => {
-    if (person.email && !processed.has(person.id)) {
-      const email = normalizeString(person.email);
-      if (!emailMap.has(email)) emailMap.set(email, []);
-      emailMap.get(email)!.push(person);
-    }
-  });
-
-  emailMap.forEach((items, email) => {
-    if (items.length > 1) {
-      items.forEach((p) => processed.add(p.id));
-      groups.push({
-        key: `email-${email}`,
-        items,
-        reason: "Same email",
-      });
-    }
-  });
-
-  // Find by same phone
-  const phoneMap = new Map<string, Person[]>();
-  persons.forEach((person) => {
-    if (person.phone && !processed.has(person.id)) {
-      const phone = person.phone.replace(/\D/g, "");
-      if (phone.length >= 7) {
-        if (!phoneMap.has(phone)) phoneMap.set(phone, []);
-        phoneMap.get(phone)!.push(person);
-      }
-    }
-  });
-
-  phoneMap.forEach((items) => {
-    if (items.length > 1) {
-      items.forEach((p) => processed.add(p.id));
-      groups.push({
-        key: `phone-${items[0].phone}`,
-        items,
-        reason: "Same phone",
+        reason: reasonText,
       });
     }
   });
@@ -340,6 +329,91 @@ export function MergeDuplicatesDialog({
     return selected >= 2;
   };
 
+  // Auto merge all contact duplicates
+  const handleAutoMergeAllContacts = async () => {
+    if (personDuplicates.length === 0) return;
+    
+    setIsMerging(true);
+    let mergedCount = 0;
+    
+    try {
+      for (const group of personDuplicates) {
+        const selectedIds = group.items.map(item => item.id);
+        const primaryId = selectedIds[0];
+        const primaryContact = group.items.find((c) => c.id === primaryId)!;
+        const otherIds = selectedIds.slice(1);
+
+        const mergedContact = { ...primaryContact };
+        otherIds.forEach((id) => {
+          const contact = group.items.find((c) => c.id === id)!;
+          if (!mergedContact.email && contact.email) mergedContact.email = contact.email;
+          if (!mergedContact.phone && contact.phone) mergedContact.phone = contact.phone;
+          if (!mergedContact.address && contact.address) mergedContact.address = contact.address;
+          if (!mergedContact.jobTitle && contact.jobTitle) mergedContact.jobTitle = contact.jobTitle;
+          mergedContact.notes = [...(mergedContact.notes || []), ...(contact.notes || [])];
+        });
+
+        await inventoryStorage.updatePerson(mergedContact);
+
+        for (const id of otherIds) {
+          await inventoryStorage.deletePerson(id);
+        }
+        
+        mergedCount++;
+      }
+
+      toast.success(`Auto-merged ${mergedCount} duplicate groups`);
+      setSelectedPersonGroups(new Map());
+      onMerged();
+    } catch (error) {
+      console.error("Error auto-merging contacts:", error);
+      toast.error("Failed to auto-merge contacts");
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  // Auto merge all company duplicates
+  const handleAutoMergeAllCompanies = async () => {
+    if (companyDuplicates.length === 0) return;
+    
+    setIsMerging(true);
+    let mergedCount = 0;
+    
+    try {
+      for (const group of companyDuplicates) {
+        const selectedIds = group.items.map(item => item.id);
+        const primaryId = selectedIds[0];
+        const primaryCompany = group.items.find((c) => c.id === primaryId)!;
+        const otherIds = selectedIds.slice(1);
+
+        const mergedCompany = { ...primaryCompany };
+        otherIds.forEach((id) => {
+          const company = group.items.find((c) => c.id === id)!;
+          if (!mergedCompany.address && company.address) mergedCompany.address = company.address;
+          mergedCompany.notes = [...(mergedCompany.notes || []), ...(company.notes || [])];
+        });
+
+        await inventoryStorage.updateCompany(mergedCompany);
+
+        for (const id of otherIds) {
+          await inventoryStorage.deleteCompany(id);
+        }
+        
+        mergedCount++;
+      }
+
+      toast.success(`Auto-merged ${mergedCount} duplicate groups`);
+      setSelectedCompanyGroups(new Map());
+      onMerged();
+    } catch (error) {
+      console.error("Error auto-merging companies:", error);
+      toast.error("Failed to auto-merge companies");
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
@@ -349,7 +423,7 @@ export function MergeDuplicatesDialog({
             Find & Merge Duplicates
           </DialogTitle>
           <DialogDescription>
-            Review potential duplicate contacts and companies
+            Contacts with 2+ matching fields (name, email, phone) are flagged as duplicates
           </DialogDescription>
         </DialogHeader>
 
@@ -371,10 +445,22 @@ export function MergeDuplicatesDialog({
           </TabsList>
 
           <TabsContent value="contacts" className="flex-1 min-h-0 mt-4">
-            <ScrollArea className="h-[60vh] pr-4">
+            {personDuplicates.length > 0 && (
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={handleAutoMergeAllContacts}
+                  disabled={isMerging}
+                  variant="default"
+                >
+                  <Merge className="h-4 w-4 mr-2" />
+                  Auto Merge All ({personDuplicates.length} groups)
+                </Button>
+              </div>
+            )}
+            <ScrollArea className="h-[55vh] pr-4">
               {personDuplicates.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No potential duplicate contacts found
+                  No duplicate contacts found (requires 2+ matching fields)
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -432,10 +518,22 @@ export function MergeDuplicatesDialog({
           </TabsContent>
 
           <TabsContent value="companies" className="flex-1 min-h-0 mt-4">
-            <ScrollArea className="h-[60vh] pr-4">
+            {companyDuplicates.length > 0 && (
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={handleAutoMergeAllCompanies}
+                  disabled={isMerging}
+                  variant="default"
+                >
+                  <Merge className="h-4 w-4 mr-2" />
+                  Auto Merge All ({companyDuplicates.length} groups)
+                </Button>
+              </div>
+            )}
+            <ScrollArea className="h-[55vh] pr-4">
               {companyDuplicates.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No potential duplicate companies found
+                  No duplicate companies found
                 </div>
               ) : (
                 <div className="space-y-6">
