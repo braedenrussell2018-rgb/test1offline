@@ -229,6 +229,7 @@ export const getPeople = async (): Promise<Person[]> => {
   const { data, error } = await supabase
     .from("people")
     .select("*")
+    .is("deleted_at", null) // Filter out soft-deleted contacts
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -307,7 +308,8 @@ export const updatePerson = async (person: Person): Promise<void> => {
 export const getUniqueExcavatorLines = async (): Promise<string[]> => {
   const { data, error } = await supabase
     .from("people")
-    .select("excavator_lines");
+    .select("excavator_lines")
+    .is("deleted_at", null); // Filter out soft-deleted contacts
 
   if (error) throw error;
   const lines = new Set<string>();

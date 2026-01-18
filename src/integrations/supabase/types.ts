@@ -141,6 +141,13 @@ export type Database = {
             foreignKeyName: "ai_conversations_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "active_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
@@ -447,6 +454,13 @@ export type Database = {
             foreignKeyName: "expenses_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "active_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
@@ -641,6 +655,7 @@ export type Database = {
           branch_id: string | null
           company_id: string | null
           created_at: string | null
+          deleted_at: string | null
           email: string | null
           excavator_lines: string[] | null
           id: string
@@ -656,6 +671,7 @@ export type Database = {
           branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           email?: string | null
           excavator_lines?: string[] | null
           id?: string
@@ -671,6 +687,7 @@ export type Database = {
           branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           email?: string | null
           excavator_lines?: string[] | null
           id?: string
@@ -1190,6 +1207,72 @@ export type Database = {
       }
     }
     Views: {
+      active_people: {
+        Row: {
+          address: string | null
+          branch_id: string | null
+          company_id: string | null
+          created_at: string | null
+          deleted_at: string | null
+          email: string | null
+          excavator_lines: string[] | null
+          id: string | null
+          job_title: string | null
+          name: string | null
+          notes: Json | null
+          phone: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          address?: string | null
+          branch_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          excavator_lines?: string[] | null
+          id?: string | null
+          job_title?: string | null
+          name?: string | null
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          address?: string | null
+          branch_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          excavator_lines?: string[] | null
+          id?: string | null
+          job_title?: string | null
+          name?: string | null
+          notes?: Json | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "people_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "people_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quickbooks_connection_status: {
         Row: {
           connected_at: string | null
@@ -1294,6 +1377,11 @@ export type Database = {
             }
             Returns: boolean
           }
+      permanently_delete_person: {
+        Args: { person_id: string }
+        Returns: undefined
+      }
+      restore_person: { Args: { person_id: string }; Returns: undefined }
       store_qb_tokens: {
         Args: {
           p_access_token: string
