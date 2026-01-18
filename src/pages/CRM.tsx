@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare, RefreshCw, AlertCircle } from "lucide-react";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare, RefreshCw, AlertCircle, Wifi, WifiOff } from "lucide-react";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
@@ -21,6 +21,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingSpinner, CardSkeleton, StatsCardSkeleton } from "@/components/LoadingState";
 import { toast } from "sonner";
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
 const CRMContent = () => {
   const location = useLocation();
@@ -98,6 +99,18 @@ const CRMContent = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  // Silent refresh for realtime updates (no toast)
+  const silentRefresh = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
+
+  // Set up realtime sync for all CRM tables
+  useRealtimeSync({
+    tables: ["companies", "people", "items", "quotes", "invoices", "branches"],
+    onDataChange: silentRefresh,
+    showToasts: true,
+  });
 
   // Handle navigation from GlobalSearch - open specific person/company dialog
   useEffect(() => {
