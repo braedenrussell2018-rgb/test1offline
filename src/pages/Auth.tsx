@@ -104,9 +104,26 @@ export default function Auth() {
   } | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        // Fetch role and redirect appropriately
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        
+        const userRole = roleData?.role as AppRole;
+        
+        if (userRole === "employee" || userRole === "owner" || userRole === "developer") {
+          navigate("/crm");
+        } else if (userRole === "salesman") {
+          navigate("/spiff-program");
+        } else if (userRole === "customer") {
+          navigate("/customer");
+        } else {
+          navigate("/crm");
+        }
       }
     });
   }, [navigate]);

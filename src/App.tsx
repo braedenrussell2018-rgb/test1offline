@@ -104,20 +104,28 @@ const App = () => (
                 </RoleProtectedRoute>
               } />
               <Route path="/spiff-program" element={
-                <RoleProtectedRoute allowedRoles={["salesman", "owner", "employee"]} redirectTo="/">
+                <RoleProtectedRoute allowedRoles={["salesman", "owner", "employee", "developer"]} redirectTo="/">
                   <SpiffProgram />
                 </RoleProtectedRoute>
               } />
-              {/* Spiff Admin - owners only */}
+              {/* Spiff Admin - owners and developers only */}
               <Route path="/spiff-admin" element={
-                <RoleProtectedRoute allowedRoles={["owner"]} redirectTo="/">
+                <RoleProtectedRoute allowedRoles={["owner", "developer"]} redirectTo="/">
                   <SpiffAdmin />
                 </RoleProtectedRoute>
               } />
-              {/* Security Admin - owners only */}
-              <Route path="/security" element={<SecurityAdmin />} />
+              {/* Security Admin - owners and developers only */}
+              <Route path="/security" element={
+                <RoleProtectedRoute allowedRoles={["owner", "developer"]} redirectTo="/">
+                  <SecurityAdmin />
+                </RoleProtectedRoute>
+              } />
               {/* Developer Dashboard - developers and owners only */}
-              <Route path="/developer" element={<Developer />} />
+              <Route path="/developer" element={
+                <RoleProtectedRoute allowedRoles={["owner", "developer"]} redirectTo="/">
+                  <Developer />
+                </RoleProtectedRoute>
+              } />
               {/* Customer dashboard */}
               <Route path="/customer" element={
                 <RoleProtectedRoute allowedRoles={["customer"]} redirectTo="/">
