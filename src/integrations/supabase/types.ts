@@ -110,7 +110,7 @@ export type Database = {
           summary: string | null
           transcript: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           audio_url?: string | null
@@ -122,7 +122,7 @@ export type Database = {
           summary?: string | null
           transcript: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           audio_url?: string | null
@@ -134,7 +134,7 @@ export type Database = {
           summary?: string | null
           transcript?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -330,7 +330,7 @@ export type Database = {
           attendees: string[] | null
           audio_url: string | null
           created_at: string
-          created_by: string
+          created_by: string | null
           description: string | null
           duration_minutes: number | null
           id: string
@@ -345,7 +345,7 @@ export type Database = {
           attendees?: string[] | null
           audio_url?: string | null
           created_at?: string
-          created_by: string
+          created_by?: string | null
           description?: string | null
           duration_minutes?: number | null
           id?: string
@@ -360,7 +360,7 @@ export type Database = {
           attendees?: string[] | null
           audio_url?: string | null
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           description?: string | null
           duration_minutes?: number | null
           id?: string
@@ -475,7 +475,7 @@ export type Database = {
           is_pinned: boolean | null
           title: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           category?: string | null
@@ -485,7 +485,7 @@ export type Database = {
           is_pinned?: boolean | null
           title: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           category?: string | null
@@ -495,7 +495,7 @@ export type Database = {
           is_pinned?: boolean | null
           title?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
