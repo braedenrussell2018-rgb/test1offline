@@ -315,8 +315,8 @@ export function MergeDuplicatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Find & Merge Duplicates
@@ -331,8 +331,8 @@ export function MergeDuplicatesDialog({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-        <Tabs defaultValue="contacts" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="contacts" className="w-full flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="contacts" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Contacts ({personDuplicates.length})
@@ -343,8 +343,8 @@ export function MergeDuplicatesDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="contacts">
-            <ScrollArea className="max-h-[50vh] pr-4">
+          <TabsContent value="contacts" className="flex-1 min-h-0 mt-4">
+            <ScrollArea className="h-[60vh] pr-4">
               {personDuplicates.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No potential duplicate contacts found
@@ -404,8 +404,8 @@ export function MergeDuplicatesDialog({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="companies">
-            <ScrollArea className="max-h-[50vh] pr-4">
+          <TabsContent value="companies" className="flex-1 min-h-0 mt-4">
+            <ScrollArea className="h-[60vh] pr-4">
               {companyDuplicates.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No potential duplicate companies found
@@ -462,7 +462,7 @@ export function MergeDuplicatesDialog({
         </Tabs>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end flex-shrink-0 pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
