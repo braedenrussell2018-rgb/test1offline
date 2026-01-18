@@ -231,8 +231,8 @@ export function MergeDuplicatesDialog({
   const handleMergePersons = async (group: DuplicateGroup<Person>) => {
     let selectedIds = selectedPersonGroups.get(group.key) || [];
     
-    // If no selection and exactly 2 items, merge both
-    if (selectedIds.length === 0 && group.items.length === 2) {
+    // If exactly 2 items in group, merge both regardless of selection
+    if (group.items.length === 2) {
       selectedIds = group.items.map(item => item.id);
     }
     
@@ -281,8 +281,8 @@ export function MergeDuplicatesDialog({
   const handleMergeCompanies = async (group: DuplicateGroup<Company>) => {
     let selectedIds = selectedCompanyGroups.get(group.key) || [];
     
-    // If no selection and exactly 2 items, merge both
-    if (selectedIds.length === 0 && group.items.length === 2) {
+    // If exactly 2 items in group, merge both regardless of selection
+    if (group.items.length === 2) {
       selectedIds = group.items.map(item => item.id);
     }
     
@@ -327,13 +327,17 @@ export function MergeDuplicatesDialog({
 
   // Helper to check if merge button should be enabled
   const canMergePersonGroup = (group: DuplicateGroup<Person>) => {
+    // Always allow merge if exactly 2 items, or if 2+ are selected
+    if (group.items.length === 2) return true;
     const selected = selectedPersonGroups.get(group.key)?.length || 0;
-    return selected >= 2 || (selected === 0 && group.items.length === 2);
+    return selected >= 2;
   };
 
   const canMergeCompanyGroup = (group: DuplicateGroup<Company>) => {
+    // Always allow merge if exactly 2 items, or if 2+ are selected
+    if (group.items.length === 2) return true;
     const selected = selectedCompanyGroups.get(group.key)?.length || 0;
-    return selected >= 2 || (selected === 0 && group.items.length === 2);
+    return selected >= 2;
   };
 
   return (
@@ -384,7 +388,7 @@ export function MergeDuplicatesDialog({
                           disabled={isMerging || !canMergePersonGroup(group)}
                         >
                           <Merge className="h-4 w-4 mr-1" />
-                          {group.items.length === 2 && (selectedPersonGroups.get(group.key)?.length || 0) === 0 ? "Merge Both" : "Merge Selected"}
+                          {group.items.length === 2 ? "Merge Both" : "Merge Selected"}
                         </Button>
                       </div>
                       <div className="space-y-2">
@@ -445,7 +449,7 @@ export function MergeDuplicatesDialog({
                           disabled={isMerging || !canMergeCompanyGroup(group)}
                         >
                           <Merge className="h-4 w-4 mr-1" />
-                          {group.items.length === 2 && (selectedCompanyGroups.get(group.key)?.length || 0) === 0 ? "Merge Both" : "Merge Selected"}
+                          {group.items.length === 2 ? "Merge Both" : "Merge Selected"}
                         </Button>
                       </div>
                       <div className="space-y-2">
