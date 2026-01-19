@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { useUserRole, AppRole } from "@/hooks/useUserRole";
+import { useAuth, AppRole } from "@/hooks/useAuth";
 
 interface RoleProtectedRouteProps {
   children: React.ReactNode;
@@ -14,44 +13,50 @@ export const RoleProtectedRoute = ({
   allowedRoles, 
   redirectTo = "/" 
 }: RoleProtectedRouteProps) => {
-  const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading } = useUserRole();
+  const { user, loading: authLoading, role, roleLoading } = useAuth();
   const navigate = useNavigate();
 
+  // Calculate effective roles once
+  const effectiveRoles = [...allowedRoles];
+  if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
+    effectiveRoles.push("developer");
+  }
+
   useEffect(() => {
-    if (!authLoading && !user) {
+    // Wait for both auth and role to finish loading
+    if (authLoading || roleLoading) {
+      return;
+    }
+
+    if (!user) {
       navigate("/auth");
       return;
     }
 
-    if (!authLoading && !roleLoading && user) {
-      // Handle users with no role assigned - redirect to a default page
-      if (role === null) {
-        navigate("/auth");
-        return;
-      }
-      
-      // Developer has owner privileges - check if we should treat as owner
-      const effectiveRoles = [...allowedRoles];
-      if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
-        effectiveRoles.push("developer");
-      }
-      
-      if (!effectiveRoles.includes(role)) {
-        // Redirect based on user's actual role
-        if (role === "salesman") {
-          navigate("/spiff-program");
-        } else if (role === "customer") {
-          navigate("/customer");
-        } else if (role === "developer" || role === "owner" || role === "employee") {
-          navigate("/crm");
-        } else {
-          navigate(redirectTo);
-        }
+    // Handle users with no role assigned
+    if (role === null) {
+      console.log("No role assigned, redirecting to auth");
+      navigate("/auth");
+      return;
+    }
+    
+    // Check if user has required role
+    if (!effectiveRoles.includes(role)) {
+      console.log(`Role ${role} not in allowed roles:`, effectiveRoles);
+      // Redirect based on user's actual role
+      if (role === "salesman") {
+        navigate("/spiff-program");
+      } else if (role === "customer") {
+        navigate("/customer");
+      } else if (role === "developer" || role === "owner" || role === "employee") {
+        navigate("/crm");
+      } else {
+        navigate(redirectTo);
       }
     }
-  }, [user, authLoading, role, roleLoading, allowedRoles, navigate, redirectTo]);
+  }, [user, authLoading, role, roleLoading, effectiveRoles, navigate, redirectTo]);
 
+  // Show loading while auth or role is loading
   if (authLoading || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -60,16 +65,12 @@ export const RoleProtectedRoute = ({
     );
   }
 
+  // Don't render if no user or no role
   if (!user || role === null) {
     return null;
   }
-
-  // Developer has owner privileges
-  const effectiveRoles = [...allowedRoles];
-  if (allowedRoles.includes("owner") && !allowedRoles.includes("developer")) {
-    effectiveRoles.push("developer");
-  }
   
+  // Don't render if role not allowed
   if (!effectiveRoles.includes(role)) {
     return null;
   }
