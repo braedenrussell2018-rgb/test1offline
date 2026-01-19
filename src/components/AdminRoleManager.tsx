@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useUserRole, AppRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,42 +10,45 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, UserCog, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type AppRole = "employee" | "owner" | "customer" | "salesman";
+// Use non-null AppRole for display purposes
+type DisplayRole = Exclude<AppRole, null>;
 
 interface UserWithRole {
   id: string;
   email: string;
   full_name: string;
-  role: AppRole;
+  role: DisplayRole;
   created_at: string;
 }
 
-const ROLE_COLORS: Record<AppRole, string> = {
+const ROLE_COLORS: Record<DisplayRole, string> = {
   owner: "bg-red-500",
   employee: "bg-blue-500",
   salesman: "bg-green-500",
   customer: "bg-gray-500",
+  developer: "bg-purple-500",
 };
 
-const ROLE_LABELS: Record<AppRole, string> = {
+const ROLE_LABELS: Record<DisplayRole, string> = {
   owner: "Owner",
   employee: "Employee",
   salesman: "Salesman",
   customer: "Customer",
+  developer: "Developer",
 };
 
 export function AdminRoleManager() {
-  const { isOwner, loading: roleLoading } = useUserRole();
+  const { hasOwnerAccess, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOwner()) {
+    if (hasOwnerAccess()) {
       fetchUsers();
     }
-  }, [isOwner]);
+  }, [hasOwnerAccess]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -126,12 +129,12 @@ export function AdminRoleManager() {
     return <div className="p-4">Loading...</div>;
   }
 
-  if (!isOwner()) {
+  if (!hasOwnerAccess()) {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Access denied. Only owners can manage user roles.
+          Access denied. Only owners and developers can manage user roles.
         </AlertDescription>
       </Alert>
     );
