@@ -19,6 +19,9 @@ export interface InventoryItem {
   invoiceId?: string;
   createdAt: string;
   shelfLocation?: string;
+  assetAccountId?: string;
+  cogsAccountId?: string;
+  minSalePrice?: number;
 }
 
 export interface Invoice {
@@ -123,18 +126,21 @@ function convertItemFromDB(item: db.Item): InventoryItem {
     warranty: item.warrantyMonths ? `${item.warrantyMonths} months` : undefined,
     minReorderLevel: item.minReorderLevel,
     maxReorderLevel: item.maxReorderLevel,
-    status: item.status,
+    status: item.status as 'available' | 'sold',
     soldDate: item.dateSold,
     invoiceId: item.soldInInvoiceId,
     createdAt: item.createdAt || new Date().toISOString(),
-    shelfLocation: item.shelfLocation,
+    shelfLocation: (item as any).shelf_location,
+    assetAccountId: (item as any).asset_account_id,
+    cogsAccountId: (item as any).cogs_account_id,
+    minSalePrice: (item as any).min_sale_price,
   };
 }
 
 // Convert local item to DB format
 function convertItemToDB(item: Partial<InventoryItem>): Partial<db.Item> {
-  const warrantyMonths = item.warranty ? parseInt(item.warranty) : undefined;
-  
+  const warrantyMonths = item.warranty ? parseInt(item.warranty.replace(/[^0-9]/g, "")) : undefined;
+
   return {
     partNumber: item.partNumber!,
     serialNumber: item.serialNumber,
@@ -150,7 +156,10 @@ function convertItemToDB(item: Partial<InventoryItem>): Partial<db.Item> {
     soldInInvoiceId: item.invoiceId,
     dateSold: item.soldDate,
     shelfLocation: item.shelfLocation,
-  };
+    assetAccountId: item.assetAccountId,
+    cogsAccountId: item.cogsAccountId,
+    minSalePrice: item.minSalePrice,
+  } as any;
 }
 
 // Get unique shelf locations for autocomplete
@@ -173,7 +182,7 @@ export const updateItem = async (id: string, updates: Partial<InventoryItem>): P
   const items = await db.getItems();
   const item = items.find(i => i.id === id);
   if (!item) throw new Error("Item not found");
-  
+
   const updated = { ...item, ...convertItemToDB(updates), id };
   await db.updateItem(updated as db.Item);
 };
@@ -259,7 +268,7 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
     notes: person.notes || [],
     excavatorLines: person.excavatorLines || [],
   });
-  
+
   return {
     id: dbPerson.id,
     companyId: dbPerson.companyId,
@@ -380,9 +389,9 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
 };
 
 export const updateInvoicePaidStatus = async (id: string, paid: boolean): Promise<void> => {
-  await db.updateInvoice(id, { 
-    paid, 
-    paidAt: paid ? new Date().toISOString() : undefined 
+  await db.updateInvoice(id, {
+    paid,
+    paidAt: paid ? new Date().toISOString() : undefined
   });
 };
 
@@ -478,7 +487,7 @@ export const addNoteToPerson = async (personId: string, noteText: string): Promi
     p_person_id: personId,
     p_note_text: noteText
   });
-  
+
   if (error) throw error;
 };
 
@@ -524,4 +533,5 @@ export const inventoryStorage = {
   deleteQuote,
   getUniqueShelfLocations,
   getUniqueExcavatorLines,
+  supabase,
 };
