@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Award, Trophy, DollarSign, Star, Plus, Gift, Users, Pencil, Trash2 } from "lucide-react";
+import { Award, Trophy, DollarSign, Star, Plus, Gift, Users, Pencil, Trash2, Clock, CheckCircle, XCircle, AlertCircle, Check, X } from "lucide-react";
 import { format } from "date-fns";
 
 interface Prize {
@@ -25,11 +27,18 @@ interface SpiffRecord {
   id: string;
   salesman_id: string;
   sale_description: string;
+  serial_number: string | null;
   sale_amount: number;
   credits_earned: number;
   prize_redeemed: string | null;
   redeemed_at: string | null;
   created_at: string;
+  status: 'pending' | 'approved' | 'rejected' | 'adjusted';
+  approved_by: string | null;
+  approved_at: string | null;
+  adjusted_amount: number | null;
+  adjusted_credits: number | null;
+  admin_notes: string | null;
 }
 
 interface SalesmanStats {
@@ -39,9 +48,11 @@ interface SalesmanStats {
   total_credits: number;
   available_credits: number;
   prizes_redeemed: number;
+  pending_sales: number;
 }
 
 export default function SpiffAdmin() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [spiffRecords, setSpiffRecords] = useState<SpiffRecord[]>([]);
@@ -54,6 +65,17 @@ export default function SpiffAdmin() {
   const [prizeName, setPrizeName] = useState("");
   const [prizeDescription, setPrizeDescription] = useState("");
   const [prizeCredits, setPrizeCredits] = useState("");
+
+  // Approval dialog state
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<SpiffRecord | null>(null);
+  const [adjustedAmount, setAdjustedAmount] = useState("");
+  const [adminNotes, setAdminNotes] = useState("");
+
+  // Profile cache for salesman names
+  const [profileCache, setProfileCache] = useState<Map<string, string>>(new Map());
+
+  const pendingRecords = spiffRecords.filter(r => r.status === 'pending');
 
   useEffect(() => {
     fetchData();
@@ -89,29 +111,39 @@ export default function SpiffAdmin() {
       return;
     }
 
-    setSpiffRecords(data || []);
+    setSpiffRecords((data || []) as SpiffRecord[]);
 
-    // Calculate salesmen stats
+    // Calculate salesmen stats (only approved/adjusted records count)
     const statsMap = new Map<string, SalesmanStats>();
     
-    for (const record of data || []) {
+    for (const record of (data || []) as SpiffRecord[]) {
       const existing = statsMap.get(record.salesman_id);
+      const isApproved = record.status === 'approved' || record.status === 'adjusted';
+      const amount = record.adjusted_amount ?? Number(record.sale_amount);
+      const credits = record.adjusted_credits ?? record.credits_earned;
+      
       if (existing) {
-        existing.total_sales += Number(record.sale_amount);
-        existing.total_credits += record.credits_earned;
-        if (!record.prize_redeemed) {
-          existing.available_credits += record.credits_earned;
-        } else {
-          existing.prizes_redeemed += 1;
+        if (isApproved) {
+          existing.total_sales += amount;
+          existing.total_credits += credits;
+          if (!record.prize_redeemed) {
+            existing.available_credits += credits;
+          } else {
+            existing.prizes_redeemed += 1;
+          }
+        }
+        if (record.status === 'pending') {
+          existing.pending_sales += 1;
         }
       } else {
         statsMap.set(record.salesman_id, {
           salesman_id: record.salesman_id,
-          salesman_name: record.salesman_id.slice(0, 8), // Will try to get real name
-          total_sales: Number(record.sale_amount),
-          total_credits: record.credits_earned,
-          available_credits: record.prize_redeemed ? 0 : record.credits_earned,
-          prizes_redeemed: record.prize_redeemed ? 1 : 0,
+          salesman_name: record.salesman_id.slice(0, 8),
+          total_sales: isApproved ? amount : 0,
+          total_credits: isApproved ? credits : 0,
+          available_credits: isApproved && !record.prize_redeemed ? credits : 0,
+          prizes_redeemed: isApproved && record.prize_redeemed ? 1 : 0,
+          pending_sales: record.status === 'pending' ? 1 : 0,
         });
       }
     }
@@ -124,14 +156,17 @@ export default function SpiffAdmin() {
         .select("user_id, full_name")
         .in("user_id", salesmanIds);
 
+      const newCache = new Map(profileCache);
       if (profiles) {
         for (const profile of profiles) {
           const stats = statsMap.get(profile.user_id);
           if (stats) {
             stats.salesman_name = profile.full_name;
           }
+          newCache.set(profile.user_id, profile.full_name);
         }
       }
+      setProfileCache(newCache);
     }
 
     setSalesmanStats(Array.from(statsMap.values()).sort((a, b) => b.total_sales - a.total_sales));
@@ -218,7 +253,168 @@ export default function SpiffAdmin() {
     }
   };
 
-  // Calculate totals
+  const openApprovalDialog = (record: SpiffRecord) => {
+    setSelectedRecord(record);
+    setAdjustedAmount(record.sale_amount.toString());
+    setAdminNotes("");
+    setApprovalDialogOpen(true);
+  };
+
+  const handleApprove = async (adjust: boolean = false) => {
+    if (!selectedRecord || !user) return;
+
+    const amount = parseFloat(adjustedAmount);
+    const isAdjusted = adjust && amount !== Number(selectedRecord.sale_amount);
+    const newCredits = Math.floor(amount / 100);
+
+    const updateData: Record<string, unknown> = {
+      status: isAdjusted ? 'adjusted' : 'approved',
+      approved_by: user.id,
+      approved_at: new Date().toISOString(),
+      admin_notes: adminNotes || null,
+    };
+
+    if (isAdjusted) {
+      updateData.adjusted_amount = amount;
+      updateData.adjusted_credits = newCredits;
+    }
+
+    const { error: updateError } = await supabase
+      .from("spiff_program")
+      .update(updateData)
+      .eq("id", selectedRecord.id);
+
+    if (updateError) {
+      toast({ title: "Error", description: "Failed to approve sale", variant: "destructive" });
+      return;
+    }
+
+    // Create warranty record
+    const warrantyEndDate = new Date();
+    warrantyEndDate.setMonth(warrantyEndDate.getMonth() + 12);
+
+    const { error: warrantyError } = await supabase
+      .from("spiff_warranties")
+      .insert({
+        spiff_sale_id: selectedRecord.id,
+        serial_number: selectedRecord.serial_number || '',
+        sale_description: selectedRecord.sale_description,
+        salesman_id: selectedRecord.salesman_id,
+        warranty_start_date: new Date().toISOString(),
+        warranty_months: 12,
+        warranty_end_date: warrantyEndDate.toISOString(),
+      });
+
+    if (warrantyError) {
+      console.error("Error creating warranty:", warrantyError);
+      // Don't fail the whole operation if warranty creation fails
+    }
+
+    toast({ 
+      title: "Sale Approved!", 
+      description: isAdjusted 
+        ? `Sale adjusted to $${amount.toLocaleString()} (${newCredits} credits) and 12-month warranty started.`
+        : `Sale approved with ${selectedRecord.credits_earned} credits and 12-month warranty started.`
+    });
+    setApprovalDialogOpen(false);
+    fetchSpiffRecords();
+  };
+
+  const handleReject = async () => {
+    if (!selectedRecord || !user) return;
+
+    const { error } = await supabase
+      .from("spiff_program")
+      .update({
+        status: 'rejected',
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+        admin_notes: adminNotes || null,
+      })
+      .eq("id", selectedRecord.id);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to reject sale", variant: "destructive" });
+    } else {
+      toast({ title: "Sale Rejected", description: "The sale has been rejected." });
+      setApprovalDialogOpen(false);
+      fetchSpiffRecords();
+    }
+  };
+
+  const handleQuickApprove = async (record: SpiffRecord) => {
+    if (!user) return;
+
+    const { error: updateError } = await supabase
+      .from("spiff_program")
+      .update({
+        status: 'approved',
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", record.id);
+
+    if (updateError) {
+      toast({ title: "Error", description: "Failed to approve sale", variant: "destructive" });
+      return;
+    }
+
+    // Create warranty record
+    const warrantyEndDate = new Date();
+    warrantyEndDate.setMonth(warrantyEndDate.getMonth() + 12);
+
+    await supabase
+      .from("spiff_warranties")
+      .insert({
+        spiff_sale_id: record.id,
+        serial_number: record.serial_number || '',
+        sale_description: record.sale_description,
+        salesman_id: record.salesman_id,
+        warranty_start_date: new Date().toISOString(),
+        warranty_months: 12,
+        warranty_end_date: warrantyEndDate.toISOString(),
+      });
+
+    toast({ title: "Approved!", description: `Sale approved with ${record.credits_earned} credits. 12-month warranty started.` });
+    fetchSpiffRecords();
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-300 bg-yellow-50">
+            <Clock className="h-3 w-3" />
+            Pending
+          </Badge>
+        );
+      case 'approved':
+        return (
+          <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
+            <CheckCircle className="h-3 w-3" />
+            Approved
+          </Badge>
+        );
+      case 'adjusted':
+        return (
+          <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 bg-blue-50">
+            <AlertCircle className="h-3 w-3" />
+            Adjusted
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge variant="outline" className="gap-1 text-red-600 border-red-300 bg-red-50">
+            <XCircle className="h-3 w-3" />
+            Rejected
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+
+  // Calculate totals (only approved/adjusted)
   const totalSales = salesmanStats.reduce((sum, s) => sum + s.total_sales, 0);
   const totalCreditsEarned = salesmanStats.reduce((sum, s) => sum + s.total_credits, 0);
   const totalPrizesRedeemed = salesmanStats.reduce((sum, s) => sum + s.prizes_redeemed, 0);
@@ -240,16 +436,48 @@ export default function SpiffAdmin() {
             Spiff Program Admin
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage prizes and view salesmen performance
+            Manage prizes, approve sales, and view salesmen performance
           </p>
         </div>
       </div>
+
+      {/* Pending Notice */}
+      {pendingRecords.length > 0 && (
+        <Card className="mb-6 border-yellow-300 bg-yellow-50/50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <p className="font-medium text-yellow-800">
+                    {pendingRecords.length} sale{pendingRecords.length > 1 ? 's' : ''} awaiting approval
+                  </p>
+                  <p className="text-sm text-yellow-700">
+                    Review and approve or adjust sales before credits are applied.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+                onClick={() => {
+                  const tabsList = document.querySelector('[role="tablist"]');
+                  const pendingTab = tabsList?.querySelector('[value="pending"]') as HTMLButtonElement;
+                  pendingTab?.click();
+                }}
+              >
+                Review Now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Approved Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -260,7 +488,7 @@ export default function SpiffAdmin() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Credits Earned</CardTitle>
+            <CardTitle className="text-sm font-medium">Credits Earned</CardTitle>
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -271,12 +499,12 @@ export default function SpiffAdmin() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Salesmen</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesmanStats.length}</div>
-            <p className="text-xs text-muted-foreground">With recorded sales</p>
+            <div className="text-2xl font-bold text-yellow-600">{pendingRecords.length}</div>
+            <p className="text-xs text-muted-foreground">Sales to review</p>
           </CardContent>
         </Card>
         
@@ -292,8 +520,15 @@ export default function SpiffAdmin() {
         </Card>
       </div>
 
-      <Tabs defaultValue="salesmen" className="space-y-4">
+      <Tabs defaultValue={pendingRecords.length > 0 ? "pending" : "salesmen"} className="space-y-4">
         <TabsList>
+          <TabsTrigger value="pending" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Pending Approval
+            {pendingRecords.length > 0 && (
+              <Badge variant="destructive" className="ml-1">{pendingRecords.length}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="salesmen" className="gap-2">
             <Users className="h-4 w-4" />
             Salesmen Performance
@@ -308,12 +543,87 @@ export default function SpiffAdmin() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Pending Approval Tab */}
+        <TabsContent value="pending">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales Pending Approval</CardTitle>
+              <CardDescription>Review and approve or adjust submitted sales before credits are applied</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pendingRecords.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
+                  <p>No sales pending approval!</p>
+                  <p className="text-sm">All submitted sales have been reviewed.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Salesman</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Serial Number</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Credits</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingRecords.map((record) => {
+                      const salesmanName = profileCache.get(record.salesman_id) || record.salesman_id.slice(0, 8);
+                      return (
+                        <TableRow key={record.id}>
+                          <TableCell>
+                            {format(new Date(record.created_at), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell className="font-medium">{salesmanName}</TableCell>
+                          <TableCell>{record.sale_description}</TableCell>
+                          <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            ${Number(record.sale_amount).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            +{record.credits_earned}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleQuickApprove(record)}
+                              >
+                                <Check className="h-4 w-4" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openApprovalDialog(record)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Adjust
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Salesmen Performance Tab */}
         <TabsContent value="salesmen">
           <Card>
             <CardHeader>
               <CardTitle>Salesmen Leaderboard</CardTitle>
-              <CardDescription>View performance metrics for all salesmen</CardDescription>
+              <CardDescription>View performance metrics for all salesmen (approved sales only)</CardDescription>
             </CardHeader>
             <CardContent>
               {salesmanStats.length === 0 ? (
@@ -327,10 +637,11 @@ export default function SpiffAdmin() {
                     <TableRow>
                       <TableHead>Rank</TableHead>
                       <TableHead>Salesman</TableHead>
-                      <TableHead className="text-right">Total Sales</TableHead>
+                      <TableHead className="text-right">Approved Sales</TableHead>
                       <TableHead className="text-right">Credits Earned</TableHead>
                       <TableHead className="text-right">Available Credits</TableHead>
-                      <TableHead className="text-right">Prizes Redeemed</TableHead>
+                      <TableHead className="text-right">Pending</TableHead>
+                      <TableHead className="text-right">Prizes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -347,6 +658,13 @@ export default function SpiffAdmin() {
                         <TableCell className="text-right">{stats.total_credits}</TableCell>
                         <TableCell className="text-right">
                           <Badge variant="secondary">{stats.available_credits}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {stats.pending_sales > 0 ? (
+                            <Badge variant="outline" className="text-yellow-600">{stats.pending_sales}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">{stats.prizes_redeemed}</TableCell>
                       </TableRow>
@@ -503,6 +821,7 @@ export default function SpiffAdmin() {
                       <TableHead>Date</TableHead>
                       <TableHead>Salesman</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead>Serial Number</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="text-right">Credits</TableHead>
                       <TableHead>Status</TableHead>
@@ -510,21 +829,48 @@ export default function SpiffAdmin() {
                   </TableHeader>
                   <TableBody>
                     {spiffRecords.map((record) => {
-                      const salesman = salesmanStats.find(s => s.salesman_id === record.salesman_id);
+                      const salesmanName = profileCache.get(record.salesman_id) || record.salesman_id.slice(0, 8);
+                      const displayAmount = record.adjusted_amount ?? Number(record.sale_amount);
+                      const displayCredits = record.adjusted_credits ?? record.credits_earned;
+                      
                       return (
-                        <TableRow key={record.id}>
+                        <TableRow key={record.id} className={record.status === 'rejected' ? 'opacity-50' : ''}>
                           <TableCell>
                             {format(new Date(record.created_at), "MMM d, yyyy")}
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {salesman?.salesman_name || record.salesman_id.slice(0, 8)}
+                          <TableCell className="font-medium">{salesmanName}</TableCell>
+                          <TableCell>
+                            <div>
+                              {record.sale_description}
+                              {record.admin_notes && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Note: {record.admin_notes}
+                                </p>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell>{record.sale_description}</TableCell>
+                          <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
                           <TableCell className="text-right">
-                            ${Number(record.sale_amount).toLocaleString()}
+                            ${displayAmount.toLocaleString()}
+                            {record.status === 'adjusted' && record.adjusted_amount !== null && (
+                              <p className="text-xs text-muted-foreground line-through">
+                                ${Number(record.sale_amount).toLocaleString()}
+                              </p>
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            +{record.credits_earned}
+                            {record.status === 'rejected' ? (
+                              <span className="text-destructive">0</span>
+                            ) : (
+                              <>
+                                +{displayCredits}
+                                {record.status === 'adjusted' && record.adjusted_credits !== null && record.adjusted_credits !== record.credits_earned && (
+                                  <p className="text-xs text-muted-foreground line-through">
+                                    +{record.credits_earned}
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </TableCell>
                           <TableCell>
                             {record.prize_redeemed ? (
@@ -533,9 +879,7 @@ export default function SpiffAdmin() {
                                 {record.prize_redeemed}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-green-600">
-                                Available
-                              </Badge>
+                              getStatusBadge(record.status)
                             )}
                           </TableCell>
                         </TableRow>
@@ -548,6 +892,82 @@ export default function SpiffAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Approval/Adjust Dialog */}
+      <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+        <DialogContent className="bg-background">
+          <DialogHeader>
+            <DialogTitle>Review Sale</DialogTitle>
+            <DialogDescription>
+              Approve, adjust, or reject this sale submission.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRecord && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <p><strong>Salesman:</strong> {profileCache.get(selectedRecord.salesman_id) || selectedRecord.salesman_id.slice(0, 8)}</p>
+                <p><strong>Description:</strong> {selectedRecord.sale_description}</p>
+                <p><strong>Serial Number:</strong> {selectedRecord.serial_number || "N/A"}</p>
+                <p><strong>Original Amount:</strong> ${Number(selectedRecord.sale_amount).toLocaleString()}</p>
+                <p><strong>Original Credits:</strong> {selectedRecord.credits_earned}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adjusted-amount">Sale Amount ($)</Label>
+                <Input
+                  id="adjusted-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={adjustedAmount}
+                  onChange={(e) => setAdjustedAmount(e.target.value)}
+                />
+                {adjustedAmount && (
+                  <p className="text-sm text-muted-foreground">
+                    Credits: <span className="font-semibold">{Math.floor(parseFloat(adjustedAmount) / 100)}</span>
+                    {parseFloat(adjustedAmount) !== Number(selectedRecord.sale_amount) && (
+                      <span className="text-blue-600 ml-2">(adjusted from {selectedRecord.credits_earned})</span>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="admin-notes">Notes (optional)</Label>
+                <Textarea
+                  id="admin-notes"
+                  placeholder="Add a note explaining any adjustments or rejections..."
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              className="gap-1"
+            >
+              <X className="h-4 w-4" />
+              Reject
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setApprovalDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleApprove(true)}
+              className="gap-1"
+            >
+              <Check className="h-4 w-4" />
+              {parseFloat(adjustedAmount) !== Number(selectedRecord?.sale_amount) ? "Approve with Adjustments" : "Approve"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
