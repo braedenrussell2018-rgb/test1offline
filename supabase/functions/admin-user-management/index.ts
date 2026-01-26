@@ -65,6 +65,83 @@ Deno.serve(async (req) => {
     console.log(`Admin user management action: ${action}`, { actorId: user.id, actorRole: roleData.role });
 
     switch (action) {
+      case 'create_user': {
+        const { email, password, role, full_name } = params;
+        if (!email || !password) {
+          return new Response(
+            JSON.stringify({ error: 'email and password are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (password.length < 8) {
+          return new Response(
+            JSON.stringify({ error: 'Password must be at least 8 characters' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const validRoles = ['employee', 'owner', 'customer', 'salesman', 'developer'];
+        if (role && !validRoles.includes(role)) {
+          return new Response(
+            JSON.stringify({ error: `Invalid role. Valid roles: ${validRoles.join(', ')}` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`Creating user ${email} with role ${role || 'none'}`);
+
+        // Create the user via admin API
+        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true, // Auto-confirm email
+          user_metadata: { full_name: full_name || email.split('@')[0] },
+        });
+
+        if (createError) {
+          console.error('Error creating user:', createError);
+          throw createError;
+        }
+
+        // Create profile
+        await supabaseAdmin.from('profiles').insert({
+          user_id: newUser.user.id,
+          full_name: full_name || email.split('@')[0],
+        });
+
+        // Assign role if provided
+        if (role) {
+          const { error: roleError } = await supabaseAdmin.from('user_roles').insert({
+            user_id: newUser.user.id,
+            role: role,
+          });
+
+          if (roleError) {
+            console.error('Error assigning role:', roleError);
+            // Don't throw - user was created, role assignment failed
+          }
+        }
+
+        // Log audit event
+        await supabaseAdmin.from('audit_logs').insert({
+          action: 'USER_CREATED',
+          action_category: 'USER_MANAGEMENT',
+          actor_id: user.id,
+          actor_role: roleData.role,
+          target_id: newUser.user.id,
+          target_type: 'user',
+          target_name: email,
+          result: 'success',
+          metadata: { role: role || null },
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, user: { id: newUser.user.id, email: newUser.user.email, role } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'list_users': {
         // Get all users from auth.users using admin API
         const { data: authUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();

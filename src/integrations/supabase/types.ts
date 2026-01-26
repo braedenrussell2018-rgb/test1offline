@@ -1331,6 +1331,7 @@ export type Database = {
         Returns: undefined
       }
       check_account_status: { Args: { p_email: string }; Returns: Json }
+      dearmor: { Args: { "": string }; Returns: string }
       decrypt_email: { Args: { encrypted_email: string }; Returns: string }
       decrypt_token: {
         Args: { encrypted_token: string; user_id: string }
@@ -1341,6 +1342,8 @@ export type Database = {
         Args: { token: string; user_id: string }
         Returns: string
       }
+      gen_random_uuid: { Args: never; Returns: string }
+      gen_salt: { Args: { "": string }; Returns: string }
       get_qb_connection_status: {
         Args: { p_user_id: string }
         Returns: {
@@ -1380,6 +1383,10 @@ export type Database = {
       permanently_delete_person: {
         Args: { person_id: string }
         Returns: undefined
+      }
+      pgp_armor_headers: {
+        Args: { "": string }
+        Returns: Record<string, unknown>[]
       }
       restore_person: { Args: { person_id: string }; Returns: undefined }
       store_qb_tokens: {
