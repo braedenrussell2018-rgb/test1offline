@@ -60,12 +60,12 @@ export function AppMenuBar() {
   }
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full overflow-hidden">
       {/* Dark navy banner */}
       <div className="w-full h-8 bg-[hsl(220,60%,15%)]" />
       
       {/* Menu bar */}
-      <div className="border-b bg-card w-full">
+      <div className="border-b bg-card w-full overflow-visible">
         <div className="px-2 sm:px-4 w-full">
           <div className="flex flex-wrap items-center justify-between gap-2 py-2">
             <Menubar className="border-0 bg-transparent flex-wrap h-auto">
