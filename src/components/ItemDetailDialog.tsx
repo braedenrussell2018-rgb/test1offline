@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PackagePlus, Pencil, X, Save } from "lucide-react";
 import { InventoryItem, inventoryStorage } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +21,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
   const [showAddQuantity, setShowAddQuantity] = useState(false);
   const [newSerialNumbers, setNewSerialNumbers] = useState<string[]>(['']);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // Editable fields
   const [editPartNumber, setEditPartNumber] = useState("");
   const [editSerialNumber, setEditSerialNumber] = useState("");
@@ -32,7 +33,11 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
   const [editWarranty, setEditWarranty] = useState("");
   const [editMinReorderLevel, setEditMinReorderLevel] = useState("");
   const [editMaxReorderLevel, setEditMaxReorderLevel] = useState("");
-  
+  const [editAssetAccountId, setEditAssetAccountId] = useState("");
+  const [editCogsAccountId, setEditCogsAccountId] = useState("");
+  const [editMinSalePrice, setEditMinSalePrice] = useState("");
+  const [accounts, setAccounts] = useState<any[]>([]);
+
   const { toast } = useToast();
 
   // Initialize edit fields when item changes or edit mode is toggled
@@ -48,8 +53,31 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
       setEditWarranty(item.warranty || "");
       setEditMinReorderLevel(item.minReorderLevel?.toString() || "");
       setEditMaxReorderLevel(item.maxReorderLevel?.toString() || "");
+      setEditAssetAccountId(item.assetAccountId || "");
+      setEditCogsAccountId(item.cogsAccountId || "");
+      setEditMinSalePrice(item.minSalePrice?.toString() || "");
     }
   }, [item, isEditing]);
+
+  useEffect(() => {
+    if (open) {
+      loadAccounts();
+    }
+  }, [open]);
+
+  const loadAccounts = async () => {
+    try {
+      const { data, error } = await inventoryStorage.supabase
+        .from('accounts')
+        .select('id, account_name, account_number')
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setAccounts(data || []);
+    } catch (error) {
+      console.error("Error loading accounts:", error);
+    }
+  };
 
   if (!item) return null;
 
@@ -71,7 +99,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
 
   const handleAddMoreQuantity = async () => {
     const nonEmptySerials = newSerialNumbers.filter(sn => sn.trim());
-    
+
     if (nonEmptySerials.length === 0) {
       toast({
         title: "Error",
@@ -97,7 +125,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
     const existingSerials = existingItems
       .filter(i => i.partNumber === item.partNumber && i.serialNumber)
       .map(i => i.serialNumber);
-    
+
     const duplicates = nonEmptySerials.filter(sn => existingSerials.includes(sn));
     if (duplicates.length > 0) {
       toast({
@@ -122,6 +150,9 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
         minReorderLevel: item.minReorderLevel,
         maxReorderLevel: item.maxReorderLevel,
         status: 'available',
+        assetAccountId: item.assetAccountId,
+        cogsAccountId: item.cogsAccountId,
+        minSalePrice: item.minSalePrice,
       });
     });
 
@@ -147,7 +178,8 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
 
     const salePriceNum = parseFloat(editSalePrice);
     const costNum = parseFloat(editCost);
-    
+    const minSalePriceNum = editMinSalePrice ? parseFloat(editMinSalePrice) : undefined;
+
     if (isNaN(salePriceNum) || salePriceNum < 0) {
       toast({
         title: "Error",
@@ -171,24 +203,6 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
     const minNum = editMinReorderLevel ? parseInt(editMinReorderLevel) : undefined;
     const maxNum = editMaxReorderLevel ? parseInt(editMaxReorderLevel) : undefined;
 
-    if (editWeight && (isNaN(weightNum!) || weightNum! < 0)) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid weight",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (editVolume && (isNaN(volumeNum!) || volumeNum! < 0)) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid volume",
-        variant: "destructive",
-      });
-      return;
-    }
-
     await inventoryStorage.updateItem(item.id, {
       partNumber: editPartNumber.trim(),
       serialNumber: editSerialNumber.trim() || undefined,
@@ -200,6 +214,9 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
       warranty: editWarranty.trim() || undefined,
       minReorderLevel: minNum,
       maxReorderLevel: maxNum,
+      assetAccountId: editAssetAccountId || undefined,
+      cogsAccountId: editCogsAccountId || undefined,
+      minSalePrice: minSalePriceNum,
     });
 
     toast({
@@ -235,7 +252,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
             )}
           </div>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           {!isEditing ? (
             <>
@@ -265,12 +282,40 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
                       <span className="text-muted-foreground">Cost:</span>
                       <span className="font-medium">${item.cost.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between border-t pt-1 mt-1">
                       <span className="text-muted-foreground">Margin:</span>
                       <span className="font-medium text-green-600">
                         ${(item.salePrice - item.cost).toFixed(2)}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Tracking Accounts</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Min Sale Price:</span>
+                      <span className="font-medium">
+                        {item.minSalePrice ? `$${item.minSalePrice.toFixed(2)}` : 'N/A'}
+                      </span>
+                    </div>
+                    {item.assetAccountId && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Asset Account:</span>
+                        <span className="font-medium text-xs">
+                          {accounts.find(a => a.id === item.assetAccountId)?.account_name || 'Loading...'}
+                        </span>
+                      </div>
+                    )}
+                    {item.cogsAccountId && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">COGS Account:</span>
+                        <span className="font-medium text-xs">
+                          {accounts.find(a => a.id === item.cogsAccountId)?.account_name || 'Loading...'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -297,19 +342,19 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
                     )}
                   </div>
                 </div>
-              </div>
 
-              {(item.minReorderLevel !== undefined || item.maxReorderLevel !== undefined) && (
-                <div>
-                  <h3 className="font-semibold mb-2">Reorder Levels</h3>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Min - Max:</span>
-                    <span className="font-medium">
-                      {item.minReorderLevel ?? '-'} - {item.maxReorderLevel ?? '-'}
-                    </span>
+                {(item.minReorderLevel !== undefined || item.maxReorderLevel !== undefined) && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Reorder Levels</h3>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Min - Max:</span>
+                      <span className="font-medium">
+                        {item.minReorderLevel ?? '-'} - {item.maxReorderLevel ?? '-'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {item.soldDate && (
                 <div>
@@ -426,6 +471,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
                   id="edit-warranty"
                   value={editWarranty}
                   onChange={(e) => setEditWarranty(e.target.value)}
+                  placeholder="e.g., 12 months"
                 />
               </div>
 
@@ -450,6 +496,49 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-minSalePrice">Min Sale Price ($)</Label>
+                  <Input
+                    id="edit-minSalePrice"
+                    type="number"
+                    step="0.01"
+                    value={editMinSalePrice}
+                    onChange={(e) => setEditMinSalePrice(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-assetAccount">Asset Account</Label>
+                  <Select value={editAssetAccountId} onValueChange={setEditAssetAccountId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account_number} - {account.account_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cogsAccount">COGS Account</Label>
+                  <Select value={editCogsAccountId} onValueChange={setEditCogsAccountId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account_number} - {account.account_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="flex gap-2 justify-end pt-4">
                 <Button
                   variant="outline"
@@ -467,7 +556,7 @@ export const ItemDetailDialog = ({ item, open, onOpenChange, onItemAdded }: Item
           )}
 
           {/* Add More Quantity Section */}
-          {item.status === 'available' && (
+          {item.status === 'available' && !isEditing && (
             <div className="pt-4 border-t">
               {!showAddQuantity ? (
                 <Button
