@@ -25,11 +25,12 @@ import {
   User,
   MapPin,
   Users,
-
   RefreshCw,
   Search,
-  Volume2
+  Volume2,
+  Shield
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -546,6 +547,12 @@ export default function EmployeeDashboard() {
               className="pl-9"
             />
           </div>
+          <Link to="/warranty">
+            <Button variant="outline" size="sm" className="gap-2">
+              <Shield className="h-4 w-4" />
+              <span className="hidden sm:inline">Warranties</span>
+            </Button>
+          </Link>
           <Button variant="outline" size="icon" onClick={loadData}>
             <RefreshCw className="h-4 w-4" />
           </Button>
