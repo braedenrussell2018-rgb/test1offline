@@ -72,17 +72,27 @@ serve(async (req) => {
             content: [
               {
                 type: "text",
-                text: `Extract all contact information from this business card. Return a JSON object with these exact fields (use null if information is not present):
+                text: `You are extracting contact information from a business card image. Analyze the image carefully and extract ONLY the following information. Be precise and accurate.
+
+CRITICAL RULES:
+1. "name" = The person's full name (first and last name). NOT the company name.
+2. "company" = The business/organization name. Look for Inc, LLC, Corp, Ltd, or company logos/branding.
+3. "jobTitle" = The person's job title/position (e.g., "Sales Manager", "CEO", "Director of Operations").
+4. "email" = Email address (contains @ symbol).
+5. "phone" = Phone number with area code.
+6. "address" = Physical street address, city, state, zip.
+
+Return ONLY a valid JSON object with these exact fields. Use null for any field you cannot find:
 {
-  "name": "full name",
-  "company": "company name", 
-  "jobTitle": "job title/position",
-  "email": "email address",
-  "phone": "phone number",
-  "address": "full address"
+  "name": "person's full name or null",
+  "company": "company/business name or null", 
+  "jobTitle": "job title/position or null",
+  "email": "email@example.com or null",
+  "phone": "phone number or null",
+  "address": "full street address or null"
 }
 
-Only return the JSON object, nothing else.`
+Do NOT confuse the person's name with the company name. The person's name is typically formatted as "FirstName LastName" while company names often have suffixes like Inc, LLC, or are in a logo/header.`
               },
               {
                 type: "image_url",
