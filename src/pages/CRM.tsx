@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare, RefreshCw, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Building2, FileText, StickyNote, Mail, Phone, MapPin, Briefcase, User, Eye, Download, Upload, Users, UserPlus, MessageSquare, RefreshCw, AlertCircle, Wifi, WifiOff, Search, X } from "lucide-react";
+import { useDebouncedSearch } from "@/hooks/useDebounce";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddPersonDialog } from "@/components/AddPersonDialog";
@@ -48,6 +50,9 @@ const CRMContent = () => {
   const [conversationCounts, setConversationCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // CRM-specific search
+  const { searchQuery, debouncedQuery, setSearchQuery, clearSearch } = useDebouncedSearch("", 300);
 
   // Persist active tab on change
   const handleTabChange = (value: string) => {
@@ -143,6 +148,28 @@ const CRMContent = () => {
     const company = companies.find(c => c.id === companyId);
     return company?.name || "Unknown Company";
   };
+
+  // Filter companies and contacts based on search
+  const filteredCompanies = companies.filter(company => {
+    if (!debouncedQuery) return true;
+    const search = debouncedQuery.toLowerCase();
+    return (
+      company.name.toLowerCase().includes(search) ||
+      company.address?.toLowerCase().includes(search)
+    );
+  });
+  
+  const filteredPersons = persons.filter(person => {
+    if (!debouncedQuery) return true;
+    const search = debouncedQuery.toLowerCase();
+    return (
+      person.name.toLowerCase().includes(search) ||
+      person.email?.toLowerCase().includes(search) ||
+      person.phone?.toLowerCase().includes(search) ||
+      person.jobTitle?.toLowerCase().includes(search) ||
+      getCompanyName(person.companyId).toLowerCase().includes(search)
+    );
+  });
 
   const handlePersonClick = (person: Person) => {
     setSelectedPerson(person);
@@ -331,11 +358,36 @@ const CRMContent = () => {
           />
         </div>
 
+        {/* Search Bar for Companies & Contacts */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search companies and contacts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9 max-w-md"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
+              onClick={clearSearch}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">
-            <TabsTrigger value="companies">Companies</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
+            <TabsTrigger value="companies">
+              Companies {debouncedQuery && `(${filteredCompanies.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="contacts">
+              Contacts {debouncedQuery && `(${filteredPersons.length})`}
+            </TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
           </TabsList>
@@ -351,9 +403,13 @@ const CRMContent = () => {
                   <p className="text-center text-muted-foreground py-8">
                     No companies yet. Add your first company to get started.
                   </p>
+                ) : filteredCompanies.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No companies match your search.
+                  </p>
                 ) : (
                   <div className="space-y-3">
-                    {companies.map((company) => {
+                    {filteredCompanies.map((company) => {
                       const companyPersons = persons.filter(p => p.companyId === company.id);
                       return (
                         <CompanyDetailDialog
@@ -397,9 +453,13 @@ const CRMContent = () => {
                   <p className="text-center text-muted-foreground py-8">
                     No contacts yet. Add your first person to get started.
                   </p>
+                ) : filteredPersons.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No contacts match your search.
+                  </p>
                 ) : (
                   <div className="space-y-4">
-                    {persons.map((person) => (
+                    {filteredPersons.map((person) => (
                       <PersonDetailDialog
                         key={person.id}
                         person={person}
