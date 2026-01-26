@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Award, Trophy, DollarSign, Star, Plus, Gift } from "lucide-react";
+import { Award, Trophy, DollarSign, Star, Plus, Gift, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 
 interface SpiffRecord {
@@ -22,6 +22,11 @@ interface SpiffRecord {
   prize_redeemed: string | null;
   redeemed_at: string | null;
   created_at: string;
+  status: 'pending' | 'approved' | 'rejected' | 'adjusted';
+  adjusted_amount: number | null;
+  adjusted_credits: number | null;
+  admin_notes: string | null;
+  approved_at: string | null;
 }
 
 interface Prize {
@@ -45,12 +50,25 @@ export default function SpiffProgram() {
   const [serialNumber, setSerialNumber] = useState("");
   const [saleAmount, setSaleAmount] = useState("");
 
-  const totalCredits = spiffRecords.reduce((sum, record) => sum + record.credits_earned, 0);
-  const redeemedCredits = spiffRecords
+  // Only count approved records for credits
+  const approvedRecords = spiffRecords.filter(r => r.status === 'approved' || r.status === 'adjusted');
+  const totalCredits = approvedRecords.reduce((sum, record) => {
+    // Use adjusted credits if available, otherwise use original
+    const credits = record.adjusted_credits ?? record.credits_earned;
+    return sum + credits;
+  }, 0);
+  const redeemedCredits = approvedRecords
     .filter(r => r.prize_redeemed)
-    .reduce((sum, record) => sum + record.credits_earned, 0);
+    .reduce((sum, record) => {
+      const credits = record.adjusted_credits ?? record.credits_earned;
+      return sum + credits;
+    }, 0);
   const availableCredits = totalCredits - redeemedCredits;
-  const totalSales = spiffRecords.reduce((sum, record) => sum + Number(record.sale_amount), 0);
+  const totalSales = approvedRecords.reduce((sum, record) => {
+    const amount = record.adjusted_amount ?? Number(record.sale_amount);
+    return sum + amount;
+  }, 0);
+  const pendingRecords = spiffRecords.filter(r => r.status === 'pending');
 
   useEffect(() => {
     fetchSpiffRecords();
@@ -71,7 +89,7 @@ export default function SpiffProgram() {
       console.error("Error fetching spiff records:", error);
       setSpiffRecords([]);
     } else {
-      setSpiffRecords(data || []);
+      setSpiffRecords((data || []) as SpiffRecord[]);
     }
     setLoading(false);
   };
@@ -95,7 +113,7 @@ export default function SpiffProgram() {
     if (!user || !saleDescription || !serialNumber || !saleAmount) return;
 
     const amount = parseFloat(saleAmount);
-    // Calculate credits: 1 credit per $100 in sales
+    // Calculate credits: 1 credit per $100 in sales (but won't apply until approved)
     const creditsEarned = Math.floor(amount / 100);
 
     const { error } = await supabase
@@ -106,18 +124,19 @@ export default function SpiffProgram() {
         serial_number: serialNumber.trim(),
         sale_amount: amount,
         credits_earned: creditsEarned,
+        status: 'pending', // New sales start as pending
       });
 
     if (error) {
       toast({
         title: "Error",
-        description: "Failed to add sale record",
+        description: "Failed to submit sale for approval",
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success!",
-        description: `Sale recorded! You earned ${creditsEarned} credits.`,
+        title: "Sale Submitted!",
+        description: `Your sale has been submitted for approval. You'll earn ${creditsEarned} credits once approved.`,
       });
       setSaleDescription("");
       setSerialNumber("");
@@ -137,8 +156,8 @@ export default function SpiffProgram() {
       return;
     }
 
-    // Find the oldest unredeemed records to mark as redeemed
-    const unredeemedRecords = spiffRecords.filter(r => !r.prize_redeemed);
+    // Find the oldest unredeemed approved records to mark as redeemed
+    const unredeemedRecords = approvedRecords.filter(r => !r.prize_redeemed);
     let creditsToMark = prize.credits_required;
     
     for (const record of unredeemedRecords) {
@@ -156,7 +175,8 @@ export default function SpiffProgram() {
         console.error("Error redeeming:", error);
       }
       
-      creditsToMark -= record.credits_earned;
+      const credits = record.adjusted_credits ?? record.credits_earned;
+      creditsToMark -= credits;
     }
 
     toast({
@@ -165,6 +185,41 @@ export default function SpiffProgram() {
     });
     setRedeemDialogOpen(false);
     fetchSpiffRecords();
+  };
+
+  const getStatusBadge = (record: SpiffRecord) => {
+    switch (record.status) {
+      case 'pending':
+        return (
+          <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-300 bg-yellow-50">
+            <Clock className="h-3 w-3" />
+            Pending Review
+          </Badge>
+        );
+      case 'approved':
+        return (
+          <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
+            <CheckCircle className="h-3 w-3" />
+            Approved
+          </Badge>
+        );
+      case 'adjusted':
+        return (
+          <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 bg-blue-50">
+            <AlertCircle className="h-3 w-3" />
+            Adjusted
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge variant="outline" className="gap-1 text-red-600 border-red-300 bg-red-50">
+            <XCircle className="h-3 w-3" />
+            Rejected
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
   };
 
   if (loading) {
@@ -191,14 +246,15 @@ export default function SpiffProgram() {
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
-              Add Sale
+              Record Sale
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-background">
             <DialogHeader>
               <DialogTitle>Record a Sale</DialogTitle>
               <DialogDescription>
-                Add your sale details to earn credits. You earn 1 credit for every $100 in sales.
+                Submit your sale for approval. You earn 1 credit for every $100 in sales once approved.
+                A 12-month warranty will also start for the serial number.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddSale} className="space-y-4">
@@ -221,6 +277,9 @@ export default function SpiffProgram() {
                   onChange={(e) => setSerialNumber(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  This will start a 12-month warranty once approved
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sale-amount">Sale Amount ($)</Label>
@@ -236,28 +295,47 @@ export default function SpiffProgram() {
                 />
                 {saleAmount && (
                   <p className="text-sm text-muted-foreground">
-                    You'll earn <span className="font-semibold text-primary">{Math.floor(parseFloat(saleAmount) / 100)}</span> credits
+                    You'll earn <span className="font-semibold text-primary">{Math.floor(parseFloat(saleAmount) / 100)}</span> credits once approved
                   </p>
                 )}
               </div>
               <Button type="submit" className="w-full">
-                Record Sale
+                Submit Sale for Approval
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Pending Notice */}
+      {pendingRecords.length > 0 && (
+        <Card className="mb-6 border-yellow-300 bg-yellow-50/50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-yellow-600" />
+              <div>
+                <p className="font-medium text-yellow-800">
+                  {pendingRecords.length} sale{pendingRecords.length > 1 ? 's' : ''} pending approval
+                </p>
+                <p className="text-sm text-yellow-700">
+                  Credits will be added once your sales are reviewed and approved.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Approved Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalSales.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Lifetime sales</p>
+            <p className="text-xs text-muted-foreground">Approved lifetime sales</p>
           </CardContent>
         </Card>
         
@@ -268,7 +346,7 @@ export default function SpiffProgram() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalCredits}</div>
-            <p className="text-xs text-muted-foreground">Credits earned</p>
+            <p className="text-xs text-muted-foreground">Credits from approved sales</p>
           </CardContent>
         </Card>
         
@@ -290,7 +368,7 @@ export default function SpiffProgram() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {spiffRecords.filter(r => r.prize_redeemed).length}
+              {approvedRecords.filter(r => r.prize_redeemed).length}
             </div>
             <p className="text-xs text-muted-foreground">Total redemptions</p>
           </CardContent>
@@ -393,7 +471,7 @@ export default function SpiffProgram() {
             <div className="text-center py-12 text-muted-foreground">
               <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No sales recorded yet.</p>
-              <p className="text-sm">Click "Add Sale" to record your first sale!</p>
+              <p className="text-sm">Click "Record Sale" to submit your first sale!</p>
             </div>
           ) : (
             <Table>
@@ -408,31 +486,68 @@ export default function SpiffProgram() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {spiffRecords.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>
-                      {format(new Date(record.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>{record.sale_description}</TableCell>
-                    <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      ${Number(record.sale_amount).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      +{record.credits_earned}
-                    </TableCell>
-                    <TableCell>
-                      {record.prize_redeemed ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <Gift className="h-3 w-3" />
-                          {record.prize_redeemed}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">Available</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {spiffRecords.map((record) => {
+                  const displayAmount = record.adjusted_amount ?? Number(record.sale_amount);
+                  const displayCredits = record.adjusted_credits ?? record.credits_earned;
+                  const isAdjusted = record.status === 'adjusted';
+                  
+                  return (
+                    <TableRow key={record.id} className={record.status === 'rejected' ? 'opacity-50' : ''}>
+                      <TableCell>
+                        {format(new Date(record.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          {record.sale_description}
+                          {record.admin_notes && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Note: {record.admin_notes}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{record.serial_number || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <div>
+                          ${displayAmount.toLocaleString()}
+                          {isAdjusted && record.adjusted_amount !== null && (
+                            <p className="text-xs text-muted-foreground line-through">
+                              ${Number(record.sale_amount).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        <div>
+                          {record.status === 'pending' ? (
+                            <span className="text-muted-foreground">+{record.credits_earned} (pending)</span>
+                          ) : record.status === 'rejected' ? (
+                            <span className="text-destructive">0</span>
+                          ) : (
+                            <>
+                              +{displayCredits}
+                              {isAdjusted && record.adjusted_credits !== null && record.adjusted_credits !== record.credits_earned && (
+                                <p className="text-xs text-muted-foreground line-through">
+                                  +{record.credits_earned}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {record.prize_redeemed ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <Gift className="h-3 w-3" />
+                            {record.prize_redeemed}
+                          </Badge>
+                        ) : (
+                          getStatusBadge(record)
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

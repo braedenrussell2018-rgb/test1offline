@@ -1033,6 +1033,11 @@ export type Database = {
       }
       spiff_program: {
         Row: {
+          adjusted_amount: number | null
+          adjusted_credits: number | null
+          admin_notes: string | null
+          approved_at: string | null
+          approved_by: string | null
           created_at: string | null
           credits_earned: number
           id: string
@@ -1042,9 +1047,15 @@ export type Database = {
           sale_description: string
           salesman_id: string
           serial_number: string | null
+          status: string
           updated_at: string | null
         }
         Insert: {
+          adjusted_amount?: number | null
+          adjusted_credits?: number | null
+          admin_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
           credits_earned?: number
           id?: string
@@ -1054,9 +1065,15 @@ export type Database = {
           sale_description: string
           salesman_id: string
           serial_number?: string | null
+          status?: string
           updated_at?: string | null
         }
         Update: {
+          adjusted_amount?: number | null
+          adjusted_credits?: number | null
+          admin_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
           credits_earned?: number
           id?: string
@@ -1066,9 +1083,57 @@ export type Database = {
           sale_description?: string
           salesman_id?: string
           serial_number?: string | null
+          status?: string
           updated_at?: string | null
         }
         Relationships: []
+      }
+      spiff_warranties: {
+        Row: {
+          created_at: string | null
+          id: string
+          sale_description: string
+          salesman_id: string
+          serial_number: string
+          spiff_sale_id: string
+          updated_at: string | null
+          warranty_end_date: string
+          warranty_months: number
+          warranty_start_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          sale_description: string
+          salesman_id: string
+          serial_number: string
+          spiff_sale_id: string
+          updated_at?: string | null
+          warranty_end_date: string
+          warranty_months?: number
+          warranty_start_date?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          sale_description?: string
+          salesman_id?: string
+          serial_number?: string
+          spiff_sale_id?: string
+          updated_at?: string | null
+          warranty_end_date?: string
+          warranty_months?: number
+          warranty_start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spiff_warranties_spiff_sale_id_fkey"
+            columns: ["spiff_sale_id"]
+            isOneToOne: false
+            referencedRelation: "spiff_program"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_ai_settings: {
         Row: {
