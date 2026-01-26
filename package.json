@@ -52,6 +52,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "exceljs": "^4.4.0",
+    "h3-js": "^4.4.0",
     "input-otp": "^1.4.2",
     "jspdf": "^4.0.0",
     "leaflet": "^1.9.4",

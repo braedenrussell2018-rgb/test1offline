@@ -12,10 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Building2, User, X, Loader2, AlertCircle } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, Navigation } from "lucide-react";
 import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
+import {
+  groupLocationsByH3,
+  getHexagonColor,
+  getHexagonOpacity,
+  getResolutionForZoom,
+  H3Location,
+  H3Cell,
+} from "@/lib/h3-utils";
 
 interface ContactsMapDialogProps {
   companies: Company[];
@@ -31,6 +39,8 @@ interface GeocodedLocation {
   persons: Person[];
 }
 
+type ViewMode = "hexagons" | "markers";
+
 // Fix for default marker icons in Leaflet with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -43,10 +53,14 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
   const [open, setOpen] = useState(false);
   const [locations, setLocations] = useState<GeocodedLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeocodedLocation | null>(null);
+  const [selectedCell, setSelectedCell] = useState<H3Cell | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("hexagons");
+  const [h3Resolution, setH3Resolution] = useState(7);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const hexagonsRef = useRef<L.Polygon[]>([]);
 
   const getCompanyName = useCallback((companyId?: string) => {
     if (!companyId) return "No Company";
@@ -141,34 +155,91 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     geocodeAddresses();
   }, [open, companies, persons]);
 
-  // Initialize map when locations are ready
-  useEffect(() => {
-    if (!open || !mapContainer.current || locations.length === 0) return;
+  // Clear hexagons helper
+  const clearHexagons = useCallback(() => {
+    hexagonsRef.current.forEach(hex => hex.remove());
+    hexagonsRef.current = [];
+  }, []);
 
-    // Clean up existing map
-    if (map.current) {
-      map.current.remove();
-      map.current = null;
-    }
+  // Clear markers helper
+  const clearMarkers = useCallback(() => {
+    markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
+  }, []);
 
-    // Create map
-    map.current = L.map(mapContainer.current);
+  // Render hexagons on the map
+  const renderHexagons = useCallback(() => {
+    if (!map.current || locations.length === 0) return;
 
-    // Add OpenStreetMap tiles (free, no API key needed)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map.current);
+    clearHexagons();
 
-    // Calculate bounds and fit map
-    const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+    // Convert locations to H3Location format
+    const h3Locations: H3Location[] = locations.map(loc => ({
+      lat: loc.lat,
+      lng: loc.lng,
+      address: loc.address,
+      companies: loc.companies,
+      persons: loc.persons,
+    }));
+
+    // Group by H3 cells
+    const cells = groupLocationsByH3(h3Locations, h3Resolution);
     
-    if (locations.length === 1) {
-      map.current.setView([locations[0].lat, locations[0].lng], 14);
-    } else {
-      map.current.fitBounds(bounds, { padding: [50, 50] });
-    }
+    // Find max count for color scaling
+    const maxCount = Math.max(...Array.from(cells.values()).map(c => c.count));
+
+    // Create hexagon polygons
+    cells.forEach((cell) => {
+      const color = getHexagonColor(cell.count, maxCount);
+      const opacity = getHexagonOpacity(cell.count, maxCount);
+
+      const hexagon = L.polygon(cell.polygon, {
+        fillColor: color,
+        fillOpacity: opacity,
+        color: 'white',
+        weight: 2,
+        opacity: 0.8,
+      }).addTo(map.current!);
+
+      // Add hover effect
+      hexagon.on('mouseover', () => {
+        hexagon.setStyle({
+          weight: 3,
+          color: 'hsl(var(--primary))',
+          fillOpacity: opacity + 0.2,
+        });
+      });
+
+      hexagon.on('mouseout', () => {
+        hexagon.setStyle({
+          weight: 2,
+          color: 'white',
+          fillOpacity: opacity,
+        });
+      });
+
+      // Click to show details
+      hexagon.on('click', () => {
+        setSelectedLocation(null);
+        setSelectedCell(cell);
+      });
+
+      // Add tooltip with count
+      hexagon.bindTooltip(`${cell.count} contact${cell.count !== 1 ? 's' : ''}`, {
+        permanent: false,
+        direction: 'center',
+        className: 'h3-tooltip',
+      });
+
+      hexagonsRef.current.push(hexagon);
+    });
+  }, [locations, h3Resolution, clearHexagons]);
+
+  // Render markers on the map
+  const renderMarkers = useCallback(() => {
+    if (!map.current || locations.length === 0) return;
+
+    clearMarkers();
 
     // Custom marker icon
     const customIcon = L.divIcon({
@@ -202,14 +273,63 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
         .addTo(map.current!);
 
       marker.on('click', () => {
+        setSelectedCell(null);
         setSelectedLocation(location);
       });
 
       markersRef.current.push(marker);
     });
+  }, [locations, clearMarkers]);
+
+  // Initialize map when locations are ready
+  useEffect(() => {
+    if (!open || !mapContainer.current || locations.length === 0) return;
+
+    // Clean up existing map
+    if (map.current) {
+      map.current.remove();
+      map.current = null;
+    }
+    markersRef.current = [];
+    hexagonsRef.current = [];
+
+    // Create map
+    map.current = L.map(mapContainer.current);
+
+    // Add OpenStreetMap tiles (free, no API key needed)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map.current);
+
+    // Calculate bounds and fit map
+    const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+    
+    if (locations.length === 1) {
+      map.current.setView([locations[0].lat, locations[0].lng], 14);
+    } else {
+      map.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    // Update H3 resolution based on zoom
+    map.current.on('zoomend', () => {
+      const zoom = map.current?.getZoom() || 10;
+      const newResolution = getResolutionForZoom(zoom);
+      if (newResolution !== h3Resolution) {
+        setH3Resolution(newResolution);
+      }
+    });
+
+    // Initial render based on view mode
+    if (viewMode === 'hexagons') {
+      renderHexagons();
+    } else {
+      renderMarkers();
+    }
 
     return () => {
-      markersRef.current.forEach(marker => marker.remove());
+      clearMarkers();
+      clearHexagons();
       if (map.current) {
         map.current.remove();
         map.current = null;
@@ -217,10 +337,27 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     };
   }, [locations, open]);
 
+  // Update visualization when view mode or resolution changes
+  useEffect(() => {
+    if (!map.current || locations.length === 0) return;
+
+    if (viewMode === 'hexagons') {
+      clearMarkers();
+      renderHexagons();
+    } else {
+      clearHexagons();
+      renderMarkers();
+    }
+  }, [viewMode, h3Resolution, renderHexagons, renderMarkers, clearMarkers, clearHexagons, locations]);
+
   const totalAddresses = new Set([
     ...companies.filter(c => c.address?.trim()).map(c => c.address!.trim().toLowerCase()),
     ...persons.filter(p => p.address?.trim()).map(p => p.address!.trim().toLowerCase()),
   ]).size;
+
+  // Get all companies and persons from selected cell
+  const selectedCellCompanies = selectedCell?.locations.flatMap(l => l.companies) || [];
+  const selectedCellPersons = selectedCell?.locations.flatMap(l => l.persons) || [];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -232,10 +369,30 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
       </DialogTrigger>
       <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0">
         <DialogHeader className="p-4 pb-2">
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Contacts & Companies Map
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Contacts & Companies Map
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'hexagons' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('hexagons')}
+              >
+                <Hexagon className="mr-1 h-4 w-4" />
+                Hexagons
+              </Button>
+              <Button
+                variant={viewMode === 'markers' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('markers')}
+              >
+                <Navigation className="mr-1 h-4 w-4" />
+                Markers
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 flex overflow-hidden">
@@ -258,12 +415,35 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
                 </div>
               </div>
             ) : (
-              <div ref={mapContainer} className="absolute inset-0" />
+              <>
+                <div ref={mapContainer} className="absolute inset-0" />
+                
+                {/* Legend for hexagon view */}
+                {viewMode === 'hexagons' && (
+                  <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border z-[1000]">
+                    <p className="text-xs font-medium mb-2">Density</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(210, 80%, 70%)' }} />
+                        <span className="text-xs text-muted-foreground">1 contact</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(210, 80%, 52%)' }} />
+                        <span className="text-xs text-muted-foreground">2-5 contacts</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(210, 80%, 35%)' }} />
+                        <span className="text-xs text-muted-foreground">6+ contacts</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Location Summary Panel */}
-          {selectedLocation && (
+          {/* Location Summary Panel - for marker view */}
+          {viewMode === 'markers' && selectedLocation && (
             <div className="w-80 border-l bg-card flex flex-col">
               <div className="p-3 border-b flex items-center justify-between">
                 <h3 className="font-semibold text-sm truncate flex-1">{selectedLocation.address}</h3>
@@ -355,12 +535,118 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               </ScrollArea>
             </div>
           )}
+
+          {/* Cell Summary Panel - for hexagon view */}
+          {viewMode === 'hexagons' && selectedCell && (
+            <div className="w-80 border-l bg-card flex flex-col">
+              <div className="p-3 border-b flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm">Area Details</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCell.count} contact{selectedCell.count !== 1 ? 's' : ''} in this area
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setSelectedCell(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 p-3">
+                <div className="space-y-3">
+                  {/* Companies in this cell */}
+                  {selectedCellCompanies.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        Companies ({selectedCellCompanies.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedCellCompanies.map(company => (
+                          <CompanyDetailDialog
+                            key={company.id}
+                            company={company}
+                            persons={persons.filter(p => p.companyId === company.id)}
+                            onPersonClick={() => {}}
+                            onUpdate={onRefresh}
+                          >
+                            <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
+                              <CardContent className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm truncate">{company.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{company.address}</p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </CompanyDetailDialog>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Persons in this cell */}
+                  {selectedCellPersons.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        Contacts ({selectedCellPersons.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedCellPersons.map(person => (
+                          <PersonDetailDialog
+                            key={person.id}
+                            person={person}
+                            companyName={getCompanyName(person.companyId)}
+                            onUpdate={onRefresh}
+                          >
+                            <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
+                              <CardContent className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm truncate">{person.name}</p>
+                                    {person.companyId && (
+                                      <Badge variant="secondary" className="text-xs truncate max-w-full">
+                                        {getCompanyName(person.companyId)}
+                                      </Badge>
+                                    )}
+                                    {person.jobTitle && (
+                                      <p className="text-xs text-muted-foreground truncate">{person.jobTitle}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </PersonDetailDialog>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t text-xs text-muted-foreground">
-          Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • 
-          Click a marker to see details
+        <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between">
+          <span>
+            {viewMode === 'hexagons' 
+              ? `Showing ${hexagonsRef.current.length} hexagon${hexagonsRef.current.length !== 1 ? 's' : ''}`
+              : `Showing ${locations.length} location${locations.length !== 1 ? 's' : ''}`
+            } • Click to see details
+          </span>
+          {viewMode === 'hexagons' && (
+            <span className="text-muted-foreground">
+              H3 Resolution: {h3Resolution}
+            </span>
+          )}
         </div>
       </DialogContent>
     </Dialog>
