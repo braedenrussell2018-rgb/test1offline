@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { FileEdit, Archive } from "lucide-react";
+import { FileEdit, Archive, Shield } from "lucide-react";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
@@ -28,6 +28,12 @@ export function InventoryActions({ onRefresh, disabled = false }: InventoryActio
         <Button variant="outline" className="w-full" disabled={disabled}>
           <Archive className="mr-2 h-4 w-4" />
           Sold Items
+        </Button>
+      </Link>
+      <Link to="/warranty">
+        <Button variant="outline" className="w-full" disabled={disabled}>
+          <Shield className="mr-2 h-4 w-4" />
+          Warranties
         </Button>
       </Link>
     </div>
