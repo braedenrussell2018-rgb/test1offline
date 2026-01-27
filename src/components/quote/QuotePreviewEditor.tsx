@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { InventoryItem } from "@/lib/inventory-storage";
 
-export interface InvoiceLineItem {
+export interface QuoteLineItem {
   itemId: string;
   partNumber: string;
   serialNumber?: string;
@@ -16,17 +16,17 @@ export interface InvoiceLineItem {
   cost: number;
 }
 
-interface InvoicePreviewEditorProps {
+interface QuotePreviewEditorProps {
   items: InventoryItem[];
   customerName: string;
   customerEmail: string;
   customerPhone: string;
   salesmanName: string;
   shipToAddress: string;
-  invoiceNumber: string;
+  quoteNumber: string;
   onBack: () => void;
-  onCreateInvoice: (data: {
-    lineItems: InvoiceLineItem[];
+  onCreateQuote: (data: {
+    lineItems: QuoteLineItem[];
     discount: number;
     discountType: 'dollar' | 'percent';
     shippingCost: number;
@@ -34,25 +34,24 @@ interface InvoicePreviewEditorProps {
   isSubmitting?: boolean;
 }
 
-export const InvoicePreviewEditor = ({
+export const QuotePreviewEditor = ({
   items,
   customerName,
   customerEmail,
   customerPhone,
   salesmanName,
   shipToAddress,
-  invoiceNumber,
+  quoteNumber,
   onBack,
-  onCreateInvoice,
+  onCreateQuote,
   isSubmitting = false,
-}: InvoicePreviewEditorProps) => {
-  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+}: QuotePreviewEditorProps) => {
+  const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<'dollar' | 'percent'>('dollar');
   const [shippingCost, setShippingCost] = useState(0);
 
   useEffect(() => {
-    // Initialize line items from selected inventory items
     setLineItems(
       items.map((item) => ({
         itemId: item.id,
@@ -65,7 +64,7 @@ export const InvoicePreviewEditor = ({
     );
   }, [items]);
 
-  const updateLineItem = (index: number, field: keyof InvoiceLineItem, value: string | number) => {
+  const updateLineItem = (index: number, field: keyof QuoteLineItem, value: string | number) => {
     setLineItems((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
@@ -82,7 +81,7 @@ export const InvoicePreviewEditor = ({
   const total = subtotal - discountAmount + shippingCost;
 
   const handleCreate = () => {
-    onCreateInvoice({
+    onCreateQuote({
       lineItems,
       discount,
       discountType,
@@ -97,17 +96,17 @@ export const InvoicePreviewEditor = ({
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-lg font-semibold">Invoice Preview</h2>
+        <h2 className="text-lg font-semibold">Quote Preview</h2>
       </div>
 
       <ScrollArea className="flex-1 pr-4">
-        {/* PDF-like Invoice Preview */}
+        {/* PDF-like Quote Preview */}
         <div className="bg-white dark:bg-card border rounded-lg shadow-sm p-6 my-4 space-y-6">
-          {/* Invoice Header */}
+          {/* Quote Header */}
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold text-primary">INVOICE</h1>
-              <p className="text-sm text-muted-foreground mt-1">#{invoiceNumber}</p>
+              <h1 className="text-2xl font-bold text-primary">QUOTE</h1>
+              <p className="text-sm text-muted-foreground mt-1">#{quoteNumber}</p>
               <p className="text-sm text-muted-foreground">
                 Date: {new Date().toLocaleDateString()}
               </p>
@@ -294,6 +293,11 @@ export const InvoicePreviewEditor = ({
                 <span className="text-lg font-semibold">Total:</span>
                 <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
               </div>
+
+              {/* Valid for note */}
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                This quote is valid for 30 days from the date of issue.
+              </p>
             </div>
           </div>
         </div>
@@ -308,7 +312,7 @@ export const InvoicePreviewEditor = ({
           onClick={handleCreate} 
           disabled={lineItems.length === 0 || isSubmitting}
         >
-          {isSubmitting ? "Creating..." : "Create Invoice"}
+          {isSubmitting ? "Creating..." : "Create Quote"}
         </Button>
       </div>
     </div>
