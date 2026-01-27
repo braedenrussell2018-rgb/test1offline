@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Printer, Save } from "lucide-react";
 import { InventoryItem } from "@/lib/inventory-storage";
 
 export interface InvoiceLineItem {
@@ -30,6 +30,7 @@ interface InvoicePreviewEditorProps {
     discount: number;
     discountType: 'dollar' | 'percent';
     shippingCost: number;
+    isDraft?: boolean;
   }) => void;
   isSubmitting?: boolean;
 }
@@ -50,9 +51,9 @@ export const InvoicePreviewEditor = ({
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<'dollar' | 'percent'>('dollar');
   const [shippingCost, setShippingCost] = useState(0);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Initialize line items from selected inventory items
     setLineItems(
       items.map((item) => ({
         itemId: item.id,
@@ -81,28 +82,152 @@ export const InvoicePreviewEditor = ({
   const discountAmount = discountType === 'percent' ? (subtotal * discount) / 100 : discount;
   const total = subtotal - discountAmount + shippingCost;
 
-  const handleCreate = () => {
+  const handleCreate = (isDraft: boolean = false) => {
     onCreateInvoice({
       lineItems,
       discount,
       discountType,
       shippingCost,
+      isDraft,
     });
+  };
+
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice ${invoiceNumber}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+            .invoice-header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .invoice-title { font-size: 28px; font-weight: bold; color: #2563eb; }
+            .invoice-meta { font-size: 12px; color: #666; margin-top: 5px; }
+            .section { margin-bottom: 25px; }
+            .section-title { font-weight: bold; font-size: 12px; margin-bottom: 8px; text-transform: uppercase; color: #666; }
+            .customer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+            .customer-info p { font-size: 13px; margin: 3px 0; }
+            .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .items-table th { text-align: left; font-size: 11px; color: #666; padding: 8px 0; border-bottom: 2px solid #e5e5e5; }
+            .items-table td { padding: 12px 0; border-bottom: 1px solid #e5e5e5; font-size: 13px; vertical-align: top; }
+            .items-table .price { text-align: right; }
+            .totals { margin-top: 20px; margin-left: auto; width: 250px; }
+            .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+            .totals-row.total { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 16px; font-weight: bold; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-header">
+            <div>
+              <div class="invoice-title">INVOICE</div>
+              <div class="invoice-meta">#${invoiceNumber}</div>
+              <div class="invoice-meta">Date: ${new Date().toLocaleDateString()}</div>
+            </div>
+            ${salesmanName ? `<div class="invoice-meta">Salesman: ${salesmanName}</div>` : ''}
+          </div>
+          
+          <div class="customer-grid section">
+            <div>
+              <div class="section-title">Bill To</div>
+              <div class="customer-info">
+                <p><strong>${customerName || '—'}</strong></p>
+                ${customerEmail ? `<p>${customerEmail}</p>` : ''}
+                ${customerPhone ? `<p>${customerPhone}</p>` : ''}
+              </div>
+            </div>
+            <div>
+              <div class="section-title">Ship To</div>
+              <div class="customer-info">
+                <p>${shipToAddress || '—'}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Items</div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width: 20%">Part #</th>
+                  <th style="width: 40%">Description</th>
+                  <th style="width: 25%">Serial #</th>
+                  <th style="width: 15%" class="price">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lineItems.map(item => `
+                  <tr>
+                    <td>${item.partNumber}</td>
+                    <td>${item.description}</td>
+                    <td>${item.serialNumber || '—'}</td>
+                    <td class="price">$${item.price.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="totals">
+            <div class="totals-row">
+              <span>Subtotal:</span>
+              <span>$${subtotal.toFixed(2)}</span>
+            </div>
+            ${discountAmount > 0 ? `
+              <div class="totals-row">
+                <span>Discount:</span>
+                <span>-$${discountAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${shippingCost > 0 ? `
+              <div class="totals-row">
+                <span>Shipping:</span>
+                <span>$${shippingCost.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row total">
+              <span>Total:</span>
+              <span>$${total.toFixed(2)}</span>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b">
-        <Button variant="ghost" size="icon" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-center justify-between pb-4 border-b">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-lg font-semibold">Invoice Preview</h2>
+        </div>
+        <Button variant="outline" size="sm" onClick={handlePrint}>
+          <Printer className="h-4 w-4 mr-2" />
+          Print
         </Button>
-        <h2 className="text-lg font-semibold">Invoice Preview</h2>
       </div>
 
       <ScrollArea className="flex-1 pr-4">
         {/* PDF-like Invoice Preview */}
-        <div className="bg-white dark:bg-card border rounded-lg shadow-sm p-6 my-4 space-y-6">
+        <div ref={printRef} className="bg-white dark:bg-card border rounded-lg shadow-sm p-6 my-4 space-y-6">
           {/* Invoice Header */}
           <div className="flex justify-between items-start">
             <div>
@@ -300,16 +425,26 @@ export const InvoicePreviewEditor = ({
       </ScrollArea>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-between gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onBack}>
           Back to Selection
         </Button>
-        <Button 
-          onClick={handleCreate} 
-          disabled={lineItems.length === 0 || isSubmitting}
-        >
-          {isSubmitting ? "Creating..." : "Create Invoice"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="secondary"
+            onClick={() => handleCreate(true)} 
+            disabled={lineItems.length === 0 || isSubmitting}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save as Draft
+          </Button>
+          <Button 
+            onClick={() => handleCreate(false)} 
+            disabled={lineItems.length === 0 || isSubmitting}
+          >
+            {isSubmitting ? "Creating..." : "Finalize Invoice"}
+          </Button>
+        </div>
       </div>
     </div>
   );

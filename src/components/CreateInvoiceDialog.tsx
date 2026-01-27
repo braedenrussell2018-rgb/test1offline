@@ -100,6 +100,7 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
     discount: number;
     discountType: 'dollar' | 'percent';
     shippingCost: number;
+    isDraft?: boolean;
   }) => {
     if (data.lineItems.length === 0) {
       toast({
@@ -127,6 +128,8 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
         : data.discount;
       const total = subtotal - discountAmount + data.shippingCost;
 
+      const status = data.isDraft ? 'draft' : 'finalized';
+
       const invoice = await inventoryStorage.createInvoice({
         invoiceNumber,
         items: invoiceItems,
@@ -139,20 +142,24 @@ export const CreateInvoiceDialog = ({ onInvoiceCreated }: CreateInvoiceDialogPro
         shippingCost: data.shippingCost,
         subtotal,
         total,
-      });
+      }, status);
 
-      // Mark items as sold
-      for (const item of data.lineItems) {
-        await inventoryStorage.updateItem(item.itemId, {
-          status: 'sold',
-          soldDate: new Date().toISOString(),
-          invoiceId: invoice.id,
-        });
+      // Only mark items as sold if finalizing (not draft)
+      if (!data.isDraft) {
+        for (const item of data.lineItems) {
+          await inventoryStorage.updateItem(item.itemId, {
+            status: 'sold',
+            soldDate: new Date().toISOString(),
+            invoiceId: invoice.id,
+          });
+        }
       }
 
       toast({
         title: "Success",
-        description: `Invoice ${invoice.invoiceNumber} created successfully`,
+        description: data.isDraft 
+          ? `Draft invoice ${invoice.invoiceNumber} saved` 
+          : `Invoice ${invoice.invoiceNumber} created successfully`,
       });
 
       setOpen(false);

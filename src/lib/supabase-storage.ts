@@ -71,6 +71,7 @@ export interface Invoice {
   createdAt: string;
   paid?: boolean;
   paidAt?: string;
+  status?: 'draft' | 'finalized';
 }
 
 export interface Quote {
@@ -490,10 +491,11 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     createdAt: String(row.created_at),
     paid: Boolean(row.paid),
     paidAt: row.paid_at as string | undefined,
+    status: (row as any).status as 'draft' | 'finalized' | undefined,
   }));
 };
 
-export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice> => {
+export const addInvoice = async (invoice: Omit<Invoice, "id">, status: 'draft' | 'finalized' = 'finalized'): Promise<Invoice> => {
   const { data, error } = await supabase
     .from("invoices")
     .insert({
@@ -510,6 +512,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
       discount: invoice.discount,
       shipping: invoice.shipping,
       total: invoice.total,
+      status: status,
     })
     .select()
     .single();
@@ -531,6 +534,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<Invoice>
     shipping: Number(data.shipping),
     total: Number(data.total),
     createdAt: data.created_at,
+    status: (data as any).status as 'draft' | 'finalized',
   };
 };
 
