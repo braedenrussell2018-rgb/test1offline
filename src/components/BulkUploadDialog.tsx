@@ -2,7 +2,8 @@ import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet, Pencil, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import { createAndDownloadExcel, readExcelFile, createTemplate } from "@/lib/excel-utils";
@@ -10,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 
 interface BulkUploadDialogProps {
   onItemsAdded: () => void;
@@ -26,11 +28,20 @@ interface ParsedItem {
   errors: string[];
 }
 
+interface ImportProgress {
+  current: number;
+  total: number;
+  currentProduct: string;
+}
+
 export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
   const [open, setOpen] = useState(false);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<ParsedItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = async () => {
@@ -57,7 +68,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       template, 
       "Items", 
       "inventory_template.xlsx",
-      [5, 25, 50, 10, 12, 10]  // Column widths
+      [5, 25, 50, 10, 12, 10]
     );
     toast.success("Template downloaded");
   };
@@ -68,7 +79,6 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       const items = await inventoryStorage.getItems();
       const availableItems = items.filter(item => item.status === 'available');
 
-      // Group items by part number and count quantities
       const groupedItems = availableItems.reduce((acc, item) => {
         const key = item.partNumber;
         if (!acc[key]) {
@@ -104,7 +114,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         exportData,
         "Items",
         `inventory_export_${date}.xlsx`,
-        [5, 30, 60, 10, 12, 10]  // Column widths
+        [5, 30, 60, 10, 12, 10]
       );
       toast.success(`Exported ${exportData.length} items`);
     } catch (error) {
@@ -131,7 +141,6 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       errors.push("Sale price cannot be negative");
     }
 
-    // Check for duplicates in existing inventory (only warn, don't block)
     if (existingPartNumbers.has(item.partNumber)) {
       errors.push("Part number already exists (will add to existing)");
     }
@@ -158,17 +167,13 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
         return;
       }
 
-      // Get existing part numbers
       const existingItems = await inventoryStorage.getItems();
       const existingPartNumbers = new Set(existingItems.map(i => i.partNumber));
 
       const items: ParsedItem[] = [];
       for (const row of jsonData as Record<string, unknown>[]) {
-        // Support multiple formats: external inventory (Name, Description, Total), 
-        // internal format (Name, In Stock, Sales Price), and legacy formats
         const partNumber = String(row["Name"] || row["PartNumber"] || row["partNumber"] || row["Part Number"] || "").trim();
         const description = String(row["Description"] || row["description"] || "").trim();
-        // Support "Total" column from external inventory systems, "In Stock", and other quantity column names
         const quantity = Number(row["Total"] || row["In Stock"] || row["Quantity"] || row["quantity"] || row["Qty"] || row["Stock"] || 1) || 1;
         const salePrice = Number(row["Sales Price"] || row["SalePrice"] || row["salePrice"] || row["Sale Price"] || 0) || 0;
         const cost = Number(row["Purch Price"] || row["Cost"] || row["cost"] || row["Purchase Price"] || 0) || 0;
@@ -211,12 +216,17 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       return;
     }
 
+    const totalQuantity = validItems.reduce((sum, i) => sum + i.quantity, 0);
+
     setIsProcessing(true);
+    setImportProgress({ current: 0, total: totalQuantity, currentProduct: "" });
+
     try {
       let totalItemsCreated = 0;
       
       for (const item of validItems) {
-        // Create one inventory item per quantity
+        setImportProgress(prev => prev ? { ...prev, currentProduct: item.partNumber } : null);
+        
         for (let i = 0; i < item.quantity; i++) {
           await inventoryStorage.addItem({
             partNumber: item.partNumber,
@@ -227,6 +237,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
             status: 'available',
           });
           totalItemsCreated++;
+          setImportProgress(prev => prev ? { ...prev, current: totalItemsCreated } : null);
         }
       }
 
@@ -239,6 +250,39 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
       toast.error("Failed to import items");
     } finally {
       setIsProcessing(false);
+      setImportProgress(null);
+    }
+  };
+
+  const startEditing = (index: number) => {
+    setEditingIndex(index);
+    setEditForm({ ...parsedItems[index] });
+  };
+
+  const cancelEditing = () => {
+    setEditingIndex(null);
+    setEditForm(null);
+  };
+
+  const saveEditing = async () => {
+    if (editingIndex === null || !editForm) return;
+
+    const existingItems = await inventoryStorage.getItems();
+    const existingPartNumbers = new Set(existingItems.map(i => i.partNumber));
+
+    const validatedItem = validateItem(editForm, existingPartNumbers);
+
+    const newItems = [...parsedItems];
+    newItems[editingIndex] = validatedItem;
+    setParsedItems(newItems);
+
+    setEditingIndex(null);
+    setEditForm(null);
+
+    if (validatedItem.isValid) {
+      toast.success("Item updated and validated");
+    } else {
+      toast.info("Item updated but still has validation errors");
     }
   };
 
@@ -246,10 +290,20 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
   const invalidCount = parsedItems.length - validCount;
   const totalQuantity = parsedItems.filter(i => i.isValid).reduce((sum, i) => sum + i.quantity, 0);
 
+  const validItems = parsedItems.filter(item => item.isValid);
+  const invalidItems = parsedItems
+    .map((item, index) => ({ item, originalIndex: index }))
+    .filter(({ item }) => !item.isValid);
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       setOpen(isOpen);
-      if (!isOpen) setParsedItems([]);
+      if (!isOpen) {
+        setParsedItems([]);
+        setEditingIndex(null);
+        setEditForm(null);
+        setImportProgress(null);
+      }
     }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full">
@@ -290,7 +344,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
               <Label htmlFor="file-upload" className="flex-1">
                 <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground">
                   <Upload className="mr-2 h-4 w-4" />
-                  {isProcessing ? "Processing..." : "Choose Excel File"}
+                  {isProcessing && !importProgress ? "Processing..." : "Choose Excel File"}
                 </div>
                 <input
                   ref={fileInputRef}
@@ -304,7 +358,26 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
               </Label>
             </div>
 
-            {parsedItems.length > 0 && (
+            {/* Import Progress */}
+            {importProgress && (
+              <div className="space-y-2 p-4 bg-muted rounded-lg">
+                <div className="flex justify-between text-sm">
+                  <span>Importing items...</span>
+                  <span className="font-medium">
+                    {importProgress.current} / {importProgress.total}
+                  </span>
+                </div>
+                <Progress 
+                  value={(importProgress.current / importProgress.total) * 100} 
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Current: {importProgress.currentProduct}
+                </p>
+              </div>
+            )}
+
+            {parsedItems.length > 0 && !importProgress && (
               <>
                 <div className="flex gap-4 p-3 bg-muted rounded-lg">
                   <div className="flex items-center gap-2">
@@ -317,63 +390,185 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                     <div className="flex items-center gap-2">
                       <XCircle className="h-4 w-4 text-destructive" />
                       <span className="text-sm">
-                        <strong>{invalidCount}</strong> Invalid
+                        <strong>{invalidCount}</strong> Invalid (click to edit)
                       </span>
                     </div>
                   )}
                 </div>
 
-                <ScrollArea className="flex-1 border rounded-lg">
-                  <div className="p-4 space-y-2">
-                    {parsedItems.map((item, index) => (
-                      <div
-                        key={index}
-                        className={`p-3 border rounded-lg ${
-                          item.isValid ? 'bg-green-500/5 border-green-500/20' : 'bg-destructive/5 border-destructive/20'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium">{item.partNumber || "(missing)"}</span>
-                              {item.isValid ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-destructive" />
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {item.description || "(missing)"}
-                            </p>
-                            <div className="flex gap-2 mt-2">
-                              <Badge variant="outline" className="text-xs">
-                                Qty: {item.quantity}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                ${item.salePrice.toFixed(2)}
-                              </Badge>
-                              {item.weight > 0 && (
-                                <Badge variant="outline" className="text-xs">
-                                  {item.weight} lbs
-                                </Badge>
-                              )}
-                            </div>
-                            {item.errors.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {item.errors.map((error, errorIndex) => (
-                                  <p key={errorIndex} className="text-xs text-amber-600 flex items-center gap-1">
-                                    <AlertCircle className="h-3 w-3" />
-                                    {error}
-                                  </p>
-                                ))}
+                {/* Invalid Items Section - Editable */}
+                {invalidItems.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-destructive flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      Invalid Items - Click to Edit
+                    </h4>
+                    <ScrollArea className="h-[200px] border border-destructive/20 rounded-lg">
+                      <div className="p-3 space-y-2">
+                        {invalidItems.map(({ item, originalIndex }) => (
+                          <div
+                            key={originalIndex}
+                            className="p-3 border rounded-lg bg-destructive/5 border-destructive/20"
+                          >
+                            {editingIndex === originalIndex ? (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Part Number *</Label>
+                                    <Input
+                                      value={editForm?.partNumber || ""}
+                                      onChange={(e) => setEditForm(prev => prev ? { ...prev, partNumber: e.target.value } : null)}
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Quantity</Label>
+                                    <Input
+                                      type="number"
+                                      value={editForm?.quantity || 0}
+                                      onChange={(e) => setEditForm(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 0 } : null)}
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Description *</Label>
+                                  <Input
+                                    value={editForm?.description || ""}
+                                    onChange={(e) => setEditForm(prev => prev ? { ...prev, description: e.target.value } : null)}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Sale Price</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={editForm?.salePrice || 0}
+                                      onChange={(e) => setEditForm(prev => prev ? { ...prev, salePrice: parseFloat(e.target.value) || 0 } : null)}
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Weight (lbs)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={editForm?.weight || 0}
+                                      onChange={(e) => setEditForm(prev => prev ? { ...prev, weight: parseFloat(e.target.value) || 0 } : null)}
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <Button size="sm" variant="ghost" onClick={cancelEditing}>
+                                    <X className="h-4 w-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                  <Button size="sm" onClick={saveEditing}>
+                                    <Check className="h-4 w-4 mr-1" />
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="cursor-pointer hover:bg-destructive/10 -m-3 p-3 rounded-lg transition-colors"
+                                onClick={() => startEditing(originalIndex)}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium">{item.partNumber || "(missing)"}</span>
+                                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground truncate">
+                                      {item.description || "(missing)"}
+                                    </p>
+                                    <div className="flex gap-2 mt-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        Qty: {item.quantity}
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        ${item.salePrice.toFixed(2)}
+                                      </Badge>
+                                    </div>
+                                    {item.errors.length > 0 && (
+                                      <div className="mt-2 space-y-1">
+                                        {item.errors.map((error, errorIndex) => (
+                                          <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" />
+                                            {error}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </ScrollArea>
                   </div>
-                </ScrollArea>
+                )}
+
+                {/* Valid Items Section */}
+                {validItems.length > 0 && (
+                  <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                    <h4 className="text-sm font-medium text-green-600 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Valid Items ({validItems.length} products, {totalQuantity} items)
+                    </h4>
+                    <ScrollArea className="flex-1 border border-green-500/20 rounded-lg min-h-[150px]">
+                      <div className="p-3 space-y-2">
+                        {validItems.map((item, index) => (
+                          <div
+                            key={index}
+                            className="p-3 border rounded-lg bg-green-500/5 border-green-500/20"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium">{item.partNumber}</span>
+                                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                </div>
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {item.description}
+                                </p>
+                                <div className="flex gap-2 mt-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    Qty: {item.quantity}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">
+                                    ${item.salePrice.toFixed(2)}
+                                  </Badge>
+                                  {item.weight > 0 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.weight} lbs
+                                    </Badge>
+                                  )}
+                                </div>
+                                {item.errors.length > 0 && (
+                                  <div className="mt-2 space-y-1">
+                                    {item.errors.map((error, errorIndex) => (
+                                      <p key={errorIndex} className="text-xs text-amber-600 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {error}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2 border-t">
                   <Button
