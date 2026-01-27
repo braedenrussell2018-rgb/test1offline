@@ -49,6 +49,7 @@ export interface Invoice {
   createdAt: string;
   paid?: boolean;
   paidAt?: string;
+  status?: 'draft' | 'finalized';
 }
 
 export interface Quote {
@@ -339,7 +340,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
   }));
 };
 
-export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Promise<Invoice> => {
+export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">, status: 'draft' | 'finalized' = 'finalized'): Promise<Invoice> => {
   const dbInvoice = await db.addInvoice({
     invoiceNumber: invoice.invoiceNumber,
     customerName: invoice.customerName!,
@@ -361,7 +362,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     shipping: invoice.shippingCost,
     total: invoice.total,
     createdAt: new Date().toISOString(),
-  });
+  }, status);
 
   return {
     id: dbInvoice.id,
@@ -385,6 +386,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">): Pr
     shippingCost: dbInvoice.shipping,
     total: dbInvoice.total,
     createdAt: dbInvoice.createdAt,
+    status: dbInvoice.status,
   };
 };
 

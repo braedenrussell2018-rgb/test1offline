@@ -517,6 +517,7 @@ export type Database = {
           ship_to_address: string | null
           ship_to_name: string | null
           shipping: number | null
+          status: string
           subtotal: number
           total: number
         }
@@ -537,6 +538,7 @@ export type Database = {
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          status?: string
           subtotal: number
           total: number
         }
@@ -557,6 +559,7 @@ export type Database = {
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          status?: string
           subtotal?: number
           total?: number
         }
