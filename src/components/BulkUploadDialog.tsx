@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet, Pencil, X, Check } from "lucide-react";
+import { Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet, Pencil, X, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { inventoryStorage } from "@/lib/inventory-storage";
 import { createAndDownloadExcel, readExcelFile, createTemplate } from "@/lib/excel-utils";
@@ -286,6 +286,19 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
     }
   };
 
+  const deleteItem = (index: number) => {
+    const newItems = parsedItems.filter((_, i) => i !== index);
+    setParsedItems(newItems);
+    toast.success("Item removed from import list");
+  };
+
+  const deleteAllInvalid = () => {
+    const validOnly = parsedItems.filter(item => item.isValid);
+    const removedCount = parsedItems.length - validOnly.length;
+    setParsedItems(validOnly);
+    toast.success(`Removed ${removedCount} invalid items`);
+  };
+
   const validCount = parsedItems.filter(item => item.isValid).length;
   const invalidCount = parsedItems.length - validCount;
   const totalQuantity = parsedItems.filter(i => i.isValid).reduce((sum, i) => sum + i.quantity, 0);
@@ -399,10 +412,21 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                 {/* Invalid Items Section - Editable */}
                 {invalidItems.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-destructive flex items-center gap-2">
-                      <XCircle className="h-4 w-4" />
-                      Invalid Items - Click to Edit
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-destructive flex items-center gap-2">
+                        <XCircle className="h-4 w-4" />
+                        Invalid Items - Click to Edit
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={deleteAllInvalid}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Remove All Invalid
+                      </Button>
+                    </div>
                     <ScrollArea className="h-[200px] border border-destructive/20 rounded-lg">
                       <div className="p-3 space-y-2">
                         {invalidItems.map(({ item, originalIndex }) => (
@@ -473,39 +497,52 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                                 </div>
                               </div>
                             ) : (
-                              <div 
-                                className="cursor-pointer hover:bg-destructive/10 -m-3 p-3 rounded-lg transition-colors"
-                                onClick={() => startEditing(originalIndex)}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium">{item.partNumber || "(missing)"}</span>
-                                      <Pencil className="h-3 w-3 text-muted-foreground" />
-                                    </div>
-                                    <p className="text-sm text-muted-foreground truncate">
-                                      {item.description || "(missing)"}
-                                    </p>
-                                    <div className="flex gap-2 mt-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        Qty: {item.quantity}
-                                      </Badge>
-                                      <Badge variant="outline" className="text-xs">
-                                        ${item.salePrice.toFixed(2)}
-                                      </Badge>
-                                    </div>
-                                    {item.errors.length > 0 && (
-                                      <div className="mt-2 space-y-1">
-                                        {item.errors.map((error, errorIndex) => (
-                                          <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
-                                            <AlertCircle className="h-3 w-3" />
-                                            {error}
-                                          </p>
-                                        ))}
+                              <div className="flex items-start gap-2">
+                                <div 
+                                  className="flex-1 cursor-pointer hover:bg-destructive/10 -m-3 p-3 rounded-lg transition-colors"
+                                  onClick={() => startEditing(originalIndex)}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium">{item.partNumber || "(missing)"}</span>
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
                                       </div>
-                                    )}
+                                      <p className="text-sm text-muted-foreground truncate">
+                                        {item.description || "(missing)"}
+                                      </p>
+                                      <div className="flex gap-2 mt-2">
+                                        <Badge variant="outline" className="text-xs">
+                                          Qty: {item.quantity}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-xs">
+                                          ${item.salePrice.toFixed(2)}
+                                        </Badge>
+                                      </div>
+                                      {item.errors.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                          {item.errors.map((error, errorIndex) => (
+                                            <p key={errorIndex} className="text-xs text-destructive flex items-center gap-1">
+                                              <AlertCircle className="h-3 w-3" />
+                                              {error}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteItem(originalIndex);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             )}
                           </div>
