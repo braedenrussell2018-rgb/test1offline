@@ -331,15 +331,32 @@ export const deletePerson = async (id: string): Promise<void> => {
   if (error) throw error;
 };
 
-// Items
+// Items - fetch all items using pagination to avoid the 1000 row limit
 export const getItems = async (): Promise<Item[]> => {
-  const { data, error } = await supabase
-    .from("items")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) throw error;
-  return (data || []).map((row) => ({
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("items")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData.map((row) => ({
     id: String(row.id),
     partNumber: String(row.part_number),
     description: String(row.description),
