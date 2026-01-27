@@ -164,10 +164,12 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
 
       const items: ParsedItem[] = [];
       for (const row of jsonData as Record<string, unknown>[]) {
-        // Support both new format (Name, In Stock, Sales Price) and legacy format
+        // Support multiple formats: external inventory (Name, Description, Total), 
+        // internal format (Name, In Stock, Sales Price), and legacy formats
         const partNumber = String(row["Name"] || row["PartNumber"] || row["partNumber"] || row["Part Number"] || "").trim();
         const description = String(row["Description"] || row["description"] || "").trim();
-        const quantity = Number(row["In Stock"] || row["Quantity"] || row["quantity"] || 1) || 1;
+        // Support "Total" column from external inventory systems, "In Stock", and other quantity column names
+        const quantity = Number(row["Total"] || row["In Stock"] || row["Quantity"] || row["quantity"] || row["Qty"] || row["Stock"] || 1) || 1;
         const salePrice = Number(row["Sales Price"] || row["SalePrice"] || row["salePrice"] || row["Sale Price"] || 0) || 0;
         const cost = Number(row["Purch Price"] || row["Cost"] || row["cost"] || row["Purchase Price"] || 0) || 0;
         const weight = Number(row["Weight"] || row["weight"] || 0) || 0;
@@ -270,7 +272,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Upload Excel with columns: <strong>#</strong>, <strong>Name</strong> (part number), <strong>Description</strong>, <strong>In Stock</strong> (quantity), <strong>Sales Price</strong>, <strong>Weight</strong>
+                Upload Excel with columns: <strong>Name</strong> (part number), <strong>Description</strong>, <strong>Total</strong> or <strong>In Stock</strong> (quantity). Optional: <strong>Sales Price</strong>, <strong>Weight</strong>
               </AlertDescription>
             </Alert>
 
