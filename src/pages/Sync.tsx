@@ -34,9 +34,17 @@ import {
   Copy,
   HardDrive,
   Zap,
-  Share2
+  Share2,
+  Monitor,
+  Share,
+  Plus
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 export default function Sync() {
   // Legacy sync hook (for backward compatibility)
@@ -54,13 +62,60 @@ export default function Sync() {
   const [joinRoomKey, setJoinRoomKey] = useState("");
   const [storageInfo, setStorageInfo] = useState<{ quota?: number; usage?: number; percentUsed?: number }>({});
   const [isPersistent, setIsPersistent] = useState(false);
-  const [syncMode, setSyncMode] = useState<"crdt" | "legacy">("crdt");
+  const [syncMode, setSyncMode] = useState<"crdt" | "legacy" | "install">("crdt");
+
+  // Install PWA state
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   // Load storage info on mount
   useEffect(() => {
     getStorageEstimate().then(setStorageInfo);
     navigator.storage?.persisted?.().then(setIsPersistent);
   }, []);
+
+  // Install PWA detection
+  useEffect(() => {
+    // Check if already installed
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsInstalled(true);
+    }
+
+    // Check if iOS
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    setIsIOS(isIOSDevice);
+
+    // Listen for install prompt
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    // Listen for app installed
+    window.addEventListener("appinstalled", () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    });
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      setIsInstalled(true);
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleSaveName = () => {
     if (tempName.trim()) {
@@ -151,8 +206,8 @@ export default function Sync() {
         </Card>
 
         {/* Sync Mode Tabs */}
-        <Tabs value={syncMode} onValueChange={(v) => setSyncMode(v as "crdt" | "legacy")}>
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={syncMode} onValueChange={(v) => setSyncMode(v as "crdt" | "legacy" | "install")}>
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="crdt" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               P2P Sync
@@ -160,6 +215,10 @@ export default function Sync() {
             <TabsTrigger value="legacy" className="flex items-center gap-2">
               <ArrowLeftRight className="h-4 w-4" />
               Server Sync
+            </TabsTrigger>
+            <TabsTrigger value="install" className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Install
             </TabsTrigger>
           </TabsList>
 
@@ -441,6 +500,125 @@ export default function Sync() {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Install App Tab */}
+          <TabsContent value="install" className="space-y-6 mt-6">
+            {isInstalled ? (
+              <Card>
+                <CardHeader className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                    <Check className="w-8 h-8 text-green-500" />
+                  </div>
+                  <CardTitle>App Installed!</CardTitle>
+                  <CardDescription>
+                    Serial Stock Suite is now installed on your device. You can access it from your home screen.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : (
+              <>
+                {/* Features */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Why Install?</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                        <Smartphone className="w-4 h-4 text-primary" />
+                      </div>
+                      <span>Works offline - access your data anytime</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                        <Monitor className="w-4 h-4 text-primary" />
+                      </div>
+                      <span>Full screen experience - no browser chrome</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                        <Download className="w-4 h-4 text-primary" />
+                      </div>
+                      <span>Quick access from your home screen</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Install Instructions */}
+                {isIOS ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Install on iPhone/iPad</CardTitle>
+                      <CardDescription>Follow these steps to install</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                          1
+                        </div>
+                        <div>
+                          <p className="font-medium">Tap the Share button</p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            Look for <Share className="w-4 h-4" /> at the bottom of Safari
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                          2
+                        </div>
+                        <div>
+                          <p className="font-medium">Scroll and tap "Add to Home Screen"</p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            Look for <Plus className="w-4 h-4" /> Add to Home Screen
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                          3
+                        </div>
+                        <div>
+                          <p className="font-medium">Tap "Add" to confirm</p>
+                          <p className="text-sm text-muted-foreground">
+                            The app will appear on your home screen
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : deferredPrompt ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Ready to Install</CardTitle>
+                      <CardDescription>Click the button below to install the app</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button onClick={handleInstall} className="w-full" size="lg">
+                        <Download className="w-4 h-4 mr-2" />
+                        Install App
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Install from Browser Menu</CardTitle>
+                      <CardDescription>Use your browser's install option</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Look for "Install app" or "Add to Home Screen" in your browser's menu (usually the three dots ⋮ in the top right).
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        If you don't see the option, try refreshing the page or visiting in Chrome.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
           </TabsContent>
         </Tabs>
 
