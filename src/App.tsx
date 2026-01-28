@@ -23,7 +23,7 @@ import EmployeeDashboard from "./pages/EmployeeDashboard";
 import Developer from "./pages/Developer";
 import Auth from "./pages/Auth";
 import Sync from "./pages/Sync";
-import Install from "./pages/Install";
+
 import NotFound from "./pages/NotFound";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import QuickBooksCallback from "./pages/QuickBooksCallback";
@@ -82,7 +82,7 @@ const App = () => (
                   <Sync />
                 </RoleProtectedRoute>
               } />
-              <Route path="/install" element={<Install />} />
+              
               <Route path="/accounting" element={
                 <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <Accounting />

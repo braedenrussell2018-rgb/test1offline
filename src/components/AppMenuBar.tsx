@@ -127,15 +127,7 @@ export function AppMenuBar() {
                     <NavLink to="/sync">
                       <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
                         <RefreshCw className="h-5 w-5" strokeWidth={3} />
-                        Sync
-                      </MenubarTrigger>
-                    </NavLink>
-                  </MenubarMenu>
-                  <MenubarMenu>
-                    <NavLink to="/install">
-                      <MenubarTrigger className="cursor-pointer flex items-center gap-1 text-sm px-2 py-1">
-                        <Download className="h-5 w-5" strokeWidth={3} />
-                        Install
+                        Sync & Install
                       </MenubarTrigger>
                     </NavLink>
                   </MenubarMenu>
