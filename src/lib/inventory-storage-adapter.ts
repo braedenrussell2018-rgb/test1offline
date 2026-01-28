@@ -337,6 +337,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     createdAt: inv.createdAt,
     paid: inv.paid || false,
     paidAt: inv.paidAt,
+    status: inv.status,
   }));
 };
 
@@ -395,6 +396,52 @@ export const updateInvoicePaidStatus = async (id: string, paid: boolean): Promis
     paid,
     paidAt: paid ? new Date().toISOString() : undefined
   });
+};
+
+export const updateInvoice = async (id: string, updates: {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  shipToAddress?: string;
+  salesmanName?: string;
+  items?: { itemId: string; partNumber: string; serialNumber?: string; description: string; price: number }[];
+  subtotal?: number;
+  discount?: number;
+  shippingCost?: number;
+  total?: number;
+  status?: 'draft' | 'finalized';
+}): Promise<void> => {
+  const dbUpdates: Parameters<typeof db.updateInvoice>[1] = {};
+  
+  if (updates.customerName !== undefined) dbUpdates.customerName = updates.customerName;
+  if (updates.customerEmail !== undefined) dbUpdates.customerEmail = updates.customerEmail;
+  if (updates.customerPhone !== undefined) dbUpdates.customerPhone = updates.customerPhone;
+  if (updates.shipToAddress !== undefined) dbUpdates.shipToAddress = updates.shipToAddress;
+  if (updates.salesmanName !== undefined) dbUpdates.salesmanName = updates.salesmanName;
+  if (updates.subtotal !== undefined) dbUpdates.subtotal = updates.subtotal;
+  if (updates.discount !== undefined) dbUpdates.discount = updates.discount;
+  if (updates.shippingCost !== undefined) dbUpdates.shipping = updates.shippingCost;
+  if (updates.total !== undefined) dbUpdates.total = updates.total;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.items !== undefined) {
+    dbUpdates.items = updates.items.map(item => ({
+      id: item.itemId,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      sellPrice: item.price,
+    }));
+  }
+
+  await db.updateInvoice(id, dbUpdates);
+};
+
+export const finalizeInvoice = async (id: string): Promise<void> => {
+  await db.updateInvoice(id, { status: 'finalized' });
+};
+
+export const deleteInvoice = async (id: string): Promise<void> => {
+  await db.deleteInvoice(id);
 };
 
 // Quotes
@@ -528,6 +575,9 @@ export const inventoryStorage = {
   addInvoice,
   createInvoice,
   updateInvoicePaidStatus,
+  updateInvoice,
+  finalizeInvoice,
+  deleteInvoice,
   getQuotes,
   addQuote,
   createQuote,
