@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ interface Prize {
 
 export default function SpiffProgram() {
   const { user } = useAuth();
+  const { hasInternalAccess } = useUserRole();
   const { toast } = useToast();
   const [spiffRecords, setSpiffRecords] = useState<SpiffRecord[]>([]);
   const [prizes, setPrizes] = useState<Prize[]>([]);
@@ -78,12 +80,19 @@ export default function SpiffProgram() {
   const fetchSpiffRecords = async () => {
     if (!user) return;
     
-    // Always show only the current user's records (salesman view)
-    const { data, error } = await supabase
+    // Internal users (owner, employee, developer) see all records
+    // Salesmen see only their own records
+    let query = supabase
       .from("spiff_program")
       .select("*")
-      .eq("salesman_id", user.id)
       .order("created_at", { ascending: false });
+    
+    // Only filter by salesman_id if NOT an internal user
+    if (!hasInternalAccess()) {
+      query = query.eq("salesman_id", user.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching spiff records:", error);
