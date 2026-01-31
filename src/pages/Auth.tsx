@@ -206,20 +206,8 @@ export default function Auth() {
       return;
     }
 
-    if (authData.user) {
-      // Insert role - the database trigger will validate this
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: authData.user.id,
-          role: role, // Only "customer" or "salesman" allowed
-        });
-
-      if (roleError) {
-        console.error("Failed to set user role:", roleError);
-        // The trigger should prevent invalid roles, log for monitoring
-      }
-    }
+    // Role is automatically assigned by database trigger from user metadata
+    // No client-side role insertion needed
 
     setLoading(false);
     toast({
