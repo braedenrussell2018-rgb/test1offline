@@ -37,7 +37,9 @@ import {
   Volume2,
   Users,
   Cpu,
-  Zap
+  Zap,
+  Upload,
+  FileAudio
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -104,6 +106,9 @@ export default function AIAssistant() {
   });
   
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
+  const [uploadedAudioBlob, setUploadedAudioBlob] = useState<Blob | null>(null);
   
   const {
     isListening,
@@ -216,6 +221,7 @@ export default function AIAssistant() {
     resetTranscript();
     resetWhisperTranscript();
     resetRecording();
+    resetUploadedAudio();
     setManualTranscript("");
     
     // In slow device mode, use Web Speech API for real-time transcription
@@ -246,12 +252,78 @@ export default function AIAssistant() {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/m4a', 'audio/mp4', 'audio/x-m4a'];
+    if (!validTypes.some(type => file.type.includes(type.split('/')[1]))) {
+      toast.error("Please upload an audio file (MP3, WAV, M4A, WebM, or OGG)");
+      return;
+    }
+
+    // Validate file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File too large. Maximum size is 50MB.");
+      return;
+    }
+
+    // Clear previous recording/upload
+    resetRecording();
+    resetTranscript();
+    resetWhisperTranscript();
+    setManualTranscript("");
+    
+    // Create URL for playback
+    const url = URL.createObjectURL(file);
+    setUploadedAudioUrl(url);
+    setUploadedAudioBlob(file);
+    
+    toast.info("Voice memo loaded. Transcribing...");
+
+    // Transcribe the uploaded file
+    if (!slowDeviceMode && isWhisperLoaded) {
+      try {
+        await transcribeAudio(file);
+        toast.success("Transcription complete");
+      } catch (err) {
+        console.error("Whisper transcription failed:", err);
+        toast.error("Transcription failed. You can type notes manually.");
+      }
+    } else if (slowDeviceMode) {
+      toast.info("In Slow Device mode, please type or paste the transcript manually.");
+    } else {
+      toast.info("AI model still loading. Transcript will be generated when ready.");
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const resetUploadedAudio = () => {
+    if (uploadedAudioUrl) {
+      URL.revokeObjectURL(uploadedAudioUrl);
+    }
+    setUploadedAudioUrl(null);
+    setUploadedAudioBlob(null);
+  };
+
   // Transcribe when audio blob is ready and not in slow mode
   useEffect(() => {
     if (!slowDeviceMode && isWhisperLoaded && audioBlob && !isAudioRecording && !isTranscribing) {
       transcribeAudio(audioBlob).catch(console.error);
     }
   }, [audioBlob, isAudioRecording, slowDeviceMode, isWhisperLoaded]);
+
+  // Transcribe uploaded audio when model becomes ready
+  useEffect(() => {
+    if (!slowDeviceMode && isWhisperLoaded && uploadedAudioBlob && !isTranscribing && !whisperTranscript) {
+      transcribeAudio(uploadedAudioBlob).catch(console.error);
+    }
+  }, [uploadedAudioBlob, slowDeviceMode, isWhisperLoaded, isTranscribing, whisperTranscript]);
 
   const uploadAudio = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
@@ -344,9 +416,11 @@ export default function AIAssistant() {
       sessionStorage.setItem('pendingTranscript', transcriptText);
       sessionStorage.setItem('pendingDuration', String(recordingDuration || 0));
       
-      // Store audio blob for upload after confirmation
+      // Store audio blob for upload after confirmation (recorded or uploaded)
       if (audioBlob) {
         setPendingAudioBlob(audioBlob);
+      } else if (uploadedAudioBlob) {
+        setPendingAudioBlob(uploadedAudioBlob);
       }
       
       setShowContactConfirm(true);
@@ -739,31 +813,60 @@ export default function AIAssistant() {
                 )}
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Recording Button */}
+                {/* Recording & Upload Buttons */}
                 <div className="flex flex-col items-center space-y-4">
-                  <Button
-                    size="lg"
-                    variant={isRecording ? "destructive" : "default"}
-                    className="h-24 w-24 rounded-full"
-                    onClick={isRecording ? handleStopRecording : handleStartRecording}
-                    disabled={isProcessing || isUploading || isTranscribing || (!slowDeviceMode && isWhisperLoading)}
-                  >
-                    {isProcessing || isUploading || isTranscribing ? (
-                      <Loader2 className="h-10 w-10 animate-spin" />
-                    ) : isRecording ? (
-                      <MicOff className="h-10 w-10" />
-                    ) : (
-                      <Mic className="h-10 w-10" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-6">
+                    {/* Record Button */}
+                    <div className="flex flex-col items-center gap-2">
+                      <Button
+                        size="lg"
+                        variant={isRecording ? "destructive" : "default"}
+                        className="h-24 w-24 rounded-full"
+                        onClick={isRecording ? handleStopRecording : handleStartRecording}
+                        disabled={isProcessing || isUploading || isTranscribing || (!slowDeviceMode && isWhisperLoading)}
+                      >
+                        {isProcessing || isUploading || isTranscribing ? (
+                          <Loader2 className="h-10 w-10 animate-spin" />
+                        ) : isRecording ? (
+                          <MicOff className="h-10 w-10" />
+                        ) : (
+                          <Mic className="h-10 w-10" />
+                        )}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">Record</span>
+                    </div>
+
+                    <div className="text-muted-foreground text-sm">or</div>
+
+                    {/* Upload Button */}
+                    <div className="flex flex-col items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="h-24 w-24 rounded-full"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isProcessing || isUploading || isTranscribing || isRecording}
+                      >
+                        <Upload className="h-10 w-10" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground">Upload</span>
+                    </div>
+                  </div>
                   
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground text-center">
                     {isProcessing ? "Processing..." 
                       : isUploading ? "Uploading..." 
                       : isTranscribing ? "Transcribing audio..."
                       : (!slowDeviceMode && isWhisperLoading) ? "Loading AI model..."
                       : isRecording ? "Recording... Click to stop" 
-                      : "Click to start recording"}
+                      : "Record a conversation or upload a voice memo"}
                   </p>
                   
                   {isRecording && (
@@ -779,12 +882,23 @@ export default function AIAssistant() {
                   )}
                 </div>
 
-                {/* Audio Preview */}
+                {/* Recorded Audio Preview */}
                 {localAudioUrl && !isRecording && (
                   <div className="flex items-center justify-center gap-4 p-4 bg-muted rounded-lg">
                     <Volume2 className="h-5 w-5 text-muted-foreground" />
                     <audio src={localAudioUrl} controls className="flex-1 max-w-md" />
                     <Button variant="ghost" size="sm" onClick={resetRecording}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Uploaded Audio Preview */}
+                {uploadedAudioUrl && !localAudioUrl && (
+                  <div className="flex items-center justify-center gap-4 p-4 bg-muted rounded-lg">
+                    <FileAudio className="h-5 w-5 text-muted-foreground" />
+                    <audio src={uploadedAudioUrl} controls className="flex-1 max-w-md" />
+                    <Button variant="ghost" size="sm" onClick={resetUploadedAudio}>
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </div>
