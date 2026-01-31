@@ -21,14 +21,15 @@ export function useLocalWhisper(): UseLocalWhisperReturn {
   const [error, setError] = useState<string | null>(null);
   
   const pipelineRef = useRef<any>(null);
-  const isLoadingRef = useRef(false);
+  const loadAttemptedRef = useRef(false);
 
   const loadModel = useCallback(async () => {
-    if (pipelineRef.current || isLoadingRef.current) {
+    // Only attempt to load once
+    if (pipelineRef.current || loadAttemptedRef.current) {
       return;
     }
 
-    isLoadingRef.current = true;
+    loadAttemptedRef.current = true;
     setIsLoading(true);
     setError(null);
     setLoadProgress(0);
@@ -56,10 +57,11 @@ export function useLocalWhisper(): UseLocalWhisperReturn {
       pipelineRef.current = transcriber;
       setIsModelLoaded(true);
       setLoadProgress(100);
-      console.log('Whisper model loaded successfully');
+      setIsLoading(false);
+      console.log('Whisper model loaded successfully with WebGPU');
 
     } catch (err) {
-      console.error('Failed to load Whisper model:', err);
+      console.error('Failed to load Whisper model with WebGPU:', err);
       
       // Try fallback without WebGPU
       try {
@@ -81,15 +83,14 @@ export function useLocalWhisper(): UseLocalWhisperReturn {
         pipelineRef.current = transcriber;
         setIsModelLoaded(true);
         setLoadProgress(100);
+        setIsLoading(false);
         console.log('Whisper model loaded (CPU fallback)');
         
       } catch (fallbackErr) {
         console.error('Fallback also failed:', fallbackErr);
         setError('Failed to load transcription model. Please use "Slow Device" mode.');
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
     }
   }, []);
 
