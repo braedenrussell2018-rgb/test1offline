@@ -141,10 +141,10 @@ export default function AIAssistant() {
 
   // Load whisper model on mount if not in slow device mode
   useEffect(() => {
-    if (!slowDeviceMode && !isWhisperLoaded && !isWhisperLoading) {
+    if (!slowDeviceMode) {
       loadWhisperModel();
     }
-  }, [slowDeviceMode, isWhisperLoaded, isWhisperLoading, loadWhisperModel]);
+  }, [slowDeviceMode, loadWhisperModel]);
 
   // Save slow device preference
   useEffect(() => {
