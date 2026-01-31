@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useLocalWhisper } from "@/hooks/useLocalWhisper";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { 
   Mic, 
@@ -32,7 +35,9 @@ import {
   Play,
   Pause,
   Volume2,
-  Users
+  Users,
+  Cpu,
+  Zap
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -92,6 +97,11 @@ export default function AIAssistant() {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [saveAsType, setSaveAsType] = useState<"contact" | "internal_meeting">("contact");
   const [meetingTitle, setMeetingTitle] = useState("");
+  const [slowDeviceMode, setSlowDeviceMode] = useState(() => {
+    // Load from localStorage if available
+    const saved = localStorage.getItem('ai-assistant-slow-device');
+    return saved === 'true';
+  });
   
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   
@@ -116,6 +126,30 @@ export default function AIAssistant() {
     stopRecording: stopAudioRecording,
     resetRecording,
   } = useAudioRecorder();
+
+  const {
+    isLoading: isWhisperLoading,
+    isModelLoaded: isWhisperLoaded,
+    loadProgress: whisperLoadProgress,
+    transcript: whisperTranscript,
+    isTranscribing,
+    error: whisperError,
+    loadModel: loadWhisperModel,
+    transcribeAudio,
+    resetTranscript: resetWhisperTranscript,
+  } = useLocalWhisper();
+
+  // Load whisper model on mount if not in slow device mode
+  useEffect(() => {
+    if (!slowDeviceMode && !isWhisperLoaded && !isWhisperLoading) {
+      loadWhisperModel();
+    }
+  }, [slowDeviceMode, isWhisperLoaded, isWhisperLoading, loadWhisperModel]);
+
+  // Save slow device preference
+  useEffect(() => {
+    localStorage.setItem('ai-assistant-slow-device', String(slowDeviceMode));
+  }, [slowDeviceMode]);
 
   useEffect(() => {
     if (user) {
@@ -180,22 +214,44 @@ export default function AIAssistant() {
 
   const handleStartRecording = async () => {
     resetTranscript();
+    resetWhisperTranscript();
     resetRecording();
     setManualTranscript("");
     
-    // Start both speech recognition and audio recording
-    if (speechSupported) {
+    // In slow device mode, use Web Speech API for real-time transcription
+    // Otherwise, we'll transcribe with Whisper after recording stops
+    if (slowDeviceMode && speechSupported) {
       startListening();
     }
+    
     await startAudioRecording();
     toast.info("Recording started...");
   };
 
-  const handleStopRecording = () => {
+  const handleStopRecording = async () => {
     stopListening();
     stopAudioRecording();
     toast.success("Recording stopped");
+    
+    // If not in slow device mode, transcribe with local Whisper
+    if (!slowDeviceMode && isWhisperLoaded && audioBlob) {
+      toast.info("Transcribing with local AI...");
+      try {
+        await transcribeAudio(audioBlob);
+        toast.success("Transcription complete");
+      } catch (err) {
+        console.error("Whisper transcription failed:", err);
+        toast.error("Transcription failed. You can type notes manually.");
+      }
+    }
   };
+
+  // Transcribe when audio blob is ready and not in slow mode
+  useEffect(() => {
+    if (!slowDeviceMode && isWhisperLoaded && audioBlob && !isAudioRecording && !isTranscribing) {
+      transcribeAudio(audioBlob).catch(console.error);
+    }
+  }, [audioBlob, isAudioRecording, slowDeviceMode, isWhisperLoaded]);
 
   const uploadAudio = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
@@ -582,8 +638,11 @@ export default function AIAssistant() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const displayTranscript = speechTranscript + (interimTranscript ? ` ${interimTranscript}` : '');
+  const displayTranscript = slowDeviceMode 
+    ? speechTranscript + (interimTranscript ? ` ${interimTranscript}` : '')
+    : whisperTranscript || speechTranscript + (interimTranscript ? ` ${interimTranscript}` : '');
   const isRecording = isAudioRecording || isListening;
+  const activeTranscript = slowDeviceMode ? speechTranscript : (whisperTranscript || speechTranscript);
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
@@ -631,10 +690,53 @@ export default function AIAssistant() {
           <TabsContent value="record" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Record Conversation</CardTitle>
-                <CardDescription>
-                  Click the microphone to record audio with live transcription.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Record Conversation</CardTitle>
+                    <CardDescription>
+                      {slowDeviceMode 
+                        ? "Using Web Speech API for real-time transcription"
+                        : "Using local Whisper AI for high-quality transcription"
+                      }
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Zap className="h-4 w-4 text-primary" />
+                      <span className="text-muted-foreground">Local AI</span>
+                    </div>
+                    <Switch
+                      checked={slowDeviceMode}
+                      onCheckedChange={setSlowDeviceMode}
+                      aria-label="Toggle slow device mode"
+                    />
+                    <div className="flex items-center gap-2 text-sm">
+                      <Cpu className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Slow Device</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Whisper Loading Progress */}
+                {!slowDeviceMode && isWhisperLoading && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Loading AI model... {whisperLoadProgress}%</span>
+                    </div>
+                    <Progress value={whisperLoadProgress} className="h-2" />
+                  </div>
+                )}
+                
+                {/* Whisper Error */}
+                {whisperError && !slowDeviceMode && (
+                  <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{whisperError}</span>
+                    </div>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Recording Button */}
@@ -644,9 +746,9 @@ export default function AIAssistant() {
                     variant={isRecording ? "destructive" : "default"}
                     className="h-24 w-24 rounded-full"
                     onClick={isRecording ? handleStopRecording : handleStartRecording}
-                    disabled={isProcessing || isUploading}
+                    disabled={isProcessing || isUploading || isTranscribing || (!slowDeviceMode && isWhisperLoading)}
                   >
-                    {isProcessing || isUploading ? (
+                    {isProcessing || isUploading || isTranscribing ? (
                       <Loader2 className="h-10 w-10 animate-spin" />
                     ) : isRecording ? (
                       <MicOff className="h-10 w-10" />
@@ -656,7 +758,12 @@ export default function AIAssistant() {
                   </Button>
                   
                   <p className="text-sm text-muted-foreground">
-                    {isProcessing ? "Processing..." : isUploading ? "Uploading..." : isRecording ? "Recording... Click to stop" : "Click to start recording"}
+                    {isProcessing ? "Processing..." 
+                      : isUploading ? "Uploading..." 
+                      : isTranscribing ? "Transcribing audio..."
+                      : (!slowDeviceMode && isWhisperLoading) ? "Loading AI model..."
+                      : isRecording ? "Recording... Click to stop" 
+                      : "Click to start recording"}
                   </p>
                   
                   {isRecording && (
@@ -684,12 +791,29 @@ export default function AIAssistant() {
                 )}
 
                 {/* Live Transcript Display */}
-                {(displayTranscript || isRecording) && speechSupported && (
+                {(displayTranscript || isRecording || isTranscribing) && (slowDeviceMode ? speechSupported : true) && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>Live Transcript</Label>
+                      <div className="flex items-center gap-2">
+                        <Label>
+                          {slowDeviceMode ? "Live Transcript" : "Transcript"}
+                        </Label>
+                        {isTranscribing && (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Transcribing...
+                          </Badge>
+                        )}
+                      </div>
                       {displayTranscript && (
-                        <Button variant="ghost" size="sm" onClick={resetTranscript}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => {
+                            resetTranscript();
+                            resetWhisperTranscript();
+                          }}
+                        >
                           <RefreshCw className="h-3 w-3 mr-1" />
                           Clear
                         </Button>
@@ -697,12 +821,23 @@ export default function AIAssistant() {
                     </div>
                     <div className="p-4 bg-muted rounded-lg min-h-[100px]">
                       <p className="text-foreground">
-                        {speechTranscript}
-                        {interimTranscript && (
-                          <span className="text-muted-foreground italic"> {interimTranscript}</span>
+                        {slowDeviceMode ? (
+                          <>
+                            {speechTranscript}
+                            {interimTranscript && (
+                              <span className="text-muted-foreground italic"> {interimTranscript}</span>
+                            )}
+                          </>
+                        ) : (
+                          whisperTranscript || speechTranscript
                         )}
                         {!displayTranscript && isRecording && (
-                          <span className="text-muted-foreground italic">Waiting for speech...</span>
+                          <span className="text-muted-foreground italic">
+                            {slowDeviceMode ? "Waiting for speech..." : "Recording... transcript will appear when stopped"}
+                          </span>
+                        )}
+                        {!displayTranscript && isTranscribing && (
+                          <span className="text-muted-foreground italic">Processing audio with local AI...</span>
                         )}
                       </p>
                     </div>
@@ -711,9 +846,9 @@ export default function AIAssistant() {
 
                 {/* Manual Transcript Entry */}
                 <div className="space-y-2">
-                  <Label>Notes {speechSupported ? "(or edit transcript)" : ""}</Label>
+                  <Label>Notes {(speechSupported || isWhisperLoaded) ? "(or edit transcript)" : ""}</Label>
                   <Textarea 
-                    value={manualTranscript || speechTranscript} 
+                    value={manualTranscript || activeTranscript} 
                     onChange={(e) => setManualTranscript(e.target.value)}
                     rows={6}
                     placeholder="Type or paste your conversation notes here..."
@@ -723,8 +858,8 @@ export default function AIAssistant() {
 
                 {/* Analyze Button */}
                 <Button 
-                  onClick={() => analyzeTranscript(manualTranscript || speechTranscript)}
-                  disabled={isProcessing || isUploading || (!manualTranscript && !speechTranscript)}
+                  onClick={() => analyzeTranscript(manualTranscript || activeTranscript)}
+                  disabled={isProcessing || isUploading || isTranscribing || (!manualTranscript && !activeTranscript)}
                   className="w-full"
                 >
                   {isProcessing ? (
