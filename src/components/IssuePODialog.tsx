@@ -322,7 +322,44 @@ export const IssuePODialog = ({ onPOCreated }: IssuePODialogProps) => {
                   onChange={(e) => setNewVendorName(e.target.value)}
                   className="flex-1"
                 />
-                <Button type="button" variant="outline" onClick={() => setShowNewVendor(false)}>
+                <Button 
+                  type="button" 
+                  variant="default" 
+                  onClick={async () => {
+                    if (!newVendorName.trim()) {
+                      toast({
+                        title: "Error",
+                        description: "Please enter a vendor name",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    try {
+                      const newVendor = await addVendor({ name: newVendorName.trim() });
+                      await loadVendors();
+                      setSelectedVendor(newVendor.id);
+                      setNewVendorName("");
+                      setShowNewVendor(false);
+                      toast({
+                        title: "Success",
+                        description: `Vendor "${newVendor.name}" created`,
+                      });
+                    } catch (error) {
+                      console.error("Error creating vendor:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to create vendor",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Save
+                </Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowNewVendor(false);
+                  setNewVendorName("");
+                }}>
                   Cancel
                 </Button>
               </div>
