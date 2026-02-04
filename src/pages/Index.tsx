@@ -16,7 +16,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingSpinner, CardSkeleton } from "@/components/LoadingState";
 import { InventoryStats } from "@/components/inventory/InventoryStats";
 import { InventoryActions } from "@/components/inventory/InventoryActions";
-import { InventoryFilters } from "@/components/inventory/InventoryFilters";
+import { InventoryFilters, SortOption } from "@/components/inventory/InventoryFilters";
 import { InventoryList } from "@/components/inventory/InventoryList";
 import { PaginationControls } from "@/components/inventory/PaginationControls";
 import { toast } from "sonner";
@@ -34,6 +34,7 @@ function IndexContent() {
   // Tab and filter states
   const [activeTab, setActiveTab] = useState("inventory");
   const [itemFilter, setItemFilter] = useState<'all' | 'available' | 'sold'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('default');
   
   // Debounced search
   const { searchQuery, debouncedQuery, setSearchQuery, isSearching } = useDebouncedSearch("", 300);
@@ -111,13 +112,33 @@ function IndexContent() {
       );
     }
 
-    // Sort: available first, then sold
+    // Group items by part number to calculate quantities
+    const partNumberCounts = filtered.reduce((acc, item) => {
+      acc[item.partNumber] = (acc[item.partNumber] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Apply sorting
     return filtered.sort((a, b) => {
-      if (a.status === 'available' && b.status === 'sold') return -1;
-      if (a.status === 'sold' && b.status === 'available') return 1;
-      return 0;
+      switch (sortBy) {
+        case 'alphabetical':
+          return a.description.localeCompare(b.description);
+        case 'price-high':
+          return (b.salePrice || 0) - (a.salePrice || 0);
+        case 'price-low':
+          return (a.salePrice || 0) - (b.salePrice || 0);
+        case 'quantity-high':
+          return (partNumberCounts[b.partNumber] || 0) - (partNumberCounts[a.partNumber] || 0);
+        case 'quantity-low':
+          return (partNumberCounts[a.partNumber] || 0) - (partNumberCounts[b.partNumber] || 0);
+        default:
+          // Default: available first, then sold
+          if (a.status === 'available' && b.status === 'sold') return -1;
+          if (a.status === 'sold' && b.status === 'available') return 1;
+          return 0;
+      }
     });
-  }, [items, itemFilter, debouncedQuery]);
+  }, [items, itemFilter, debouncedQuery, sortBy]);
 
   // Pagination
   const pagination = usePagination(filteredItems, {
@@ -253,6 +274,8 @@ function IndexContent() {
                   availableCount={availableItems.length}
                   soldCount={soldItems.length}
                   isSearching={isSearching}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
                 />
               </CardHeader>
               <CardContent>
