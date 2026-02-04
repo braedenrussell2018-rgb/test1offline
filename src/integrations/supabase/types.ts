@@ -754,6 +754,7 @@ export type Database = {
           serial_number: string | null
           total_cost: number
           unit_cost: number
+          weight: number | null
         }
         Insert: {
           created_at?: string | null
@@ -766,6 +767,7 @@ export type Database = {
           serial_number?: string | null
           total_cost: number
           unit_cost: number
+          weight?: number | null
         }
         Update: {
           created_at?: string | null
@@ -778,6 +780,7 @@ export type Database = {
           serial_number?: string | null
           total_cost?: number
           unit_cost?: number
+          weight?: number | null
         }
         Relationships: [
           {
