@@ -434,6 +434,11 @@ export default function AIAssistant() {
   };
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingDirect, setIsSavingDirect] = useState(false);
+  const [showDirectSaveDialog, setShowDirectSaveDialog] = useState(false);
+  const [directSaveType, setDirectSaveType] = useState<"contact" | "internal_meeting">("contact");
+  const [directMeetingTitle, setDirectMeetingTitle] = useState("");
+  const [directSelectedContact, setDirectSelectedContact] = useState<string | null>(null);
   
   const confirmContactMatch = async (contactId: string | null, createNew: boolean = false) => {
     // Prevent duplicate saves
@@ -590,6 +595,81 @@ export default function AIAssistant() {
     sessionStorage.removeItem('pendingTranscript');
     sessionStorage.removeItem('pendingDuration');
     setIsSaving(false);
+  };
+
+  // Direct save without AI analysis
+  const saveDirectConversation = async () => {
+    if (isSavingDirect) return;
+    setIsSavingDirect(true);
+    
+    const transcriptText = manualTranscript || activeTranscript || "";
+    const duration = recordingDuration || 0;
+    
+    let audioUrl: string | null = null;
+    const audioBlobToUpload = audioBlob || uploadedAudioBlob;
+
+    // Upload audio if available
+    if (audioBlobToUpload) {
+      audioUrl = await uploadAudio(audioBlobToUpload);
+    }
+
+    if (directSaveType === "internal_meeting") {
+      if (!directMeetingTitle.trim()) {
+        toast.error("Please enter a meeting title");
+        setIsSavingDirect(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("company_meetings")
+        .insert({
+          created_by: user?.id,
+          title: directMeetingTitle,
+          meeting_date: new Date().toISOString(),
+          duration_minutes: Math.ceil(duration / 60),
+          meeting_type: "internal",
+          notes: transcriptText || null,
+          audio_url: audioUrl,
+        });
+
+      if (error) {
+        console.error("Error saving meeting:", error);
+        toast.error("Failed to save internal meeting");
+      } else {
+        toast.success("Internal meeting saved!");
+      }
+    } else {
+      // Save as contact conversation
+      const { error } = await supabase
+        .from("ai_conversations")
+        .insert({
+          user_id: user?.id,
+          contact_id: directSelectedContact || null,
+          transcript: transcriptText || "No transcript",
+          duration_seconds: duration,
+          audio_url: audioUrl,
+        });
+
+      if (error) {
+        console.error("Error saving conversation:", error);
+        toast.error("Failed to save conversation");
+      } else {
+        toast.success("Conversation saved!");
+        loadConversations();
+      }
+    }
+
+    // Cleanup
+    setShowDirectSaveDialog(false);
+    setManualTranscript("");
+    resetTranscript();
+    resetWhisperTranscript();
+    resetRecording();
+    resetUploadedAudio();
+    setDirectSaveType("contact");
+    setDirectMeetingTitle("");
+    setDirectSelectedContact(null);
+    setIsSavingDirect(false);
   };
 
   const askQuestion = async () => {
@@ -970,29 +1050,49 @@ export default function AIAssistant() {
                   />
                 </div>
 
-                {/* Analyze Button */}
-                <Button 
-                  onClick={() => analyzeTranscript(manualTranscript || activeTranscript)}
-                  disabled={isProcessing || isUploading || isTranscribing || (!manualTranscript && !activeTranscript)}
-                  className="w-full"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading Audio...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Analyze & Save Conversation
-                    </>
-                  )}
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={() => analyzeTranscript(manualTranscript || activeTranscript)}
+                    disabled={isProcessing || isUploading || isTranscribing || isSavingDirect || (!manualTranscript && !activeTranscript)}
+                    className="flex-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading Audio...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Analyze & Save
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowDirectSaveDialog(true)}
+                    disabled={isProcessing || isUploading || isTranscribing || isSavingDirect || (!manualTranscript && !activeTranscript && !audioBlob && !uploadedAudioBlob)}
+                  >
+                    {isSavingDirect ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Save Conversation
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1404,6 +1504,117 @@ export default function AIAssistant() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Direct Save Dialog (without AI analysis) */}
+      <Dialog open={showDirectSaveDialog} onOpenChange={setShowDirectSaveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Save Conversation</DialogTitle>
+            <DialogDescription>
+              Save this recording without AI analysis
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Save Type Selection */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="text-sm font-medium">Save as:</Label>
+              <RadioGroup 
+                value={directSaveType} 
+                onValueChange={(value) => setDirectSaveType(value as "contact" | "internal_meeting")}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="contact" id="direct-save-contact" />
+                  <Label htmlFor="direct-save-contact" className="flex items-center gap-2 cursor-pointer">
+                    <User className="h-4 w-4" />
+                    Contact Conversation
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="internal_meeting" id="direct-save-meeting" />
+                  <Label htmlFor="direct-save-meeting" className="flex items-center gap-2 cursor-pointer">
+                    <Users className="h-4 w-4" />
+                    Internal Meeting
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Internal Meeting Form */}
+            {directSaveType === "internal_meeting" && (
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="direct-meeting-title">Meeting Title *</Label>
+                  <Input
+                    id="direct-meeting-title"
+                    value={directMeetingTitle}
+                    onChange={(e) => setDirectMeetingTitle(e.target.value)}
+                    placeholder="e.g., Team Standup, Sales Strategy Meeting"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Contact Selection */}
+            {directSaveType === "contact" && (
+              <div className="border rounded-lg p-4 space-y-3">
+                <Label className="text-sm">Link to contact (optional):</Label>
+                <Select value={directSelectedContact || ""} onValueChange={setDirectSelectedContact}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a contact..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} {c.company_id ? `(${companies.find(co => co.id === c.company_id)?.name})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Audio/Transcript Info */}
+            <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+              {(audioBlob || uploadedAudioBlob) && <p>✓ Audio recording will be saved</p>}
+              {(manualTranscript || activeTranscript) && <p>✓ Transcript will be saved</p>}
+              {!(audioBlob || uploadedAudioBlob) && !(manualTranscript || activeTranscript) && (
+                <p className="text-yellow-600">No audio or transcript to save</p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDirectSaveDialog(false)}
+                disabled={isSavingDirect}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={saveDirectConversation}
+                disabled={isSavingDirect || (directSaveType === "internal_meeting" && !directMeetingTitle.trim())}
+                className="flex-1"
+              >
+                {isSavingDirect ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
