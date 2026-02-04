@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send, Trash2, UserCog } from "lucide-react";
+import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send, Trash2, UserCog, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
@@ -28,10 +29,15 @@ interface SignupNotification {
   created_at: string;
 }
 
+interface RoleUser {
+  user_id: string;
+  full_name: string;
+}
+
 interface SystemStats {
   totalUsers: number;
   recentSignups: number;
-  activeRoles: { role: string; count: number }[];
+  activeRoles: { role: string; count: number; users: RoleUser[] }[];
 }
 
 interface UserInfo {
@@ -53,6 +59,7 @@ const DeveloperDashboard = () => {
   const [notifications, setNotifications] = useState<SignupNotification[]>([]);
   const [stats, setStats] = useState<SystemStats>({ totalUsers: 0, recentSignups: 0, activeRoles: [] });
   const [loading, setLoading] = useState(true);
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
   
   // User management state
   const [usersDialogOpen, setUsersDialogOpen] = useState(false);
@@ -104,18 +111,38 @@ const DeveloperDashboard = () => {
         .select("*", { count: "exact", head: true })
         .gte("signed_up_at", sevenDaysAgo.toISOString());
 
+      // Fetch roles with user_id to group by role
       const { data: rolesData } = await supabase
         .from("user_roles")
-        .select("role");
+        .select("role, user_id");
 
-      const roleCounts: Record<string, number> = {};
-      rolesData?.forEach((r) => {
-        roleCounts[r.role] = (roleCounts[r.role] || 0) + 1;
+      // Fetch all profiles to get names
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name");
+
+      // Create a map of user_id to full_name
+      const userNameMap: Record<string, string> = {};
+      profilesData?.forEach((p) => {
+        userNameMap[p.user_id] = p.full_name || "Unknown";
       });
 
-      const activeRoles = Object.entries(roleCounts).map(([role, count]) => ({
+      // Group users by role
+      const roleUsersMap: Record<string, RoleUser[]> = {};
+      rolesData?.forEach((r) => {
+        if (!roleUsersMap[r.role]) {
+          roleUsersMap[r.role] = [];
+        }
+        roleUsersMap[r.role].push({
+          user_id: r.user_id,
+          full_name: userNameMap[r.user_id] || "Unknown",
+        });
+      });
+
+      const activeRoles = Object.entries(roleUsersMap).map(([role, users]) => ({
         role,
-        count,
+        count: users.length,
+        users,
       }));
 
       setStats({
@@ -482,27 +509,62 @@ const DeveloperDashboard = () => {
             <CardHeader>
               <CardTitle>Role Distribution</CardTitle>
               <CardDescription>
-                Overview of user roles in the system
+                Click on a role to see users with that role
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {stats.activeRoles.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     No roles assigned yet
                   </div>
                 ) : (
-                  stats.activeRoles.map(({ role, count }) => (
-                    <div
+                  stats.activeRoles.map(({ role, count, users }) => (
+                    <Collapsible
                       key={role}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      open={expandedRoles.has(role)}
+                      onOpenChange={(open) => {
+                        setExpandedRoles((prev) => {
+                          const next = new Set(prev);
+                          if (open) {
+                            next.add(role);
+                          } else {
+                            next.delete(role);
+                          }
+                          return next;
+                        });
+                      }}
                     >
-                      <div className="flex items-center gap-3">
-                        <Shield className="h-5 w-5 text-primary" />
-                        <span className="font-medium capitalize">{role}</span>
-                      </div>
-                      <Badge variant="secondary">{count} users</Badge>
-                    </div>
+                      <CollapsibleTrigger asChild>
+                        <div
+                          className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {expandedRoles.has(role) ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <Shield className="h-5 w-5 text-primary" />
+                            <span className="font-medium capitalize">{role}</span>
+                          </div>
+                          <Badge variant="secondary">{count} users</Badge>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="ml-8 mt-2 space-y-1 pb-2">
+                          {users.map((user) => (
+                            <div
+                              key={user.user_id}
+                              className="flex items-center gap-2 p-2 pl-4 text-sm text-muted-foreground border-l-2 border-muted"
+                            >
+                              <Users className="h-4 w-4" />
+                              <span>{user.full_name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))
                 )}
               </div>
