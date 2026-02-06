@@ -801,6 +801,16 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children, op
           </Card>
         </div>
 
+        {/* Timestamps */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-muted-foreground pt-2 border-t">
+          {person.createdAt && (
+            <span>Created: {format(new Date(person.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+          )}
+          {person.updatedAt && (
+            <span>Last edited: {format(new Date(person.updatedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+          )}
+        </div>
+
         {/* Close Button */}
         <div className="flex justify-end pt-4 border-t sticky bottom-0 bg-background">
           <Button 

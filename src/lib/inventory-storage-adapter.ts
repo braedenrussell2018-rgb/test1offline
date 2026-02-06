@@ -111,6 +111,7 @@ export interface Person {
   phone?: string;
   excavatorLines?: string[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 // Convert DB item to local format
@@ -253,7 +254,8 @@ export const getPeople = async (): Promise<Person[]> => {
     email: p.email,
     phone: p.phone,
     excavatorLines: p.excavatorLines || [],
-    createdAt: new Date().toISOString(),
+    createdAt: p.createdAt || new Date().toISOString(),
+    updatedAt: p.updatedAt,
   }));
 };
 
@@ -282,7 +284,8 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
     email: dbPerson.email,
     phone: dbPerson.phone,
     excavatorLines: dbPerson.excavatorLines || [],
-    createdAt: new Date().toISOString(),
+    createdAt: dbPerson.createdAt || new Date().toISOString(),
+    updatedAt: dbPerson.updatedAt,
   };
 };
 
