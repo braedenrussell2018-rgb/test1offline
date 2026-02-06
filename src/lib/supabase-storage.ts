@@ -45,6 +45,8 @@ export interface Person {
   address?: string;
   notes: Array<{ text: string; timestamp: string }>;
   excavatorLines?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Invoice {
@@ -246,6 +248,8 @@ export const getPeople = async (): Promise<Person[]> => {
     address: row.address as string | undefined,
     notes: (row.notes as Array<{ text: string; timestamp: string }>) || [],
     excavatorLines: (row.excavator_lines as string[]) || [],
+    createdAt: row.created_at as string | undefined,
+    updatedAt: row.updated_at as string | undefined,
   }));
 };
 
