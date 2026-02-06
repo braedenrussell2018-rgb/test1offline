@@ -112,6 +112,8 @@ export interface Person {
   excavatorLines?: string[];
   createdAt: string;
   updatedAt?: string;
+  createdByName?: string;
+  updatedByName?: string;
 }
 
 // Convert DB item to local format
@@ -256,6 +258,8 @@ export const getPeople = async (): Promise<Person[]> => {
     excavatorLines: p.excavatorLines || [],
     createdAt: p.createdAt || new Date().toISOString(),
     updatedAt: p.updatedAt,
+    createdByName: p.createdByName,
+    updatedByName: p.updatedByName,
   }));
 };
 
@@ -286,6 +290,8 @@ export const addPerson = async (person: Omit<Person, "id" | "createdAt">): Promi
     excavatorLines: dbPerson.excavatorLines || [],
     createdAt: dbPerson.createdAt || new Date().toISOString(),
     updatedAt: dbPerson.updatedAt,
+    createdByName: dbPerson.createdByName,
+    updatedByName: dbPerson.updatedByName,
   };
 };
 

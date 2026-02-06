@@ -658,6 +658,7 @@ export type Database = {
           branch_id: string | null
           company_id: string | null
           created_at: string | null
+          created_by: string | null
           deleted_at: string | null
           email: string | null
           excavator_lines: string[] | null
@@ -667,6 +668,7 @@ export type Database = {
           notes: Json | null
           phone: string | null
           updated_at: string | null
+          updated_by: string | null
           user_id: string | null
         }
         Insert: {
@@ -674,6 +676,7 @@ export type Database = {
           branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           email?: string | null
           excavator_lines?: string[] | null
@@ -683,6 +686,7 @@ export type Database = {
           notes?: Json | null
           phone?: string | null
           updated_at?: string | null
+          updated_by?: string | null
           user_id?: string | null
         }
         Update: {
@@ -690,6 +694,7 @@ export type Database = {
           branch_id?: string | null
           company_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           email?: string | null
           excavator_lines?: string[] | null
@@ -699,6 +704,7 @@ export type Database = {
           notes?: Json | null
           phone?: string | null
           updated_at?: string | null
+          updated_by?: string | null
           user_id?: string | null
         }
         Relationships: [

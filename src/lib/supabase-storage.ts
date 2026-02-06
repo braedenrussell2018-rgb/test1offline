@@ -47,6 +47,8 @@ export interface Person {
   excavatorLines?: string[];
   createdAt?: string;
   updatedAt?: string;
+  createdByName?: string;
+  updatedByName?: string;
 }
 
 export interface Invoice {
@@ -232,11 +234,29 @@ export const getPeople = async (): Promise<Person[]> => {
   const { data, error } = await supabase
     .from("people")
     .select("*")
-    .is("deleted_at", null) // Filter out soft-deleted contacts
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => ({
+
+  // Collect unique user IDs from created_by and updated_by
+  const userIds = new Set<string>();
+  (data || []).forEach((row: any) => {
+    if (row.created_by) userIds.add(row.created_by);
+    if (row.updated_by) userIds.add(row.updated_by);
+  });
+
+  // Fetch profile names for those user IDs
+  let nameMap: Record<string, string> = {};
+  if (userIds.size > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", Array.from(userIds));
+    profiles?.forEach((p) => { nameMap[p.user_id] = p.full_name; });
+  }
+
+  return (data || []).map((row: any) => ({
     id: String(row.id),
     name: String(row.name),
     companyId: row.company_id as string | undefined,
@@ -250,6 +270,8 @@ export const getPeople = async (): Promise<Person[]> => {
     excavatorLines: (row.excavator_lines as string[]) || [],
     createdAt: row.created_at as string | undefined,
     updatedAt: row.updated_at as string | undefined,
+    createdByName: row.created_by ? nameMap[row.created_by] || undefined : undefined,
+    updatedByName: row.updated_by ? nameMap[row.updated_by] || undefined : undefined,
   }));
 };
 
@@ -270,6 +292,8 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
       address: person.address || null,
       notes: person.notes || [],
       excavator_lines: person.excavatorLines || [],
+      created_by: user?.id || null,
+      updated_by: user?.id || null,
     })
     .select()
     .single();
@@ -291,18 +315,20 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
 };
 
 export const updatePerson = async (person: Person): Promise<void> => {
+  const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("people")
     .update({
       name: person.name,
-      company_id: person.companyId || null, // Convert empty string to null
-      branch_id: person.branchId || null, // Convert empty string to null
+      company_id: person.companyId || null,
+      branch_id: person.branchId || null,
       job_title: person.jobTitle || null,
       email: person.email || null,
       phone: person.phone || null,
       address: person.address || null,
       notes: person.notes,
       excavator_lines: person.excavatorLines || [],
+      updated_by: user?.id || null,
     })
     .eq("id", person.id);
 
