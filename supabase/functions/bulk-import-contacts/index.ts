@@ -23,16 +23,56 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
+    // Authenticate the caller
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userId = claimsData.claims.sub;
+
+    // Check role - only owner, developer, or employee can bulk import
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: roleData } = await serviceClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+
+    const allowedRoles = ['owner', 'developer', 'employee'];
+    if (!roleData || !allowedRoles.includes(roleData.role)) {
+      return new Response(JSON.stringify({ error: 'Forbidden: insufficient permissions' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { contacts } = await req.json() as { contacts: ContactData[] };
     
-    console.log(`Starting import of ${contacts.length} contacts`);
+    console.log(`User ${userId} (${roleData.role}) starting import of ${contacts.length} contacts`);
     
     // Get existing companies
-    const { data: existingCompanies, error: companiesError } = await supabase
+    const { data: existingCompanies, error: companiesError } = await serviceClient
       .from('companies')
       .select('id, name');
     
@@ -45,8 +85,6 @@ Deno.serve(async (req) => {
     for (const company of existingCompanies || []) {
       companyMap.set(company.name.toLowerCase(), company.id);
     }
-    
-    console.log(`Found ${companyMap.size} existing companies`);
     
     // Track new companies to create
     const newCompanies = new Set<string>();
@@ -61,10 +99,9 @@ Deno.serve(async (req) => {
     
     // Create new companies
     if (newCompanies.size > 0) {
-      console.log(`Creating ${newCompanies.size} new companies`);
       const companiesToInsert = Array.from(newCompanies).map(name => ({ name }));
       
-      const { data: createdCompanies, error: createError } = await supabase
+      const { data: createdCompanies, error: createError } = await serviceClient
         .from('companies')
         .insert(companiesToInsert)
         .select('id, name');
@@ -94,6 +131,8 @@ Deno.serve(async (req) => {
         job_title: contact.jobTitle || null,
         notes: contact.notes ? [{ text: contact.notes, timestamp: new Date().toISOString() }] : null,
         excavator_lines: contact.excavatorLines || null,
+        created_by: userId,
+        updated_by: userId,
       };
     });
     
@@ -104,9 +143,8 @@ Deno.serve(async (req) => {
     
     for (let i = 0; i < peopleToInsert.length; i += batchSize) {
       const batch = peopleToInsert.slice(i, i + batchSize);
-      console.log(`Inserting batch ${Math.floor(i / batchSize) + 1} (${batch.length} contacts)`);
       
-      const { error: insertError } = await supabase
+      const { error: insertError } = await serviceClient
         .from('people')
         .insert(batch);
       
@@ -118,7 +156,7 @@ Deno.serve(async (req) => {
       }
     }
     
-    console.log(`Import complete: ${insertedCount} contacts inserted`);
+    console.log(`Import complete: ${insertedCount} contacts inserted by user ${userId}`);
     
     return new Response(JSON.stringify({
       success: true,
