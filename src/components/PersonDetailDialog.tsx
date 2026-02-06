@@ -802,12 +802,18 @@ export const PersonDetailDialog = ({ person, companyName, onUpdate, children, op
         </div>
 
         {/* Timestamps */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-muted-foreground pt-2 border-t">
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground pt-2 border-t">
           {person.createdAt && (
-            <span>Created: {format(new Date(person.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+            <span>
+              Created: {format(new Date(person.createdAt), "MMM d, yyyy 'at' h:mm a")}
+              {person.createdByName && <> by <strong>{person.createdByName}</strong></>}
+            </span>
           )}
           {person.updatedAt && (
-            <span>Last edited: {format(new Date(person.updatedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+            <span>
+              Last edited: {format(new Date(person.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+              {person.updatedByName && <> by <strong>{person.updatedByName}</strong></>}
+            </span>
           )}
         </div>
 
