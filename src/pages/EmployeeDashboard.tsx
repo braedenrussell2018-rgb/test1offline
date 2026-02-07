@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -129,6 +129,7 @@ export default function EmployeeDashboard() {
 
   // Video meeting state
   const [activeVideoMeeting, setActiveVideoMeeting] = useState<{ id: string; title: string; isHost: boolean } | null>(null);
+  const [videoMeetings, setVideoMeetings] = useState<any[]>([]);
 
   // Conversation detail dialog state
   const [conversationDialogOpen, setConversationDialogOpen] = useState(false);
@@ -192,8 +193,6 @@ export default function EmployeeDashboard() {
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-
-    // Parse key_points from Json to string[]
     const parsed = (data || []).map(conv => ({
       ...conv,
       key_points: conv.key_points as string[] | null
@@ -234,27 +233,24 @@ export default function EmployeeDashboard() {
 
     if (error) throw error;
     setActivityLogs(data || []);
+  };
 
   const loadVideoMeetings = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("video_meetings")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    setVideoMeetings((data as any[]) || []);
+    setVideoMeetings(data || []);
   };
-
 
   const getSignedAudioUrl = async (audioPath: string): Promise<string | null> => {
     try {
-      // If it's already a public URL (e.g. legacy or other bucket), just return it
       if (audioPath.startsWith('http')) return audioPath;
-
       const { data, error } = await supabase.storage
         .from('audio-recordings')
-        .createSignedUrl(audioPath, 3600); // 1 hour
-
+        .createSignedUrl(audioPath, 3600);
       if (error) throw error;
       return data.signedUrl;
     } catch (error) {
@@ -264,7 +260,6 @@ export default function EmployeeDashboard() {
   };
 
   const handlePlayAudio = async (audioPath: string) => {
-    // If clicking the same audio that is playing, toggle it
     if (playingAudio === audioPath) {
       if (audioRef.current?.paused) {
         audioRef.current.play();
@@ -276,20 +271,15 @@ export default function EmployeeDashboard() {
       return;
     }
 
-    // Playing a new file
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
-
       const signedUrl = await getSignedAudioUrl(audioPath);
       if (!signedUrl) {
         toast.error("Failed to load audio");
         return;
       }
-
       audioRef.current.src = signedUrl;
-
-      // Attempt to play
       try {
         await audioRef.current.play();
         setPlayingAudio(audioPath);
@@ -322,7 +312,6 @@ export default function EmployeeDashboard() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Note CRUD operations
   const handleSaveNote = async () => {
     if (!noteForm.title.trim() || !noteForm.content.trim()) {
       toast.error("Please fill in title and content");
@@ -339,7 +328,6 @@ export default function EmployeeDashboard() {
             category: noteForm.category
           })
           .eq("id", editingNote.id);
-
         if (error) throw error;
         toast.success("Note updated");
       } else {
@@ -351,7 +339,6 @@ export default function EmployeeDashboard() {
             content: noteForm.content,
             category: noteForm.category
           });
-
         if (error) throw error;
         toast.success("Note created");
       }
@@ -368,11 +355,7 @@ export default function EmployeeDashboard() {
 
   const handleDeleteNote = async (noteId: string) => {
     try {
-      const { error } = await supabase
-        .from("internal_notes")
-        .delete()
-        .eq("id", noteId);
-
+      const { error } = await supabase.from("internal_notes").delete().eq("id", noteId);
       if (error) throw error;
       toast.success("Note deleted");
       loadNotes();
@@ -388,7 +371,6 @@ export default function EmployeeDashboard() {
         .from("internal_notes")
         .update({ is_pinned: !note.is_pinned })
         .eq("id", note.id);
-
       if (error) throw error;
       loadNotes();
     } catch (error) {
@@ -398,15 +380,10 @@ export default function EmployeeDashboard() {
 
   const handleEditNote = (note: InternalNote) => {
     setEditingNote(note);
-    setNoteForm({
-      title: note.title,
-      content: note.content,
-      category: note.category
-    });
+    setNoteForm({ title: note.title, content: note.content, category: note.category });
     setNoteDialogOpen(true);
   };
 
-  // Meeting CRUD operations
   const handleSaveMeeting = async () => {
     if (!meetingForm.title.trim() || !meetingForm.meeting_date) {
       toast.error("Please fill in title and date");
@@ -426,37 +403,18 @@ export default function EmployeeDashboard() {
       };
 
       if (editingMeeting) {
-        const { error } = await supabase
-          .from("company_meetings")
-          .update(meetingData)
-          .eq("id", editingMeeting.id);
-
+        const { error } = await supabase.from("company_meetings").update(meetingData).eq("id", editingMeeting.id);
         if (error) throw error;
         toast.success("Meeting updated");
       } else {
-        const { error } = await supabase
-          .from("company_meetings")
-          .insert({
-            ...meetingData,
-            created_by: user?.id
-          });
-
+        const { error } = await supabase.from("company_meetings").insert({ ...meetingData, created_by: user?.id });
         if (error) throw error;
         toast.success("Meeting created");
       }
 
       setMeetingDialogOpen(false);
       setEditingMeeting(null);
-      setMeetingForm({
-        title: "",
-        description: "",
-        meeting_date: "",
-        duration_minutes: "",
-        location: "",
-        meeting_type: "general",
-        notes: "",
-        attendees: ""
-      });
+      setMeetingForm({ title: "", description: "", meeting_date: "", duration_minutes: "", location: "", meeting_type: "general", notes: "", attendees: "" });
       loadMeetings();
     } catch (error) {
       console.error("Error saving meeting:", error);
@@ -466,11 +424,7 @@ export default function EmployeeDashboard() {
 
   const handleDeleteMeeting = async (meetingId: string) => {
     try {
-      const { error } = await supabase
-        .from("company_meetings")
-        .delete()
-        .eq("id", meetingId);
-
+      const { error } = await supabase.from("company_meetings").delete().eq("id", meetingId);
       if (error) throw error;
       toast.success("Meeting deleted");
       loadMeetings();
@@ -542,11 +496,7 @@ export default function EmployeeDashboard() {
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <audio
         ref={audioRef}
-        onEnded={() => {
-          setPlayingAudio(null);
-          setIsPlaying(false);
-          setCurrentAudioTime(0);
-        }}
+        onEnded={() => { setPlayingAudio(null); setIsPlaying(false); setCurrentAudioTime(0); }}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleTimeUpdate}
         className="hidden"
@@ -565,19 +515,11 @@ export default function EmployeeDashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {hasOwnerAccess() && (
-            <EmployeeSelector
-              selectedUserId={selectedUserId}
-              onSelectUser={setSelectedUserId}
-            />
+            <EmployeeSelector selectedUserId={selectedUserId} onSelectUser={setSelectedUserId} />
           )}
           <div className="relative flex-1 sm:w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
           <Link to="/warranty">
             <Button variant="outline" size="sm" className="gap-2">
@@ -690,10 +632,7 @@ export default function EmployeeDashboard() {
                       <div
                         key={conv.id}
                         className="border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => {
-                          setSelectedConversation(conv);
-                          setConversationDialogOpen(true);
-                        }}
+                        onClick={() => { setSelectedConversation(conv); setConversationDialogOpen(true); }}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -709,36 +648,19 @@ export default function EmployeeDashboard() {
                                 </Badge>
                               )}
                             </div>
-                            {conv.summary && (
-                              <p className="text-sm mb-2">{conv.summary}</p>
-                            )}
+                            {conv.summary && <p className="text-sm mb-2">{conv.summary}</p>}
                             {conv.key_points && conv.key_points.length > 0 && (
                               <div className="flex flex-wrap gap-1 mb-2">
                                 {conv.key_points.map((point, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-xs">
-                                    {point}
-                                  </Badge>
+                                  <Badge key={idx} variant="secondary" className="text-xs">{point}</Badge>
                                 ))}
                               </div>
                             )}
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {conv.transcript}
-                            </p>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{conv.transcript}</p>
                           </div>
                           {conv.audio_url && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePlayAudio(conv.audio_url!);
-                              }}
-                            >
-                              {playingAudio === conv.audio_url ? (
-                                <Pause className="h-4 w-4" />
-                              ) : (
-                                <Play className="h-4 w-4" />
-                              )}
+                            <Button variant="outline" size="icon" onClick={(e) => { e.stopPropagation(); handlePlayAudio(conv.audio_url!); }}>
+                              {playingAudio === conv.audio_url ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                             </Button>
                           )}
                         </div>
@@ -758,7 +680,6 @@ export default function EmployeeDashboard() {
                   Conversation Details
                 </DialogTitle>
               </DialogHeader>
-
               {selectedConversation && (
                 <div className="space-y-6 mt-2">
                   <div className="flex items-center justify-between text-sm text-muted-foreground border-b pb-4">
@@ -770,16 +691,12 @@ export default function EmployeeDashboard() {
                       </div>
                     )}
                   </div>
-
                   {selectedConversation.summary && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm">Summary</h4>
-                      <p className="text-sm border rounded-lg p-3 bg-muted/30">
-                        {selectedConversation.summary}
-                      </p>
+                      <p className="text-sm border rounded-lg p-3 bg-muted/30">{selectedConversation.summary}</p>
                     </div>
                   )}
-
                   {selectedConversation.key_points && selectedConversation.key_points.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm">Key Points</h4>
@@ -790,15 +707,12 @@ export default function EmployeeDashboard() {
                       </ul>
                     </div>
                   )}
-
                   <div className="space-y-2">
                     <h4 className="font-semibold text-sm">Full Transcript</h4>
                     <div className="text-sm whitespace-pre-wrap border rounded-lg p-4 bg-muted/30 leading-relaxed max-h-[300px] overflow-y-auto">
                       {selectedConversation.transcript}
                     </div>
                   </div>
-
-
                   {selectedConversation.audio_url && (
                     <div className="border border-border rounded-lg p-4 bg-muted/20">
                       <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
@@ -818,7 +732,6 @@ export default function EmployeeDashboard() {
                             <Play className="h-4 w-4 ml-0.5" />
                           )}
                         </Button>
-
                         <div className="flex-1 space-y-1.5">
                           <Slider
                             value={[playingAudio === selectedConversation.audio_url ? currentAudioTime : 0]}
@@ -855,22 +768,14 @@ export default function EmployeeDashboard() {
                   <StickyNote className="h-5 w-5" />
                   Internal Notes
                 </CardTitle>
-                <CardDescription>
-                  Your personal notes and reminders
-                </CardDescription>
+                <CardDescription>Your personal notes and reminders</CardDescription>
               </div>
               <Dialog open={noteDialogOpen} onOpenChange={(open) => {
                 setNoteDialogOpen(open);
-                if (!open) {
-                  setEditingNote(null);
-                  setNoteForm({ title: "", content: "", category: "general" });
-                }
+                if (!open) { setEditingNote(null); setNoteForm({ title: "", content: "", category: "general" }); }
               }}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Note
-                  </Button>
+                  <Button><Plus className="h-4 w-4 mr-2" />New Note</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
@@ -879,21 +784,12 @@ export default function EmployeeDashboard() {
                   <div className="space-y-4 pt-4">
                     <div>
                       <Label>Title</Label>
-                      <Input
-                        value={noteForm.title}
-                        onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
-                        placeholder="Note title..."
-                      />
+                      <Input value={noteForm.title} onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })} placeholder="Note title..." />
                     </div>
                     <div>
                       <Label>Category</Label>
-                      <Select
-                        value={noteForm.category}
-                        onValueChange={(value) => setNoteForm({ ...noteForm, category: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                      <Select value={noteForm.category} onValueChange={(value) => setNoteForm({ ...noteForm, category: value })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="general">General</SelectItem>
                           <SelectItem value="todo">To-Do</SelectItem>
@@ -905,16 +801,9 @@ export default function EmployeeDashboard() {
                     </div>
                     <div>
                       <Label>Content</Label>
-                      <Textarea
-                        value={noteForm.content}
-                        onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })}
-                        placeholder="Write your note..."
-                        rows={6}
-                      />
+                      <Textarea value={noteForm.content} onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })} placeholder="Write your note..." rows={6} />
                     </div>
-                    <Button onClick={handleSaveNote} className="w-full">
-                      {editingNote ? "Update Note" : "Save Note"}
-                    </Button>
+                    <Button onClick={handleSaveNote} className="w-full">{editingNote ? "Update Note" : "Save Note"}</Button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -936,36 +825,17 @@ export default function EmployeeDashboard() {
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-muted-foreground line-clamp-4 mb-3">
-                          {note.content}
-                        </p>
+                        <p className="text-sm text-muted-foreground line-clamp-4 mb-3">{note.content}</p>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(note.updated_at), "MMM d, yyyy")}
-                          </span>
+                          <span className="text-xs text-muted-foreground">{format(new Date(note.updated_at), "MMM d, yyyy")}</span>
                           <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleTogglePin(note)}
-                            >
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePin(note)}>
                               <Pin className={`h-4 w-4 ${note.is_pinned ? "text-primary" : ""}`} />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleEditNote(note)}
-                            >
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditNote(note)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => handleDeleteNote(note.id)}
-                            >
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteNote(note.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -996,9 +866,7 @@ export default function EmployeeDashboard() {
                   <Video className="h-5 w-5" />
                   Video Meetings
                 </CardTitle>
-                <CardDescription>
-                  Create, join, and rewatch video meetings with AI notes
-                </CardDescription>
+                <CardDescription>Create, join, and rewatch video meetings with AI notes</CardDescription>
               </div>
               <CreateMeetingDropdown
                 onMeetingCreated={(meetingId, title) =>
@@ -1007,10 +875,7 @@ export default function EmployeeDashboard() {
               />
             </CardHeader>
             <CardContent>
-              <MeetingRecordingPlayer
-                meetings={videoMeetings}
-                onRefresh={loadVideoMeetings}
-              />
+              <MeetingRecordingPlayer meetings={videoMeetings} onRefresh={loadVideoMeetings} />
             </CardContent>
           </Card>
 
@@ -1022,31 +887,17 @@ export default function EmployeeDashboard() {
                   <Calendar className="h-5 w-5" />
                   Company Meetings
                 </CardTitle>
-                <CardDescription>
-                  View and manage company meeting records
-                </CardDescription>
+                <CardDescription>View and manage company meeting records</CardDescription>
               </div>
               <Dialog open={meetingDialogOpen} onOpenChange={(open) => {
                 setMeetingDialogOpen(open);
                 if (!open) {
                   setEditingMeeting(null);
-                  setMeetingForm({
-                    title: "",
-                    description: "",
-                    meeting_date: "",
-                    duration_minutes: "",
-                    location: "",
-                    meeting_type: "general",
-                    notes: "",
-                    attendees: ""
-                  });
+                  setMeetingForm({ title: "", description: "", meeting_date: "", duration_minutes: "", location: "", meeting_type: "general", notes: "", attendees: "" });
                 }
               }}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Meeting
-                  </Button>
+                  <Button><Plus className="h-4 w-4 mr-2" />New Meeting</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
@@ -1056,39 +907,21 @@ export default function EmployeeDashboard() {
                     <div className="space-y-4 pt-4 pr-4">
                       <div>
                         <Label>Title *</Label>
-                        <Input
-                          value={meetingForm.title}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
-                          placeholder="Meeting title..."
-                        />
+                        <Input value={meetingForm.title} onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })} placeholder="Meeting title..." />
                       </div>
                       <div>
                         <Label>Date & Time *</Label>
-                        <Input
-                          type="datetime-local"
-                          value={meetingForm.meeting_date}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, meeting_date: e.target.value })}
-                        />
+                        <Input type="datetime-local" value={meetingForm.meeting_date} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_date: e.target.value })} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label>Duration (minutes)</Label>
-                          <Input
-                            type="number"
-                            value={meetingForm.duration_minutes}
-                            onChange={(e) => setMeetingForm({ ...meetingForm, duration_minutes: e.target.value })}
-                            placeholder="60"
-                          />
+                          <Input type="number" value={meetingForm.duration_minutes} onChange={(e) => setMeetingForm({ ...meetingForm, duration_minutes: e.target.value })} placeholder="60" />
                         </div>
                         <div>
                           <Label>Type</Label>
-                          <Select
-                            value={meetingForm.meeting_type}
-                            onValueChange={(value) => setMeetingForm({ ...meetingForm, meeting_type: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
+                          <Select value={meetingForm.meeting_type} onValueChange={(value) => setMeetingForm({ ...meetingForm, meeting_type: value })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="general">General</SelectItem>
                               <SelectItem value="standup">Standup</SelectItem>
@@ -1102,41 +935,21 @@ export default function EmployeeDashboard() {
                       </div>
                       <div>
                         <Label>Location</Label>
-                        <Input
-                          value={meetingForm.location}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, location: e.target.value })}
-                          placeholder="Conference Room A / Zoom link..."
-                        />
+                        <Input value={meetingForm.location} onChange={(e) => setMeetingForm({ ...meetingForm, location: e.target.value })} placeholder="Conference Room A / Zoom link..." />
                       </div>
                       <div>
                         <Label>Attendees (comma-separated)</Label>
-                        <Input
-                          value={meetingForm.attendees}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, attendees: e.target.value })}
-                          placeholder="John, Jane, Bob..."
-                        />
+                        <Input value={meetingForm.attendees} onChange={(e) => setMeetingForm({ ...meetingForm, attendees: e.target.value })} placeholder="John, Jane, Bob..." />
                       </div>
                       <div>
                         <Label>Description</Label>
-                        <Textarea
-                          value={meetingForm.description}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
-                          placeholder="Meeting agenda..."
-                          rows={3}
-                        />
+                        <Textarea value={meetingForm.description} onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })} placeholder="Meeting agenda..." rows={3} />
                       </div>
                       <div>
                         <Label>Notes</Label>
-                        <Textarea
-                          value={meetingForm.notes}
-                          onChange={(e) => setMeetingForm({ ...meetingForm, notes: e.target.value })}
-                          placeholder="Meeting notes..."
-                          rows={4}
-                        />
+                        <Textarea value={meetingForm.notes} onChange={(e) => setMeetingForm({ ...meetingForm, notes: e.target.value })} placeholder="Meeting notes..." rows={4} />
                       </div>
-                      <Button onClick={handleSaveMeeting} className="w-full">
-                        {editingMeeting ? "Update Meeting" : "Save Meeting"}
-                      </Button>
+                      <Button onClick={handleSaveMeeting} className="w-full">{editingMeeting ? "Update Meeting" : "Save Meeting"}</Button>
                     </div>
                   </ScrollArea>
                 </DialogContent>
@@ -1192,31 +1005,14 @@ export default function EmployeeDashboard() {
                           </div>
                           <div className="flex gap-1">
                             {meeting.audio_url && (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handlePlayAudio(meeting.audio_url!)}
-                              >
-                                {playingAudio === meeting.audio_url ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
+                              <Button variant="outline" size="icon" onClick={() => handlePlayAudio(meeting.audio_url!)}>
+                                {playingAudio === meeting.audio_url ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditMeeting(meeting)}
-                            >
+                            <Button variant="ghost" size="icon" onClick={() => handleEditMeeting(meeting)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive"
-                              onClick={() => handleDeleteMeeting(meeting.id)}
-                            >
+                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteMeeting(meeting.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1238,9 +1034,7 @@ export default function EmployeeDashboard() {
                 <Activity className="h-5 w-5" />
                 Your Activity Log
               </CardTitle>
-              <CardDescription>
-                Track your edits and actions in the system
-              </CardDescription>
+              <CardDescription>Track your edits and actions in the system</CardDescription>
             </CardHeader>
             <CardContent>
               {filteredLogs.length === 0 ? (
@@ -1250,18 +1044,14 @@ export default function EmployeeDashboard() {
                   <div className="space-y-2">
                     {filteredLogs.map((log) => (
                       <div key={log.id} className="flex items-center gap-4 p-3 border rounded-lg">
-                        <div className={`w-2 h-2 rounded-full ${log.result === 'success' ? 'bg-green-500' :
-                          log.result === 'failure' ? 'bg-red-500' : 'bg-yellow-500'
-                          }`} />
+                        <div className={`w-2 h-2 rounded-full ${log.result === 'success' ? 'bg-green-500' : log.result === 'failure' ? 'bg-red-500' : 'bg-yellow-500'}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm">{log.action}</span>
                             <Badge variant="outline" className="text-xs">{log.action_category}</Badge>
                           </div>
                           {log.target_name && (
-                            <p className="text-sm text-muted-foreground truncate">
-                              {log.target_type}: {log.target_name}
-                            </p>
+                            <p className="text-sm text-muted-foreground truncate">{log.target_type}: {log.target_name}</p>
                           )}
                         </div>
                         <span className="text-xs text-muted-foreground whitespace-nowrap">

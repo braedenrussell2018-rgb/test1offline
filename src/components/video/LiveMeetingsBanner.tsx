@@ -21,13 +21,13 @@ export function LiveMeetingsBanner({ onJoinMeeting }: LiveMeetingsBannerProps) {
   const [liveMeetings, setLiveMeetings] = useState<LiveMeeting[]>([]);
 
   const loadLiveMeetings = async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("video_meetings")
       .select("id, title, status, created_by, started_at")
       .in("status", ["waiting", "live"])
       .order("created_at", { ascending: false });
 
-    setLiveMeetings((data as any[]) || []);
+    setLiveMeetings(data || []);
   };
 
   useEffect(() => {

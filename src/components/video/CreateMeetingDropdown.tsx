@@ -39,14 +39,14 @@ export function CreateMeetingDropdown({ onMeetingCreated }: CreateMeetingDropdow
 
     setCreating(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("video_meetings")
         .insert({
           title: title.trim(),
           meeting_type: "local_company",
           created_by: user.id,
           status: "waiting",
-        } as any)
+        })
         .select()
         .single();
 

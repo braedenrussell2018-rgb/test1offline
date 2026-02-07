@@ -61,13 +61,13 @@ export function VideoMeetingRoom({
         if (uploadError) throw uploadError;
 
         // Update meeting with recording URL
-        await supabase
+        await (supabase as any)
           .from("video_meetings")
           .update({
             recording_url: fileName,
             status: "ended",
             ended_at: new Date().toISOString(),
-          } as any)
+          })
           .eq("id", meetingId);
 
         toast.success("Recording saved! AI is processing the meeting...");
@@ -122,21 +122,21 @@ export function VideoMeetingRoom({
         await joinChannel();
 
         // Register as participant
-        await supabase.from("video_meeting_participants").insert({
+        await (supabase as any).from("video_meeting_participants").insert({
           meeting_id: meetingId,
           user_id: user.id,
           user_name: userName,
           is_host: isHost,
-        } as any);
+        });
 
         // Update meeting status to live if host
         if (isHost) {
-          await supabase
+          await (supabase as any)
             .from("video_meetings")
             .update({
               status: "live",
               started_at: new Date().toISOString(),
-            } as any)
+            })
             .eq("id", meetingId);
         }
       } catch (error) {
@@ -162,21 +162,21 @@ export function VideoMeetingRoom({
 
     // Mark participant as left
     if (user?.id) {
-      await supabase
+      await (supabase as any)
         .from("video_meeting_participants")
-        .update({ left_at: new Date().toISOString() } as any)
+        .update({ left_at: new Date().toISOString() })
         .eq("meeting_id", meetingId)
         .eq("user_id", user.id);
     }
 
     // If host, end the meeting
     if (isHost) {
-      await supabase
+      await (supabase as any)
         .from("video_meetings")
         .update({
           status: "ended",
           ended_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("id", meetingId);
     }
 
