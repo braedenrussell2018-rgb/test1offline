@@ -1,148 +1,120 @@
 
-# Plan: Add H3 Hexagonal Visualization to Leaflet Map
+
+# Video Call Meeting Feature
 
 ## Overview
 
-Enhance the existing Leaflet map with H3 hexagonal clustering while keeping the current infrastructure. This approach:
-- **Keeps Leaflet** (already installed and working)
-- **Adds H3** for hexagonal spatial indexing
-- **Shows hexagons instead of point markers** for better density visualization
-- **Remains fully open-source** with no API keys required
+Add a video call meeting system to the Employee Dashboard where authenticated users can create, join, and rewatch local company meetings with AI-generated notes and to-do lists.
 
-## What You'll See
+## Architecture
 
-- Contacts/companies grouped into hexagonal cells on the map
-- Hexagon colors indicate density (more contacts = darker color)
-- Click a hexagon to see all contacts/companies in that area
-- Toggle between hexagon view and traditional marker view
+The system uses **browser-native WebRTC** for peer-to-peer video calls, **Supabase Realtime** as the signaling server, **MediaRecorder API** for client-side recording, **Lovable Cloud Storage** for saving recordings, and **Lovable AI** for generating meeting notes and to-do lists.
 
----
+## How It Works
 
-## Phase 1: Install H3 Library
+1. A user clicks "New Meeting" and selects "Local Company Meeting" from a dropdown
+2. They fill in a meeting title and it creates a meeting room
+3. Other authenticated users see a "Join Meeting" button on live meetings
+4. During the call, one participant (the host) records audio/video using the browser's MediaRecorder
+5. When the meeting ends, the recording is uploaded to storage
+6. An AI edge function processes the audio to generate a summary, key points, and to-do lists for each attendee
+7. Users can rewatch any past meeting recording from their dashboard
 
-### Add dependency:
-```
-h3-js - Uber's open-source hexagonal hierarchical spatial index
-```
+## Limitations (Browser-Only WebRTC)
 
-This is the only new package needed since Leaflet is already installed.
+- Best for **2-4 participants** (no media server means each participant sends video to every other participant)
+- Recording happens on the **host's browser only** -- if the host disconnects, recording stops
+- Audio/video quality depends on each participant's network connection
+- No screen sharing in initial version (can be added later)
 
----
+## What Gets Built
 
-## Phase 2: Create H3 Utility Functions
+### Database Changes
 
-### New file: `src/lib/h3-utils.ts`
+**New table: `video_meetings`**
+- `id` (uuid, primary key)
+- `title` (text)
+- `status` (text: 'waiting', 'live', 'ended')
+- `meeting_type` (text: 'local_company')
+- `created_by` (uuid, references auth.users)
+- `started_at` (timestamptz)
+- `ended_at` (timestamptz)
+- `recording_url` (text, nullable)
+- `ai_summary` (text, nullable)
+- `ai_key_points` (jsonb, nullable)
+- `ai_todo_list` (jsonb, nullable -- array of {assignee, task, completed})
+- `created_at`, `updated_at` (timestamptz)
 
-Utility functions to handle H3 operations:
+**New table: `video_meeting_participants`**
+- `id` (uuid, primary key)
+- `meeting_id` (uuid, references video_meetings)
+- `user_id` (uuid)
+- `user_name` (text)
+- `joined_at` (timestamptz)
+- `left_at` (timestamptz, nullable)
+- `is_host` (boolean, default false)
 
-| Function | Purpose |
-|----------|---------|
-| `latLngToH3(lat, lng, resolution)` | Convert coordinates to H3 cell index |
-| `h3ToPolygon(h3Index)` | Convert H3 cell to polygon coordinates for Leaflet |
-| `groupLocationsByH3(locations, resolution)` | Group contacts into hexagonal cells |
-| `getHexagonColor(count, maxCount)` | Calculate color based on density |
+**New storage bucket:** `meeting-recordings` (private, with RLS so only authenticated users can read/write)
 
-### H3 Resolution:
-- Use **resolution 7** (~1.2km hexagons) as default
-- Adjustable based on zoom level for better UX
+**Realtime:** Enable realtime on `video_meetings` and `video_meeting_participants` for live status updates.
 
----
+**RLS policies:** All tables restricted to authenticated users only. Only the creator can delete a meeting. All authenticated users can view and join meetings.
 
-## Phase 3: Update ContactsMapDialog Component
+### New Components
 
-### File: `src/components/ContactsMapDialog.tsx`
+1. **`src/components/video/VideoMeetingRoom.tsx`** -- The main video call UI with:
+   - Local and remote video streams
+   - Mute/unmute audio and video controls
+   - End call button
+   - Participant list
+   - Recording indicator (host only)
 
-### Changes:
+2. **`src/components/video/CreateMeetingDropdown.tsx`** -- Dropdown button with "Local Company Meeting" option that opens a dialog to set the meeting title
 
-1. **Add H3 imports and state**
-   - Import h3-js library
-   - Add state for hexagon layer and view mode toggle
+3. **`src/components/video/LiveMeetingsBanner.tsx`** -- Shows active meetings with "Join" buttons, displayed at the top of the Meetings tab
 
-2. **Create hexagon layer function**
-   - Group geocoded locations by H3 cell
-   - Create Leaflet polygon for each hexagon
-   - Style polygons based on contact count (color gradient)
+4. **`src/components/video/MeetingRecordingPlayer.tsx`** -- Video player for rewatching past meetings, with the AI summary, key points, and to-do list displayed alongside
 
-3. **Add view mode toggle**
-   - Button to switch between "Hexagons" and "Markers" view
-   - Preserve existing marker functionality
+5. **`src/components/video/useWebRTC.ts`** -- Custom hook managing:
+   - WebRTC peer connections
+   - Supabase Realtime channel for signaling (ICE candidates, SDP offers/answers)
+   - MediaRecorder for the host
+   - Cleanup on disconnect
 
-4. **Update click handling**
-   - Click hexagon shows all contacts/companies in that cell
-   - Reuse existing sidebar panel for details
+### New Edge Function
 
-5. **Add hexagon styling**
-   - Semi-transparent fill colors (blue gradient)
-   - White borders between hexagons
-   - Hover effect to highlight
+**`supabase/functions/process-meeting-recording/index.ts`**
+- Triggered after a meeting ends and the recording is uploaded
+- Downloads the audio from storage
+- Sends audio to Lovable AI (Gemini Flash) for transcription and analysis
+- Generates: summary, key points, and a to-do list with assignees
+- Updates the `video_meetings` row with the AI output
 
-### Visual changes:
+### Employee Dashboard Changes
 
-```text
-Current (Point Markers):     New (H3 Hexagons):
-     •                           ⬡ ⬡
-   •   •                        ⬡ ⬡ ⬡
-     •                           ⬡ ⬡
-```
-
----
-
-## Phase 4: Add Legend and Controls
-
-### New UI elements:
-
-1. **Color legend** - Shows what hexagon colors mean
-   - Light blue: 1 contact
-   - Medium blue: 2-5 contacts  
-   - Dark blue: 6+ contacts
-
-2. **View toggle button** - Switch between hexagon/marker views
-
-3. **Resolution slider** (optional) - Adjust hexagon size
-
----
+- Add a "Video Meetings" sub-section within the existing Meetings tab
+- "New Meeting" dropdown button at the top
+- Live meetings banner with join buttons
+- Past meetings list with recording playback and AI notes
+- Stats card updated to show active meetings count
 
 ## Technical Details
 
-### H3 Resolution Guide:
+### Signaling via Supabase Realtime
 
-| Resolution | Hexagon Size | Best For |
-|------------|--------------|----------|
-| 5 | ~8 km | Regional view |
-| 7 | ~1.2 km | City/neighborhood |
-| 9 | ~175 m | Street level |
+Instead of a dedicated signaling server, WebRTC signaling (SDP offers/answers, ICE candidates) will be exchanged through a Supabase Realtime broadcast channel named `meeting:{meetingId}`. This avoids any additional infrastructure.
 
-### Leaflet + H3 Integration:
+### Recording Flow
 
-```text
-Geocoded Locations → Group by H3 Cell → Create Leaflet Polygons → Render on Map
-       ↓                    ↓                      ↓
-  [lat, lng]         h3Index string        L.polygon(coords)
-```
+1. Host's browser captures all audio/video streams using `MediaRecorder`
+2. On meeting end, the recorded blob is uploaded to `meeting-recordings` bucket
+3. The client calls the `process-meeting-recording` edge function with the meeting ID
+4. The edge function fetches the recording, sends it to AI for analysis, and saves results
 
-### Performance:
-- H3 calculations happen client-side (fast)
-- Hexagons reduce visual clutter vs many markers
-- Polygon rendering is efficient in Leaflet
+### AI Note-Taking
 
----
+The edge function will use Lovable AI (google/gemini-3-flash-preview) to:
+- Transcribe the meeting audio
+- Generate a structured summary
+- Extract action items as a to-do list with suggested assignees based on meeting context
 
-## Files to Modify
-
-| File | Action |
-|------|--------|
-| `package.json` | Add h3-js dependency |
-| `src/lib/h3-utils.ts` | Create new utility file |
-| `src/components/ContactsMapDialog.tsx` | Add hexagon layer alongside markers |
-
----
-
-## Benefits of This Approach
-
-| Aspect | Benefit |
-|--------|---------|
-| **Minimal changes** | Keeps existing Leaflet setup |
-| **Progressive enhancement** | Markers still work, hexagons are additive |
-| **Better visualization** | See contact density at a glance |
-| **Open source** | H3 is MIT licensed, no API keys |
-| **Performance** | Fewer polygons than individual markers for large datasets |
