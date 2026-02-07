@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,13 @@ import {
   RefreshCw,
   Search,
   Volume2,
-  Shield
+  Shield,
+  Video,
 } from "lucide-react";
+import { CreateMeetingDropdown } from "@/components/video/CreateMeetingDropdown";
+import { LiveMeetingsBanner } from "@/components/video/LiveMeetingsBanner";
+import { MeetingRecordingPlayer } from "@/components/video/MeetingRecordingPlayer";
+import { VideoMeetingRoom } from "@/components/video/VideoMeetingRoom";
 import { Link } from "react-router-dom";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,6 +127,9 @@ export default function EmployeeDashboard() {
     attendees: ""
   });
 
+  // Video meeting state
+  const [activeVideoMeeting, setActiveVideoMeeting] = useState<{ id: string; title: string; isHost: boolean } | null>(null);
+
   // Conversation detail dialog state
   const [conversationDialogOpen, setConversationDialogOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -165,7 +173,8 @@ export default function EmployeeDashboard() {
         loadConversations(),
         loadNotes(),
         loadMeetings(),
-        loadActivityLogs()
+        loadActivityLogs(),
+        loadVideoMeetings(),
       ]);
     } catch (error) {
       console.error("Error loading dashboard data:", error);
@@ -225,8 +234,16 @@ export default function EmployeeDashboard() {
 
     if (error) throw error;
     setActivityLogs(data || []);
-  };
 
+  const loadVideoMeetings = async () => {
+    const { data, error } = await supabase
+      .from("video_meetings")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    setVideoMeetings((data as any[]) || []);
+  };
 
 
   const getSignedAudioUrl = async (audioPath: string): Promise<string | null> => {
@@ -497,6 +514,21 @@ export default function EmployeeDashboard() {
     log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
     log.target_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // If in an active video meeting, show full-screen meeting room
+  if (activeVideoMeeting) {
+    return (
+      <VideoMeetingRoom
+        meetingId={activeVideoMeeting.id}
+        meetingTitle={activeVideoMeeting.title}
+        isHost={activeVideoMeeting.isHost}
+        onLeave={() => {
+          setActiveVideoMeeting(null);
+          loadVideoMeetings();
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -949,6 +981,40 @@ export default function EmployeeDashboard() {
 
         {/* Meetings Tab */}
         <TabsContent value="meetings" className="space-y-4">
+          {/* Live Video Meetings Banner */}
+          <LiveMeetingsBanner
+            onJoinMeeting={(meetingId, title) =>
+              setActiveVideoMeeting({ id: meetingId, title, isHost: false })
+            }
+          />
+
+          {/* Video Meetings Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="h-5 w-5" />
+                  Video Meetings
+                </CardTitle>
+                <CardDescription>
+                  Create, join, and rewatch video meetings with AI notes
+                </CardDescription>
+              </div>
+              <CreateMeetingDropdown
+                onMeetingCreated={(meetingId, title) =>
+                  setActiveVideoMeeting({ id: meetingId, title, isHost: true })
+                }
+              />
+            </CardHeader>
+            <CardContent>
+              <MeetingRecordingPlayer
+                meetings={videoMeetings}
+                onRefresh={loadVideoMeetings}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Existing Company Meetings */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
