@@ -286,21 +286,36 @@ export function useWebRTC({
 
     recorder.onstop = () => {
       const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+      console.log("[WebRTC] Recording blob ready, size:", blob.size);
       onRecordingReady?.(blob);
       setIsRecording(false);
     };
 
-    recorder.start(1000); // Collect data every second
+    recorder.start(1000);
     mediaRecorderRef.current = recorder;
     setIsRecording(true);
     console.log("[WebRTC] Recording started");
   }, [isHost, participants, onRecordingReady]);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-      console.log("[WebRTC] Recording stopped");
-    }
+  const stopRecording = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        const recorder = mediaRecorderRef.current;
+        const originalOnStop = recorder.onstop;
+        recorder.onstop = (event) => {
+          // Run original handler first (creates blob, calls onRecordingReady)
+          if (typeof originalOnStop === 'function') {
+            originalOnStop.call(recorder, event);
+          }
+          // Then resolve the promise
+          resolve();
+        };
+        recorder.stop();
+        console.log("[WebRTC] Recording stop requested, waiting for blob...");
+      } else {
+        resolve();
+      }
+    });
   }, []);
 
   const toggleAudio = useCallback(() => {

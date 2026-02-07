@@ -156,8 +156,12 @@ export function VideoMeetingRoom({
   }, [localStream]);
 
   const handleEndCall = async () => {
+    // If host is recording, wait for the recording blob to be assembled before disconnecting
     if (isHost && isRecording) {
-      stopRecording();
+      toast.info("Saving recording...");
+      await stopRecording();
+      // Give the onRecordingReady callback time to fire and start uploading
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     // Mark participant as left
@@ -169,8 +173,9 @@ export function VideoMeetingRoom({
         .eq("user_id", user.id);
     }
 
-    // If host, end the meeting
-    if (isHost) {
+    // If host and NOT recording (non-host or no recording), end the meeting
+    // If host WAS recording, handleRecordingReady already sets status to "ended"
+    if (isHost && !isRecording) {
       await (supabase as any)
         .from("video_meetings")
         .update({
