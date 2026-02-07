@@ -11,6 +11,8 @@ import {
   Users,
   Circle,
   Upload,
+  MonitorUp,
+  MonitorOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -93,17 +95,21 @@ export function VideoMeetingRoom({
 
   const {
     localStream,
+    screenStream,
     participants,
     isAudioMuted,
     isVideoMuted,
     isRecording,
     isConnected,
+    isScreenSharing,
     startMedia,
     joinChannel,
     startRecording,
     stopRecording,
     toggleAudio,
     toggleVideo,
+    startScreenShare,
+    stopScreenShare,
     disconnect,
   } = useWebRTC({
     meetingId,
@@ -148,12 +154,12 @@ export function VideoMeetingRoom({
     init();
   }, [user?.id, userName]);
 
-  // Attach local stream to video element
+  // Attach local stream or screen share to video element
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = isScreenSharing && screenStream ? screenStream : localStream;
     }
-  }, [localStream]);
+  }, [localStream, screenStream, isScreenSharing]);
 
   const handleEndCall = async () => {
     // If host is recording, wait for the recording blob to be assembled before disconnecting
@@ -296,6 +302,20 @@ export function VideoMeetingRoom({
             <VideoOff className="h-5 w-5" />
           ) : (
             <Video className="h-5 w-5" />
+          )}
+        </Button>
+
+        <Button
+          variant={isScreenSharing ? "destructive" : "outline"}
+          size="icon"
+          className="h-12 w-12 rounded-full"
+          onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+          title={isScreenSharing ? "Stop sharing" : "Share screen"}
+        >
+          {isScreenSharing ? (
+            <MonitorOff className="h-5 w-5" />
+          ) : (
+            <MonitorUp className="h-5 w-5" />
           )}
         </Button>
 
