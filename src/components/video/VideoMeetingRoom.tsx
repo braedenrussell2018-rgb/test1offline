@@ -13,10 +13,12 @@ import {
   Upload,
   MonitorUp,
   MonitorOff,
+  MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebRTC } from "./useWebRTC";
+import { MeetingChat } from "./MeetingChat";
 import { toast } from "sonner";
 
 interface VideoMeetingRoomProps {
@@ -35,6 +37,7 @@ export function VideoMeetingRoom({
   const { user } = useAuth();
   const [userName, setUserName] = useState("Unknown");
   const [isUploading, setIsUploading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -199,7 +202,8 @@ export function VideoMeetingRoom({
   const totalParticipants = participantArray.length + 1; // +1 for self
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-50 bg-background flex">
+      <div className="flex-1 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
         <div className="flex items-center gap-3">
@@ -223,7 +227,7 @@ export function VideoMeetingRoom({
             {totalParticipants}
           </Badge>
           {isConnected && (
-            <Badge variant="secondary" className="text-green-600">Connected</Badge>
+            <Badge variant="secondary" className="text-emerald-500">Connected</Badge>
           )}
         </div>
       </div>
@@ -319,6 +323,16 @@ export function VideoMeetingRoom({
           )}
         </Button>
 
+        <Button
+          variant={isChatOpen ? "secondary" : "outline"}
+          size="icon"
+          className="h-12 w-12 rounded-full"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          title="Toggle chat"
+        >
+          <MessageSquare className="h-5 w-5" />
+        </Button>
+
         {isHost && (
           <Button
             variant={isRecording ? "destructive" : "secondary"}
@@ -341,6 +355,16 @@ export function VideoMeetingRoom({
           <PhoneOff className="h-5 w-5" />
         </Button>
       </div>
+      </div>
+
+      {isChatOpen && (
+        <MeetingChat
+          meetingId={meetingId}
+          userId={user?.id || ""}
+          userName={userName}
+          onClose={() => setIsChatOpen(false)}
+        />
+      )}
     </div>
   );
 }
