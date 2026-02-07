@@ -1282,6 +1282,92 @@ export type Database = {
         }
         Relationships: []
       }
+      video_meeting_participants: {
+        Row: {
+          id: string
+          is_host: boolean
+          joined_at: string
+          left_at: string | null
+          meeting_id: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          id?: string
+          is_host?: boolean
+          joined_at?: string
+          left_at?: string | null
+          meeting_id: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          id?: string
+          is_host?: boolean
+          joined_at?: string
+          left_at?: string | null
+          meeting_id?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_meeting_participants_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "video_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_meetings: {
+        Row: {
+          ai_key_points: Json | null
+          ai_summary: string | null
+          ai_todo_list: Json | null
+          created_at: string
+          created_by: string
+          ended_at: string | null
+          id: string
+          meeting_type: string
+          recording_url: string | null
+          started_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_key_points?: Json | null
+          ai_summary?: string | null
+          ai_todo_list?: Json | null
+          created_at?: string
+          created_by: string
+          ended_at?: string | null
+          id?: string
+          meeting_type?: string
+          recording_url?: string | null
+          started_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_key_points?: Json | null
+          ai_summary?: string | null
+          ai_todo_list?: Json | null
+          created_at?: string
+          created_by?: string
+          ended_at?: string | null
+          id?: string
+          meeting_type?: string
+          recording_url?: string | null
+          started_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       active_people: {
