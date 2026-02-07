@@ -34,11 +34,13 @@ export function useWebRTC({
   onRecordingReady,
 }: UseWebRTCOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<Map<string, Participant>>(new Map());
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -336,6 +338,52 @@ export function useWebRTC({
     }
   }, []);
 
+  const startScreenShare = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      const screenTrack = stream.getVideoTracks()[0];
+
+      // Replace the video track in all peer connections
+      peerConnections.current.forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        if (sender) {
+          sender.replaceTrack(screenTrack);
+        }
+      });
+
+      // When user stops sharing via browser UI
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+
+      setScreenStream(stream);
+      setIsScreenSharing(true);
+      console.log("[WebRTC] Screen sharing started");
+    } catch (error) {
+      console.error("[WebRTC] Screen share failed:", error);
+    }
+  }, []);
+
+  const stopScreenShare = useCallback(() => {
+    // Restore camera video track to all peers
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
+    peerConnections.current.forEach((pc) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender && cameraTrack) {
+        sender.replaceTrack(cameraTrack);
+      }
+    });
+
+    // Stop screen tracks
+    screenStream?.getTracks().forEach((t) => t.stop());
+    setScreenStream(null);
+    setIsScreenSharing(false);
+    console.log("[WebRTC] Screen sharing stopped");
+  }, [screenStream]);
+
   const disconnect = useCallback(() => {
     // Announce leaving
     if (channelRef.current) {
@@ -375,17 +423,21 @@ export function useWebRTC({
 
   return {
     localStream,
+    screenStream,
     participants,
     isAudioMuted,
     isVideoMuted,
     isRecording,
     isConnected,
+    isScreenSharing,
     startMedia,
     joinChannel,
     startRecording,
     stopRecording,
     toggleAudio,
     toggleVideo,
+    startScreenShare,
+    stopScreenShare,
     disconnect,
   };
 }
