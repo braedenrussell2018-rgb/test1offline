@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,7 @@ export function VideoMeetingRoom({
   const [userName, setUserName] = useState("Unknown");
   const [isUploading, setIsUploading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -156,6 +157,37 @@ export function VideoMeetingRoom({
 
     init();
   }, [user?.id, userName]);
+
+  // Track unread chat messages when sidebar is closed
+  const isChatOpenRef = useRef(isChatOpen);
+  isChatOpenRef.current = isChatOpen;
+
+  useEffect(() => {
+    const channel = supabase.channel(`meeting-chat-notif-${meetingId}`);
+    channel
+      .on("broadcast", { event: "chat-message" }, ({ payload }: any) => {
+        if (payload?.userId !== user?.id && !isChatOpenRef.current) {
+          setUnreadCount((c) => c + 1);
+          // Play a short notification sound
+          try {
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            gain.gain.value = 0.15;
+            osc.start();
+            osc.stop(ctx.currentTime + 0.12);
+          } catch {}
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [meetingId, user?.id]);
 
   // Attach local stream or screen share to video element
   useEffect(() => {
@@ -326,11 +358,19 @@ export function VideoMeetingRoom({
         <Button
           variant={isChatOpen ? "secondary" : "outline"}
           size="icon"
-          className="h-12 w-12 rounded-full"
-          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="h-12 w-12 rounded-full relative"
+          onClick={() => {
+            setIsChatOpen(!isChatOpen);
+            if (!isChatOpen) setUnreadCount(0);
+          }}
           title="Toggle chat"
         >
           <MessageSquare className="h-5 w-5" />
+          {!isChatOpen && unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </Button>
 
         {isHost && (
