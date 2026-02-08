@@ -47,6 +47,9 @@ export function useWebRTC({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null);
 
   const createPeerConnection = useCallback((remoteUserId: string, remoteUserName: string) => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -241,36 +244,108 @@ export function useWebRTC({
   const startRecording = useCallback(() => {
     if (!localStreamRef.current || !isHost) return;
 
-    // Create a combined stream with all audio tracks
+    // Create a canvas to composite all video streams
+    const canvas = document.createElement("canvas");
+    canvas.width = 1280;
+    canvas.height = 720;
+    canvasRef.current = canvas;
+    const ctx = canvas.getContext("2d")!;
+
+    // Hidden video elements for drawing
+    const videoElements = new Map<string, HTMLVideoElement>();
+
+    // Create video element for local stream
+    const localVid = document.createElement("video");
+    localVid.srcObject = localStreamRef.current;
+    localVid.muted = true;
+    localVid.playsInline = true;
+    localVid.play().catch(() => {});
+    videoElements.set("local", localVid);
+
+    // Draw loop: composite all streams into a grid on the canvas
+    const drawFrame = () => {
+      // Rebuild video elements for current participants
+      const currentParticipants = Array.from(participants.values());
+      // Add new participant videos
+      currentParticipants.forEach((p) => {
+        if (p.stream && !videoElements.has(p.user_id)) {
+          const vid = document.createElement("video");
+          vid.srcObject = p.stream;
+          vid.playsInline = true;
+          vid.play().catch(() => {});
+          videoElements.set(p.user_id, vid);
+        }
+      });
+
+      const allIds = ["local", ...currentParticipants.filter(p => p.stream).map(p => p.user_id)];
+      const count = allIds.length;
+      const cols = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+      const rows = Math.ceil(count / cols);
+      const cellW = canvas.width / cols;
+      const cellH = canvas.height / rows;
+
+      ctx.fillStyle = "#1a1a2e";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      allIds.forEach((id, i) => {
+        const vid = videoElements.get(id);
+        if (!vid || vid.readyState < 2) return;
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = col * cellW;
+        const y = row * cellH;
+
+        // Draw video maintaining aspect ratio (cover)
+        const vidAspect = vid.videoWidth / vid.videoHeight;
+        const cellAspect = cellW / cellH;
+        let sx = 0, sy = 0, sw = vid.videoWidth, sh = vid.videoHeight;
+        if (vidAspect > cellAspect) {
+          sw = vid.videoHeight * cellAspect;
+          sx = (vid.videoWidth - sw) / 2;
+        } else {
+          sh = vid.videoWidth / cellAspect;
+          sy = (vid.videoHeight - sh) / 2;
+        }
+        ctx.drawImage(vid, sx, sy, sw, sh, x + 2, y + 2, cellW - 4, cellH - 4);
+
+        // Draw name label
+        const label = id === "local" ? "You (Host)" : (currentParticipants.find(p => p.user_id === id)?.user_name || id);
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(x + 2, y + cellH - 30, Math.min(label.length * 9 + 16, cellW - 4), 26);
+        ctx.fillStyle = "#fff";
+        ctx.font = "13px sans-serif";
+        ctx.fillText(label, x + 10, y + cellH - 11);
+      });
+
+      animationFrameRef.current = requestAnimationFrame(drawFrame);
+    };
+    drawFrame();
+
+    // Mix all audio
     const audioContext = new AudioContext();
+    recordingAudioCtxRef.current = audioContext;
     const destination = audioContext.createMediaStreamDestination();
 
-    // Add local audio
     const localAudioTracks = localStreamRef.current.getAudioTracks();
     if (localAudioTracks.length > 0) {
-      const localSource = audioContext.createMediaStreamSource(
-        new MediaStream(localAudioTracks)
-      );
+      const localSource = audioContext.createMediaStreamSource(new MediaStream(localAudioTracks));
       localSource.connect(destination);
     }
 
-    // Add remote audio tracks
     participants.forEach((participant) => {
       if (participant.stream) {
         const audioTracks = participant.stream.getAudioTracks();
         if (audioTracks.length > 0) {
-          const source = audioContext.createMediaStreamSource(
-            new MediaStream(audioTracks)
-          );
+          const source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
           source.connect(destination);
         }
       }
     });
 
-    // Combine video (local) + mixed audio
+    // Combine canvas video + mixed audio
+    const canvasStream = canvas.captureStream(30);
     const combinedStream = new MediaStream();
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    if (videoTrack) combinedStream.addTrack(videoTrack);
+    canvasStream.getVideoTracks().forEach((t) => combinedStream.addTrack(t));
     destination.stream.getAudioTracks().forEach((t) => combinedStream.addTrack(t));
 
     const recorder = new MediaRecorder(combinedStream, {
@@ -287,6 +362,15 @@ export function useWebRTC({
     };
 
     recorder.onstop = () => {
+      // Cleanup canvas drawing loop
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      recordingAudioCtxRef.current?.close();
+      recordingAudioCtxRef.current = null;
+      canvasRef.current = null;
+
       const blob = new Blob(recordedChunks.current, { type: "video/webm" });
       console.log("[WebRTC] Recording blob ready, size:", blob.size);
       onRecordingReady?.(blob);
@@ -296,7 +380,7 @@ export function useWebRTC({
     recorder.start(1000);
     mediaRecorderRef.current = recorder;
     setIsRecording(true);
-    console.log("[WebRTC] Recording started");
+    console.log("[WebRTC] Canvas-composite recording started");
   }, [isHost, participants, onRecordingReady]);
 
   const stopRecording = useCallback((): Promise<void> => {
