@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   MessageSquare,
   Bot,
-  Activity,
   StickyNote,
   Calendar,
   Play,
@@ -30,6 +29,7 @@ import {
   Volume2,
   Shield,
   Video,
+  CalendarDays,
 } from "lucide-react";
 import { CreateMeetingDropdown } from "@/components/video/CreateMeetingDropdown";
 import { LiveMeetingsBanner } from "@/components/video/LiveMeetingsBanner";
@@ -38,6 +38,7 @@ import { VideoMeetingRoom } from "@/components/video/VideoMeetingRoom";
 import { Link } from "react-router-dom";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
+import { WeeklyCalendar } from "@/components/calendar/WeeklyCalendar";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { EmployeeSelector } from "@/components/admin/EmployeeSelector";
@@ -81,15 +82,6 @@ interface CompanyMeeting {
   created_at: string;
 }
 
-interface AuditLog {
-  id: string;
-  action: string;
-  action_category: string;
-  target_type: string | null;
-  target_name: string | null;
-  timestamp: string;
-  result: string;
-}
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -98,7 +90,6 @@ export default function EmployeeDashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [notes, setNotes] = useState<InternalNote[]>([]);
   const [meetings, setMeetings] = useState<CompanyMeeting[]>([]);
-  const [activityLogs, setActivityLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,7 +165,6 @@ export default function EmployeeDashboard() {
         loadConversations(),
         loadNotes(),
         loadMeetings(),
-        loadActivityLogs(),
         loadVideoMeetings(),
       ]);
     } catch (error) {
@@ -223,17 +213,6 @@ export default function EmployeeDashboard() {
     setMeetings(data || []);
   };
 
-  const loadActivityLogs = async () => {
-    const { data, error } = await supabase
-      .from("audit_logs")
-      .select("id, action, action_category, target_type, target_name, timestamp, result")
-      .eq("actor_id", effectiveUserId)
-      .order("timestamp", { ascending: false })
-      .limit(100);
-
-    if (error) throw error;
-    setActivityLogs(data || []);
-  };
 
   const loadVideoMeetings = async () => {
     const { data, error } = await (supabase as any)
@@ -464,10 +443,6 @@ export default function EmployeeDashboard() {
     meeting.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredLogs = activityLogs.filter(log =>
-    log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.target_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   // If in an active video meeting, show full-screen meeting room
   if (activeVideoMeeting) {
@@ -578,11 +553,11 @@ export default function EmployeeDashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-orange-500/10">
-                <Activity className="h-5 w-5 text-orange-500" />
+                <CalendarDays className="h-5 w-5 text-orange-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{activityLogs.length}</p>
-                <p className="text-xs text-muted-foreground">Activities</p>
+                <p className="text-2xl font-bold">Schedule</p>
+                <p className="text-xs text-muted-foreground">Calendar</p>
               </div>
             </div>
           </CardContent>
@@ -604,9 +579,9 @@ export default function EmployeeDashboard() {
             <Calendar className="h-4 w-4 hidden sm:block" />
             Meetings
           </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-2">
-            <Activity className="h-4 w-4 hidden sm:block" />
-            Activity
+          <TabsTrigger value="calendar" className="gap-2">
+            <CalendarDays className="h-4 w-4 hidden sm:block" />
+            Calendar
           </TabsTrigger>
         </TabsList>
 
@@ -1026,44 +1001,13 @@ export default function EmployeeDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Activity Tab */}
-        <TabsContent value="activity" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Your Activity Log
-              </CardTitle>
-              <CardDescription>Track your edits and actions in the system</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {filteredLogs.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No activity recorded yet</p>
-              ) : (
-                <ScrollArea className="h-[500px]">
-                  <div className="space-y-2">
-                    {filteredLogs.map((log) => (
-                      <div key={log.id} className="flex items-center gap-4 p-3 border rounded-lg">
-                        <div className={`w-2 h-2 rounded-full ${log.result === 'success' ? 'bg-green-500' : log.result === 'failure' ? 'bg-red-500' : 'bg-yellow-500'}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{log.action}</span>
-                            <Badge variant="outline" className="text-xs">{log.action_category}</Badge>
-                          </div>
-                          {log.target_name && (
-                            <p className="text-sm text-muted-foreground truncate">{log.target_type}: {log.target_name}</p>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {format(new Date(log.timestamp), "MMM d, h:mm a")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
+        {/* Calendar Tab */}
+        <TabsContent value="calendar" className="space-y-4">
+          <WeeklyCalendar
+            onCreateVideoMeeting={(meetingId, title) =>
+              setActiveVideoMeeting({ id: meetingId, title, isHost: true })
+            }
+          />
         </TabsContent>
       </Tabs>
     </div>

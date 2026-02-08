@@ -298,6 +298,94 @@ export type Database = {
           },
         ]
       }
+      calendar_event_invitees: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          responded_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          responded_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          responded_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_invitees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          end_time: string
+          event_type: string
+          id: string
+          is_video_meeting: boolean | null
+          location: string | null
+          start_time: string
+          title: string
+          updated_at: string
+          video_meeting_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_time: string
+          event_type?: string
+          id?: string
+          is_video_meeting?: boolean | null
+          location?: string | null
+          start_time: string
+          title: string
+          updated_at?: string
+          video_meeting_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_time?: string
+          event_type?: string
+          id?: string
+          is_video_meeting?: boolean | null
+          location?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string
+          video_meeting_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_video_meeting_id_fkey"
+            columns: ["video_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "video_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
