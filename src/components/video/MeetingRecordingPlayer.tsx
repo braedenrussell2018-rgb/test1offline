@@ -19,9 +19,17 @@ import {
   Calendar,
   Clock,
   Users,
+  MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+
+interface ChatMessage {
+  id: string;
+  user_name: string;
+  text: string;
+  created_at: string;
+}
 
 interface VideoMeeting {
   id: string;
@@ -46,6 +54,7 @@ export function MeetingRecordingPlayer({
 }: MeetingRecordingPlayerProps) {
   const [selectedMeeting, setSelectedMeeting] = useState<VideoMeeting | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const loadVideoUrl = async (recordingPath: string) => {
@@ -60,13 +69,23 @@ export function MeetingRecordingPlayer({
     setVideoUrl(data.signedUrl);
   };
 
-  const handleOpenMeeting = (meeting: VideoMeeting) => {
+  const handleOpenMeeting = async (meeting: VideoMeeting) => {
     setSelectedMeeting(meeting);
+    setChatMessages([]);
     if (meeting.recording_url) {
       loadVideoUrl(meeting.recording_url);
     } else {
       setVideoUrl(null);
     }
+
+    // Load chat history
+    const { data } = await (supabase as any)
+      .from("meeting_chat_messages")
+      .select("id, user_name, text, created_at")
+      .eq("meeting_id", meeting.id)
+      .order("created_at", { ascending: true });
+
+    if (data) setChatMessages(data);
   };
 
   const endedMeetings = meetings.filter((m) => m.status === "ended");
@@ -241,7 +260,35 @@ export function MeetingRecordingPlayer({
                   </Card>
                 )}
 
-              {/* Processing message */}
+              {/* Chat History */}
+              {chatMessages.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Chat History ({chatMessages.length} messages)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="max-h-[300px]">
+                      <div className="space-y-2">
+                        {chatMessages.map((msg) => (
+                          <div key={msg.id} className="flex gap-2 text-sm">
+                            <span className="text-muted-foreground text-xs whitespace-nowrap pt-0.5">
+                              {format(new Date(msg.created_at), "h:mm a")}
+                            </span>
+                            <div>
+                              <span className="font-medium">{msg.user_name}: </span>
+                              <span>{msg.text}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+
               {selectedMeeting.recording_url &&
                 !selectedMeeting.ai_summary && (
                   <Card className="border-dashed">
