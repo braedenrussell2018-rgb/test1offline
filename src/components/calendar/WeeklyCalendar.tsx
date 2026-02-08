@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks, parseISO } from "date-fns";
+import { format, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths, subMonths, isSameDay, isSameMonth, addWeeks, subWeeks, parseISO, getDay } from "date-fns";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
 interface CalendarEvent {
@@ -55,12 +56,16 @@ interface EmployeeProfile {
   full_name: string;
 }
 
+type CalendarView = "day" | "week" | "month";
+
 interface WeeklyCalendarProps {
   onCreateVideoMeeting?: (meetingId: string, title: string) => void;
 }
 
 export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
   const { user } = useAuth();
+  const [viewMode, setViewMode] = useState<CalendarView>("week");
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -95,12 +100,40 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
     return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
   }, [currentWeekStart]);
 
-  const weekEnd = addDays(currentWeekStart, 7);
+  // Compute the date range for data fetching based on view
+  const dateRange = useMemo(() => {
+    if (viewMode === "day") {
+      return { start: currentDate, end: addDays(currentDate, 1) };
+    } else if (viewMode === "week") {
+      return { start: currentWeekStart, end: addDays(currentWeekStart, 7) };
+    } else {
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      // Include surrounding days for the grid
+      const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+      const gridEnd = addDays(startOfWeek(addDays(monthEnd, 7), { weekStartsOn: 1 }), 0);
+      return { start: gridStart, end: gridEnd };
+    }
+  }, [viewMode, currentDate, currentWeekStart]);
+
+  const monthDays = useMemo(() => {
+    if (viewMode !== "month") return [];
+    const monthStart = startOfMonth(currentDate);
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const days: Date[] = [];
+    let d = gridStart;
+    // Always show 6 weeks (42 days) for consistent grid
+    for (let i = 0; i < 42; i++) {
+      days.push(d);
+      d = addDays(d, 1);
+    }
+    return days;
+  }, [viewMode, currentDate]);
 
   useEffect(() => {
     loadEvents();
     loadEmployees();
-  }, [currentWeekStart]);
+  }, [dateRange]);
 
   const loadEvents = async () => {
     setLoading(true);
@@ -108,8 +141,8 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
       const { data, error } = await (supabase as any)
         .from("calendar_events")
         .select("*")
-        .gte("start_time", currentWeekStart.toISOString())
-        .lt("start_time", weekEnd.toISOString())
+        .gte("start_time", dateRange.start.toISOString())
+        .lt("start_time", dateRange.end.toISOString())
         .order("start_time", { ascending: true });
 
       if (error) throw error;
@@ -350,6 +383,24 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
 
   const pendingInvites = getPendingInvites();
 
+  const navigatePrev = () => {
+    if (viewMode === "day") setCurrentDate((d) => addDays(d, -1));
+    else if (viewMode === "week") setCurrentWeekStart((w) => subWeeks(w, 1));
+    else setCurrentDate((d) => subMonths(d, 1));
+  };
+
+  const navigateNext = () => {
+    if (viewMode === "day") setCurrentDate((d) => addDays(d, 1));
+    else if (viewMode === "week") setCurrentWeekStart((w) => addWeeks(w, 1));
+    else setCurrentDate((d) => addMonths(d, 1));
+  };
+
+  const navigateToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+    setCurrentWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+  };
+
   return (
     <div className="space-y-4">
       {/* Pending invitations banner */}
@@ -391,17 +442,24 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
       {/* Calendar header */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5" />
-                Weekly Schedule
+                {viewMode === "day" ? "Daily" : viewMode === "week" ? "Weekly" : "Monthly"} Schedule
               </CardTitle>
               <CardDescription>
-                {format(currentWeekStart, "MMMM d")} — {format(addDays(currentWeekStart, 6), "MMMM d, yyyy")}
+                {viewMode === "day" && format(currentDate, "EEEE, MMMM d, yyyy")}
+                {viewMode === "week" && `${format(currentWeekStart, "MMMM d")} — ${format(addDays(currentWeekStart, 6), "MMMM d, yyyy")}`}
+                {viewMode === "month" && format(currentDate, "MMMM yyyy")}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => { if (v) setViewMode(v as CalendarView); }}>
+                <ToggleGroupItem value="day" size="sm">Day</ToggleGroupItem>
+                <ToggleGroupItem value="week" size="sm">Week</ToggleGroupItem>
+                <ToggleGroupItem value="month" size="sm">Month</ToggleGroupItem>
+              </ToggleGroup>
               <Select value={filterUserId} onValueChange={setFilterUserId}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by employee" />
@@ -416,13 +474,13 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
                 </SelectContent>
               </Select>
               <div className="flex gap-1">
-                <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart((w) => subWeeks(w, 1))}>
+                <Button variant="outline" size="icon" onClick={navigatePrev}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+                <Button variant="outline" size="sm" onClick={navigateToday}>
                   Today
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart((w) => addWeeks(w, 1))}>
+                <Button variant="outline" size="icon" onClick={navigateNext}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -430,82 +488,154 @@ export function WeeklyCalendar({ onCreateVideoMeeting }: WeeklyCalendarProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-1">
-            {/* Day headers */}
-            {weekDays.map((day) => (
-              <div
-                key={day.toISOString()}
-                className={`text-center text-xs font-medium p-2 rounded-t-lg ${
-                  isSameDay(day, new Date())
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <div>{format(day, "EEE")}</div>
-                <div className={`text-lg font-bold ${isSameDay(day, new Date()) ? "text-primary" : ""}`}>
-                  {format(day, "d")}
-                </div>
+          {/* DAY VIEW */}
+          {viewMode === "day" && (
+            <div className="space-y-2">
+              <div className={`text-center text-sm font-medium p-2 rounded-lg ${isSameDay(currentDate, new Date()) ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+                {format(currentDate, "EEEE, MMMM d")}
               </div>
-            ))}
-
-            {/* Day columns */}
-            {weekDays.map((day) => {
-              const dayEvents = filteredEventsForDay(day);
-              return (
-                <div
-                  key={`col-${day.toISOString()}`}
-                  className={`min-h-[200px] border rounded-b-lg p-1 ${
-                    isSameDay(day, new Date()) ? "border-primary/30 bg-primary/5" : "border-border"
-                  }`}
-                >
-                  <div className="space-y-1">
-                    {dayEvents.map((event) => {
-                      const eventInvitees = invitees.filter((inv) => inv.event_id === event.id);
-                      const myInvite = eventInvitees.find((inv) => inv.user_id === user?.id);
-                      return (
-                        <div
-                          key={event.id}
-                          className={`p-1.5 rounded border text-xs cursor-pointer hover:opacity-80 transition-opacity ${getEventColor(event)}`}
-                          onClick={() => {
-                            setDetailEvent(event);
-                            setDetailOpen(true);
-                          }}
-                        >
-                          <div className="font-medium truncate">{event.title}</div>
-                          <div className="flex items-center gap-1 opacity-75">
-                            <Clock className="h-2.5 w-2.5" />
-                            {format(parseISO(event.start_time), "h:mm a")}
-                          </div>
-                          {event.is_video_meeting && (
-                            <Video className="h-2.5 w-2.5 mt-0.5" />
-                          )}
-                          {eventInvitees.length > 0 && (
-                            <div className="flex items-center gap-0.5 mt-0.5 opacity-75">
-                              <Users className="h-2.5 w-2.5" />
-                              <span>{eventInvitees.length}</span>
-                            </div>
-                          )}
-                          {myInvite && (
-                            <Badge variant={myInvite.status === "accepted" ? "default" : myInvite.status === "declined" ? "destructive" : "secondary"} className="text-[9px] px-1 py-0 mt-0.5">
-                              {myInvite.status}
-                            </Badge>
-                          )}
+              <div className="min-h-[400px] border rounded-lg p-3 space-y-2">
+                {filteredEventsForDay(currentDate).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">No events scheduled</p>
+                )}
+                {filteredEventsForDay(currentDate).map((event) => {
+                  const eventInvitees = invitees.filter((inv) => inv.event_id === event.id);
+                  return (
+                    <div
+                      key={event.id}
+                      className={`p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${getEventColor(event)}`}
+                      onClick={() => { setDetailEvent(event); setDetailOpen(true); }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{event.title}</div>
+                        <div className="flex items-center gap-2">
+                          {event.is_video_meeting && <Video className="h-4 w-4" />}
+                          {eventInvitees.length > 0 && <span className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" />{eventInvitees.length}</span>}
                         </div>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full h-6 mt-1 text-xs opacity-0 hover:opacity-100 transition-opacity"
-                    onClick={() => openCreateDialog(day)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs mt-1 opacity-75">
+                        <Clock className="h-3 w-3" />
+                        {format(parseISO(event.start_time), "h:mm a")} — {format(parseISO(event.end_time), "h:mm a")}
+                      </div>
+                      {event.location && <div className="flex items-center gap-1 text-xs mt-1 opacity-75"><MapPin className="h-3 w-3" />{event.location}</div>}
+                    </div>
+                  );
+                })}
+                <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => openCreateDialog(currentDate)}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Event
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* WEEK VIEW */}
+          {viewMode === "week" && (
+            <div className="grid grid-cols-7 gap-1">
+              {weekDays.map((day) => (
+                <div
+                  key={day.toISOString()}
+                  className={`text-center text-xs font-medium p-2 rounded-t-lg ${isSameDay(day, new Date()) ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                >
+                  <div>{format(day, "EEE")}</div>
+                  <div className={`text-lg font-bold ${isSameDay(day, new Date()) ? "text-primary" : ""}`}>{format(day, "d")}</div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+              {weekDays.map((day) => {
+                const dayEvents = filteredEventsForDay(day);
+                return (
+                  <div
+                    key={`col-${day.toISOString()}`}
+                    className={`min-h-[200px] border rounded-b-lg p-1 ${isSameDay(day, new Date()) ? "border-primary/30 bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="space-y-1">
+                      {dayEvents.map((event) => {
+                        const eventInvitees = invitees.filter((inv) => inv.event_id === event.id);
+                        const myInvite = eventInvitees.find((inv) => inv.user_id === user?.id);
+                        return (
+                          <div
+                            key={event.id}
+                            className={`p-1.5 rounded border text-xs cursor-pointer hover:opacity-80 transition-opacity ${getEventColor(event)}`}
+                            onClick={() => { setDetailEvent(event); setDetailOpen(true); }}
+                          >
+                            <div className="font-medium truncate">{event.title}</div>
+                            <div className="flex items-center gap-1 opacity-75">
+                              <Clock className="h-2.5 w-2.5" />
+                              {format(parseISO(event.start_time), "h:mm a")}
+                            </div>
+                            {event.is_video_meeting && <Video className="h-2.5 w-2.5 mt-0.5" />}
+                            {eventInvitees.length > 0 && (
+                              <div className="flex items-center gap-0.5 mt-0.5 opacity-75">
+                                <Users className="h-2.5 w-2.5" /><span>{eventInvitees.length}</span>
+                              </div>
+                            )}
+                            {myInvite && (
+                              <Badge variant={myInvite.status === "accepted" ? "default" : myInvite.status === "declined" ? "destructive" : "secondary"} className="text-[9px] px-1 py-0 mt-0.5">
+                                {myInvite.status}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <Button variant="ghost" size="sm" className="w-full h-6 mt-1 text-xs opacity-0 hover:opacity-100 transition-opacity" onClick={() => openCreateDialog(day)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* MONTH VIEW */}
+          {viewMode === "month" && (
+            <div>
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                  <div key={d} className="text-center text-xs font-medium text-muted-foreground p-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {monthDays.map((day) => {
+                  const dayEvents = filteredEventsForDay(day);
+                  const isCurrentMonth = isSameMonth(day, currentDate);
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={`min-h-[80px] border rounded p-1 cursor-pointer hover:bg-accent/30 transition-colors ${
+                        isSameDay(day, new Date()) ? "border-primary/50 bg-primary/5" : "border-border"
+                      } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                      onClick={() => {
+                        if (dayEvents.length > 0) {
+                          setCurrentDate(day);
+                          setViewMode("day");
+                        } else {
+                          openCreateDialog(day);
+                        }
+                      }}
+                    >
+                      <div className={`text-xs font-medium mb-0.5 ${isSameDay(day, new Date()) ? "text-primary" : ""}`}>
+                        {format(day, "d")}
+                      </div>
+                      <div className="space-y-0.5">
+                        {dayEvents.slice(0, 3).map((event) => (
+                          <div
+                            key={event.id}
+                            className={`text-[10px] px-1 py-0.5 rounded truncate ${getEventColor(event)}`}
+                            onClick={(e) => { e.stopPropagation(); setDetailEvent(event); setDetailOpen(true); }}
+                          >
+                            {event.title}
+                          </div>
+                        ))}
+                        {dayEvents.length > 3 && (
+                          <div className="text-[10px] text-muted-foreground px-1">+{dayEvents.length - 3} more</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
