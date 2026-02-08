@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Bell, Users, Check, Clock, Database, Shield, Activity, Eye, Mail, Key, Edit, Search, Send, Trash2, UserCog, ChevronDown, ChevronRight } from "lucide-react";
+import { EmployeeSelector } from "@/components/admin/EmployeeSelector";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -61,6 +62,11 @@ const DeveloperDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
   
+  // Activity log state
+  const [activityLogs, setActivityLogs] = useState<{ id: string; action: string; action_category: string; target_type: string | null; target_name: string | null; timestamp: string; result: string }[]>([]);
+  const [selectedActivityUserId, setSelectedActivityUserId] = useState<string | null>(null);
+  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+  
   // User management state
   const [usersDialogOpen, setUsersDialogOpen] = useState(false);
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -78,8 +84,32 @@ const DeveloperDashboard = () => {
     if (user && (role === "developer" || role === "owner")) {
       fetchNotifications();
       fetchSystemStats();
+      loadActivityLogs();
     }
   }, [user, role]);
+
+  useEffect(() => {
+    if (user && (role === "developer" || role === "owner")) {
+      loadActivityLogs();
+    }
+  }, [selectedActivityUserId]);
+
+  const loadActivityLogs = async () => {
+    const actorId = selectedActivityUserId || user?.id;
+    if (!actorId) return;
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("id, action, action_category, target_type, target_name, timestamp, result")
+      .eq("actor_id", actorId)
+      .order("timestamp", { ascending: false })
+      .limit(100);
+    if (!error) setActivityLogs(data || []);
+  };
+
+  const filteredActivityLogs = activityLogs.filter(log =>
+    log.action.toLowerCase().includes(activitySearchQuery.toLowerCase()) ||
+    log.target_name?.toLowerCase().includes(activitySearchQuery.toLowerCase())
+  );
 
   const fetchNotifications = async () => {
     try {
@@ -426,6 +456,7 @@ const DeveloperDashboard = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="roles">Role Distribution</TabsTrigger>
+          <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="system">System Info</TabsTrigger>
         </TabsList>
 
@@ -572,6 +603,53 @@ const DeveloperDashboard = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="activity">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Activity Log
+                </CardTitle>
+                <CardDescription>Track edits and actions across the system</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <EmployeeSelector selectedUserId={selectedActivityUserId} onSelectUser={setSelectedActivityUserId} />
+                <div className="relative w-48">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search..." value={activitySearchQuery} onChange={(e) => setActivitySearchQuery(e.target.value)} className="pl-9" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {filteredActivityLogs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No activity recorded yet</p>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-2">
+                    {filteredActivityLogs.map((log) => (
+                      <div key={log.id} className="flex items-center gap-4 p-3 border rounded-lg">
+                        <div className={`w-2 h-2 rounded-full ${log.result === 'success' ? 'bg-green-500' : log.result === 'failure' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{log.action}</span>
+                            <Badge variant="outline" className="text-xs">{log.action_category}</Badge>
+                          </div>
+                          {log.target_name && (
+                            <p className="text-sm text-muted-foreground truncate">{log.target_type}: {log.target_name}</p>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(log.timestamp), "MMM d, h:mm a")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="system">
           <Card>
             <CardHeader>
