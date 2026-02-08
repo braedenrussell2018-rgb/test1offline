@@ -652,6 +652,41 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          meeting_id: string
+          text: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meeting_id: string
+          text: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          text?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chat_messages_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "video_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       people: {
         Row: {
           address: string | null

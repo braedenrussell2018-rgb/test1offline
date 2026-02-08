@@ -18,20 +18,54 @@ interface MeetingChatProps {
   userId: string;
   userName: string;
   onClose: () => void;
+  onNewMessage?: () => void;
 }
 
-export function MeetingChat({ meetingId, userId, userName, onClose }: MeetingChatProps) {
+export function MeetingChat({ meetingId, userId, userName, onClose, onNewMessage }: MeetingChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const loadedRef = useRef(false);
 
+  // Load persisted messages on mount
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("meeting_chat_messages")
+        .select("*")
+        .eq("meeting_id", meetingId)
+        .order("created_at", { ascending: true });
+
+      if (data && data.length > 0) {
+        setMessages(
+          data.map((row: any) => ({
+            id: row.id,
+            userId: row.user_id,
+            userName: row.user_name,
+            text: row.text,
+            timestamp: row.created_at,
+          }))
+        );
+      }
+    })();
+  }, [meetingId]);
+
+  // Subscribe to broadcast for real-time messages
   useEffect(() => {
     const channel = supabase.channel(`meeting-chat-${meetingId}`);
 
     channel
       .on("broadcast", { event: "chat-message" }, ({ payload }) => {
-        setMessages((prev) => [...prev, payload as ChatMessage]);
+        const msg = payload as ChatMessage;
+        // Only add if not from self (we add locally on send)
+        if (msg.userId !== userId) {
+          setMessages((prev) => [...prev, msg]);
+          onNewMessage?.();
+        }
       })
       .subscribe();
 
@@ -40,13 +74,13 @@ export function MeetingChat({ meetingId, userId, userName, onClose }: MeetingCha
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [meetingId]);
+  }, [meetingId, userId, onNewMessage]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || !channelRef.current) return;
 
@@ -58,16 +92,26 @@ export function MeetingChat({ meetingId, userId, userName, onClose }: MeetingCha
       timestamp: new Date().toISOString(),
     };
 
+    // Broadcast to other participants
     channelRef.current.send({
       type: "broadcast",
       event: "chat-message",
       payload: msg,
     });
 
-    // Add locally too (broadcast doesn't echo to sender)
+    // Add locally
     setMessages((prev) => [...prev, msg]);
     setInput("");
-  }, [input, userId, userName]);
+
+    // Persist to database
+    await (supabase as any).from("meeting_chat_messages").insert({
+      id: msg.id,
+      meeting_id: meetingId,
+      user_id: userId,
+      user_name: userName,
+      text: msg.text,
+    });
+  }, [input, userId, userName, meetingId]);
 
   return (
     <div className="w-80 border-l bg-card flex flex-col h-full">
