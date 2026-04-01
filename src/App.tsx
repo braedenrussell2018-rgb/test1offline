@@ -144,6 +144,12 @@ const App = () => (
                   <WarrantyTracking />
                 </RoleProtectedRoute>
               } />
+              {/* Standalone Map View */}
+              <Route path="/map" element={
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
+                  <MapView />
+                </RoleProtectedRoute>
+              } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

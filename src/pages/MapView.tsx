@@ -59,19 +59,12 @@ export default function MapView() {
   } = useContactsMap({ companies, persons, active: dataLoaded });
 
   const onRefresh = useCallback(async () => {
-    // Reload data
     const [{ data: companiesData }, { data: personsData }] = await Promise.all([
       supabase.from("companies").select("*"),
       supabase.from("people").select("*").is("deleted_at", null),
     ]);
-    setCompanies((companiesData || []).map((c: any) => ({
-      id: c.id, name: c.name, address: c.address || "", notes: c.notes || [],
-    })));
-    setPersons((personsData || []).map((p: any) => ({
-      id: p.id, name: p.name, email: p.email || "", phone: p.phone || "",
-      address: p.address || "", companyId: p.company_id || "", branchId: p.branch_id || "",
-      jobTitle: p.job_title || "", notes: p.notes || [], excavatorLines: p.excavator_lines || [],
-    })));
+    setCompanies(mapCompanies(companiesData || []));
+    setPersons(mapPersons(personsData || []));
   }, []);
 
   const toggleFullscreen = useCallback(() => {
