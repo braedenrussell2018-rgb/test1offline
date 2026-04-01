@@ -29,6 +29,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import QuickBooksCallback from "./pages/QuickBooksCallback";
 import Legal from "./pages/Legal";
 import WarrantyTracking from "./pages/WarrantyTracking";
+import MapView from "./pages/MapView";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +142,12 @@ const App = () => (
               <Route path="/warranty" element={
                 <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <WarrantyTracking />
+                </RoleProtectedRoute>
+              } />
+              {/* Standalone Map View */}
+              <Route path="/map" element={
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
+                  <MapView />
                 </RoleProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
