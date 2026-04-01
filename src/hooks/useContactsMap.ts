@@ -154,14 +154,13 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
       return cached;
     }
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-        { headers: { 'Accept': 'application/json', 'User-Agent': 'LovableApp/1.1' }, signal }
-      );
-      if (!response.ok) return null;
-      const result = await response.json();
-      if (result && result.length > 0) {
-        const geocoded: CachedGeocode = { lat: parseFloat(result[0].lat), lng: parseFloat(result[0].lon), timestamp: Date.now() };
+      const { data, error } = await supabase.functions.invoke('geocode-proxy', {
+        body: { address: address.trim() },
+      });
+      if (signal.aborted) return null;
+      if (error) return null;
+      if (data && data.lat != null && data.lng != null) {
+        const geocoded: CachedGeocode = { lat: data.lat, lng: data.lng, timestamp: Date.now() };
         geocodeCache.set(cacheKey, geocoded);
         saveGeocodeCache(geocodeCache);
         return geocoded;
