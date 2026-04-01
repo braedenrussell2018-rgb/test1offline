@@ -29,6 +29,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import QuickBooksCallback from "./pages/QuickBooksCallback";
 import Legal from "./pages/Legal";
 import WarrantyTracking from "./pages/WarrantyTracking";
+import MapView from "./pages/MapView";
 
 const queryClient = new QueryClient({
   defaultOptions: {
