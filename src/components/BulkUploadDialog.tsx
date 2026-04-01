@@ -559,7 +559,7 @@ export const BulkUploadDialog = ({ onItemsAdded }: BulkUploadDialogProps) => {
                       <CheckCircle2 className="h-4 w-4" />
                       Valid Items ({validItems.length} products, {totalQuantity} items)
                     </h4>
-                    <ScrollArea className="flex-1 border border-green-500/20 rounded-lg min-h-[150px]">
+                    <ScrollArea className="border border-green-500/20 rounded-lg max-h-[300px]">
                       <div className="p-3 space-y-2">
                         {validItems.map((item, index) => (
                           <div
