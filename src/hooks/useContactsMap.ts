@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { latLngToCell, cellToBoundary } from "h3-js";
 import { Company, Person } from "@/lib/inventory-storage";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface GeocodedLocation {
   address: string;
