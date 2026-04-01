@@ -22,22 +22,25 @@ export default function MapView() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Load companies and persons from DB
+  const mapCompanies = (data: any[]) => data.map((c: any) => ({
+    id: c.id, name: c.name, address: c.address || "", notes: c.notes || [],
+    createdAt: c.created_at || new Date().toISOString(),
+  }));
+  const mapPersons = (data: any[]) => data.map((p: any) => ({
+    id: p.id, name: p.name, email: p.email || "", phone: p.phone || "",
+    address: p.address || "", companyId: p.company_id || "", branchId: p.branch_id || "",
+    jobTitle: p.job_title || "", notes: p.notes || [], excavatorLines: p.excavator_lines || [],
+    createdAt: p.created_at || new Date().toISOString(), updatedAt: p.updated_at,
+  }));
+
   useEffect(() => {
     const load = async () => {
       const [{ data: companiesData }, { data: personsData }] = await Promise.all([
         supabase.from("companies").select("*"),
         supabase.from("people").select("*").is("deleted_at", null),
       ]);
-
-      setCompanies((companiesData || []).map((c: any) => ({
-        id: c.id, name: c.name, address: c.address || "", notes: c.notes || [],
-      })));
-      setPersons((personsData || []).map((p: any) => ({
-        id: p.id, name: p.name, email: p.email || "", phone: p.phone || "",
-        address: p.address || "", companyId: p.company_id || "", branchId: p.branch_id || "",
-        jobTitle: p.job_title || "", notes: p.notes || [], excavatorLines: p.excavator_lines || [],
-      })));
+      setCompanies(mapCompanies(companiesData || []));
+      setPersons(mapPersons(personsData || []));
       setDataLoaded(true);
     };
     load();
