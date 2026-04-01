@@ -1,43 +1,36 @@
 
 
-# Add Fullscreen / Pop-out Mode for CRM Map
+# Make Fullscreen & Pop-out Buttons Visible
 
-## Overview
+## Problem
+The fullscreen (`Maximize2`) and pop-out (`ExternalLink`) buttons exist but are ghost icon-only buttons that blend into the toolbar and may be hard to spot or hidden behind the dialog's default close button.
 
-Add a button to the CRM map that expands it to fill the entire screen (browser fullscreen API), plus add a dedicated `/map` route that renders the map as its own standalone page.
+## Solution
+Move these buttons to sit directly next to the Refresh button with matching styling (`variant="ghost" size="sm"` with text labels), so they're clearly visible and consistent with the Refresh button style.
 
 ## Changes
 
-### 1. Fullscreen toggle in `ContactsMapDialog.tsx`
-- Add a `Maximize2` / `Minimize2` icon button to the map toolbar
-- Use the browser Fullscreen API (`element.requestFullscreen()`) on the dialog content element
-- Listen for `fullscreenchange` event to toggle icon state
-- When entering/exiting fullscreen, call `map.current.invalidateSize()` so Leaflet redraws correctly
+**File: `src/components/ContactsMapDialog.tsx`** (lines 83-92)
 
-### 2. New standalone map page `src/pages/MapView.tsx`
-- A full-page component that renders the map outside of a dialog (no `Dialog` wrapper)
-- Reuses the same geocoding, H3, and marker logic from `ContactsMapDialog`
-- Loads companies/persons from the database directly (same queries as CRM page)
-- Takes up 100vh with the map container filling the available space below the nav bar
-- Include a "Back to CRM" button
+Replace the current icon-only fullscreen/pop-out buttons and reorder them to appear right next to Refresh:
 
-### 3. Extract shared map logic
-- Move core map initialization, geocoding, H3 overlay, and marker rendering into a shared hook `src/hooks/useContactsMap.ts`
-- Both `ContactsMapDialog` and `MapView` consume this hook to avoid code duplication
+```tsx
+<div className="flex items-center gap-2">
+  <Button variant="ghost" size="sm" onClick={startGeocoding} disabled={isLoading}>
+    <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+    Refresh
+  </Button>
+  <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+    {isFullscreen ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
+    {isFullscreen ? "Exit" : "Fullscreen"}
+  </Button>
+  <Button variant="ghost" size="sm" onClick={openPopout} title="Open in new window">
+    <ExternalLink className="h-4 w-4 mr-1" />
+    Pop Out
+  </Button>
+  {/* ... rest of controls (failed, H3 toggle, resolution) */}
+</div>
+```
 
-### 4. Add route in `App.tsx`
-- Add `/map` route wrapped with `RoleProtectedRoute` for owner/employee/developer roles
-
-### 5. Add pop-out button in `ContactsMapDialog.tsx`
-- A `ExternalLink` icon button next to the fullscreen button
-- Uses `window.open('/map', '_blank')` or `navigate('/map')` to open the standalone page
-
-## File Summary
-
-| Action | File |
-|--------|------|
-| Create | `src/hooks/useContactsMap.ts` — shared map logic extracted from dialog |
-| Create | `src/pages/MapView.tsx` — standalone full-page map |
-| Modify | `src/components/ContactsMapDialog.tsx` — add fullscreen toggle + pop-out button, refactor to use shared hook |
-| Modify | `src/App.tsx` — add `/map` route |
+This gives all three buttons the same visual treatment with text labels so they're easy to find.
 
