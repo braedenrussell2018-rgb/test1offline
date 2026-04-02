@@ -319,6 +319,18 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               </ScrollArea>
             </div>
           )}
+
+          {showRoutePlanner && (
+            <div className="w-80 border-l bg-card flex flex-col">
+              <RoutePlanner
+                ref={routePlannerRef}
+                locations={locations}
+                map={map}
+                routeLayerRef={routeLayerRef}
+                getCompanyName={getCompanyName}
+              />
+            </div>
+          )}
         </div>
 
         <div className="p-3 border-t text-xs text-muted-foreground flex justify-between items-center">
