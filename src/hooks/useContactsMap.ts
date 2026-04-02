@@ -418,6 +418,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
     // Refs
     mapContainer,
     map,
+    routeLayerRef,
     // Actions
     startGeocoding,
     getCompanyName,
