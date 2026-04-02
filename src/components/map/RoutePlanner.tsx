@@ -36,7 +36,11 @@ export const RoutePlanner = forwardRef<RoutePlannerHandle, RoutePlannerProps>(fu
   const [isCalculating, setIsCalculating] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  useImperativeHandle(ref, () => ({ addStop }), []);
+  const clearRouteFromMap = useCallback(() => {
+    if (routeLayerRef.current) {
+      routeLayerRef.current.clearLayers();
+    }
+  }, [routeLayerRef]);
 
   const addStop = useCallback((location: GeocodedLocation) => {
     const label = location.companies.length > 0
@@ -47,7 +51,9 @@ export const RoutePlanner = forwardRef<RoutePlannerHandle, RoutePlannerProps>(fu
     setStops(prev => [...prev, { location, label }]);
     setRouteInfo(null);
     clearRouteFromMap();
-  }, []);
+  }, [clearRouteFromMap]);
+
+  useImperativeHandle(ref, () => ({ addStop }), [addStop]);
 
   const removeStop = useCallback((index: number) => {
     setStops(prev => prev.filter((_, i) => i !== index));
