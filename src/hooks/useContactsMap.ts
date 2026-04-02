@@ -370,7 +370,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
     if (!showH3Overlay || h3Cells.length === 0) return;
     h3Cells.forEach(cell => {
       const color = getHexColor(cell.count, maxCellCount);
-      const polygon = L.polygon(cell.boundary, { color, fillColor: color, fillOpacity: 0.4, weight: 2, opacity: 0.8 });
+      const polygon = L.polygon(cell.boundary, { color, fillColor: color, fillOpacity: 0.4, weight: 2, opacity: 0.8, bubblingMouseEvents: true });
       polygon.bindTooltip(`${cell.count} contact${cell.count !== 1 ? 's' : ''}`, { permanent: false, direction: 'center' });
       polygon.on('click', () => { setSelectedH3Cell(cell); setSelectedLocation(null); });
       polygon.addTo(h3LayerRef.current!);
