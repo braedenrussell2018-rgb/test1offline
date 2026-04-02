@@ -13,7 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
@@ -28,6 +29,7 @@ interface ContactsMapDialogProps {
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const dialogContentRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -39,7 +41,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     showH3Overlay, setShowH3Overlay,
     h3Resolution, setH3Resolution,
     totalAddresses, maxCellCount,
-    mapContainer, startGeocoding, getCompanyName, invalidateSize,
+    mapContainer, map, startGeocoding, getCompanyName, invalidateSize,
   } = useContactsMap({ companies, persons, active: open });
 
   // Fullscreen API
@@ -122,6 +124,72 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
             </div>
           </div>
         </DialogHeader>
+
+        {/* Search Bar */}
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search companies, contacts, or addresses..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {searchQuery.trim().length > 0 && (() => {
+            const q = searchQuery.trim().toLowerCase();
+            const matches = locations.filter(loc =>
+              loc.address.toLowerCase().includes(q) ||
+              loc.companies.some(c => c.name.toLowerCase().includes(q)) ||
+              loc.persons.some(p =>
+                p.name.toLowerCase().includes(q) ||
+                (p.jobTitle && p.jobTitle.toLowerCase().includes(q)) ||
+                (p.email && p.email.toLowerCase().includes(q))
+              )
+            );
+            return matches.length > 0 ? (
+              <ScrollArea className="max-h-40 mt-2 border rounded-md">
+                <div className="p-1 space-y-0.5">
+                  {matches.slice(0, 20).map((loc, i) => (
+                    <button
+                      key={i}
+                      className="w-full text-left px-3 py-1.5 rounded hover:bg-accent text-sm flex items-center gap-2 transition-colors"
+                      onClick={() => {
+                        setSelectedLocation(loc);
+                        setSelectedH3Cell(null);
+                        setSearchQuery("");
+                        if (map.current) {
+                          map.current.flyTo([loc.lat, loc.lng], 15, { duration: 1 });
+                        }
+                      }}
+                    >
+                      <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium truncate block">
+                          {loc.companies.map(c => c.name).join(", ") || loc.persons.map(p => p.name).join(", ")}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate block">{loc.address}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {loc.companies.length + loc.persons.length}
+                      </Badge>
+                    </button>
+                  ))}
+                  {matches.length > 20 && (
+                    <p className="text-xs text-muted-foreground text-center py-1">+{matches.length - 20} more results</p>
+                  )}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2 px-1">No matching locations found</p>
+            );
+          })()}
+        </div>
 
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 relative">
