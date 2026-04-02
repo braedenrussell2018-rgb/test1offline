@@ -388,6 +388,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
       map.current.remove();
       map.current = null;
       h3LayerRef.current = null;
+      routeLayerRef.current = null;
       markersRef.current = [];
     }
   }, []);
