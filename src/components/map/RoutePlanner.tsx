@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,10 @@ import L from "leaflet";
 export interface RouteStop {
   location: GeocodedLocation;
   label: string;
+}
+
+export interface RoutePlannerHandle {
+  addStop: (location: GeocodedLocation) => void;
 }
 
 interface RouteInfo {
@@ -26,7 +30,7 @@ interface RoutePlannerProps {
   getCompanyName: (companyId?: string) => string;
 }
 
-export function RoutePlanner({ locations, map, routeLayerRef, getCompanyName }: RoutePlannerProps) {
+export const RoutePlanner = forwardRef<RoutePlannerHandle, RoutePlannerProps>(function RoutePlanner({ locations, map, routeLayerRef, getCompanyName }, ref) {
   const [stops, setStops] = useState<RouteStop[]>([]);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
