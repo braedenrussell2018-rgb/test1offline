@@ -67,11 +67,6 @@ export const RoutePlanner = forwardRef<RoutePlannerHandle, RoutePlannerProps>(fu
     clearRouteFromMap();
   }, []);
 
-  const clearRouteFromMap = useCallback(() => {
-    if (routeLayerRef.current) {
-      routeLayerRef.current.clearLayers();
-    }
-  }, [routeLayerRef]);
 
   const handleDragStart = (index: number) => {
     setDragIndex(index);
