@@ -35,14 +35,6 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
   const routePlannerRef = useRef<{ addStop: (loc: any) => void } | null>(null);
   const dialogContentRef = useRef<HTMLDivElement>(null);
 
-  // When route planner is active and user clicks a marker, add it as a stop
-  useEffect(() => {
-    if (showRoutePlanner && selectedLocation && routePlannerRef.current) {
-      routePlannerRef.current.addStop(selectedLocation);
-      setSelectedLocation(null);
-    }
-  }, [selectedLocation, showRoutePlanner, setSelectedLocation]);
-
   const {
     locations, selectedLocation, setSelectedLocation,
     selectedH3Cell, setSelectedH3Cell, selectedData,
