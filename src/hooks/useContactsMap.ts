@@ -316,6 +316,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
         }).addTo(map.current);
         h3LayerRef.current = L.layerGroup().addTo(map.current);
+        routeLayerRef.current = L.layerGroup().addTo(map.current);
       }
       map.current.invalidateSize();
     }, 100);
