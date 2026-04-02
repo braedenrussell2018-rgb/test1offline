@@ -19,7 +19,7 @@ import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
-import { RoutePlanner } from "./map/RoutePlanner";
+import { RoutePlanner, RoutePlannerHandle } from "./map/RoutePlanner";
 
 interface ContactsMapDialogProps {
   companies: Company[];
