@@ -98,6 +98,14 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Pop Out
               </Button>
+              <Button
+                variant={showRoutePlanner ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setShowRoutePlanner(prev => !prev)}
+              >
+                <Route className="h-4 w-4 mr-1" />
+                Route
+              </Button>
               {failedLocations.length > 0 && (
                 <Button variant="destructive" size="sm" onClick={() => setShowFailedDialog(true)}>
                   <AlertCircle className="h-4 w-4 mr-1" />
