@@ -102,6 +102,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
   const map = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const h3LayerRef = useRef<L.LayerGroup | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFittedRef = useRef(false);
 
@@ -315,6 +316,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
         }).addTo(map.current);
         h3LayerRef.current = L.layerGroup().addTo(map.current);
+        routeLayerRef.current = L.layerGroup().addTo(map.current);
       }
       map.current.invalidateSize();
     }, 100);
@@ -386,6 +388,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
       map.current.remove();
       map.current = null;
       h3LayerRef.current = null;
+      routeLayerRef.current = null;
       markersRef.current = [];
     }
   }, []);
@@ -415,6 +418,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
     // Refs
     mapContainer,
     map,
+    routeLayerRef,
     // Actions
     startGeocoding,
     getCompanyName,

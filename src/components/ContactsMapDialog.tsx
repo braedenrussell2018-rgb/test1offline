@@ -13,12 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search, Route } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "./PersonDetailDialog";
 import { CompanyDetailDialog } from "./CompanyDetailDialog";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
+import { RoutePlanner, RoutePlannerHandle } from "./map/RoutePlanner";
 
 interface ContactsMapDialogProps {
   companies: Company[];
@@ -30,6 +31,8 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
   const [open, setOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
+  const routePlannerRef = useRef<RoutePlannerHandle | null>(null);
   const dialogContentRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -41,8 +44,16 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     showH3Overlay, setShowH3Overlay,
     h3Resolution, setH3Resolution,
     totalAddresses, maxCellCount,
-    mapContainer, map, startGeocoding, getCompanyName, invalidateSize,
+    mapContainer, map, routeLayerRef, startGeocoding, getCompanyName, invalidateSize,
   } = useContactsMap({ companies, persons, active: open });
+
+  // When route planner is active and user clicks a marker, add it as a stop
+  useEffect(() => {
+    if (showRoutePlanner && selectedLocation && routePlannerRef.current) {
+      routePlannerRef.current.addStop(selectedLocation);
+      setSelectedLocation(null);
+    }
+  }, [selectedLocation, showRoutePlanner, setSelectedLocation]);
 
   // Fullscreen API
   const toggleFullscreen = useCallback(() => {
@@ -94,6 +105,14 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               <Button variant="ghost" size="sm" onClick={openPopout} title="Open in new window">
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Pop Out
+              </Button>
+              <Button
+                variant={showRoutePlanner ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setShowRoutePlanner(prev => !prev)}
+              >
+                <Route className="h-4 w-4 mr-1" />
+                Route
               </Button>
               {failedLocations.length > 0 && (
                 <Button variant="destructive" size="sm" onClick={() => setShowFailedDialog(true)}>
@@ -300,10 +319,22 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               </ScrollArea>
             </div>
           )}
+
+          {showRoutePlanner && (
+            <div className="w-80 border-l bg-card flex flex-col">
+              <RoutePlanner
+                ref={routePlannerRef}
+                locations={locations}
+                map={map}
+                routeLayerRef={routeLayerRef}
+                getCompanyName={getCompanyName}
+              />
+            </div>
+          )}
         </div>
 
         <div className="p-3 border-t text-xs text-muted-foreground flex justify-between items-center">
-          <span>Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • Click a marker or hexagon to see details</span>
+          <span>Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • {showRoutePlanner ? "Click markers to add route stops" : "Click a marker or hexagon to see details"}</span>
           {showH3Overlay && locations.length > 0 && (
             <span className="flex items-center gap-2">
               <span className="w-3 h-3 rounded" style={{ background: getHexColor(1, maxCellCount) }} /> Low
