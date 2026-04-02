@@ -73,7 +73,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
           Map ({totalAddresses})
         </Button>
       </DialogTrigger>
-      <DialogContent ref={dialogContentRef} className="max-w-6xl h-[85vh] flex flex-col p-0">
+      <DialogContent ref={dialogContentRef} className="max-w-6xl h-[85vh] flex flex-col p-0 z-[200]">
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
