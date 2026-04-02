@@ -29,6 +29,7 @@ interface ContactsMapDialogProps {
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const dialogContentRef = useRef<HTMLDivElement>(null);
 
   const {
