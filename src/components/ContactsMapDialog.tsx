@@ -32,7 +32,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoutePlanner, setShowRoutePlanner] = useState(false);
-  const routePlannerRef = useRef<{ addStop: (loc: any) => void } | null>(null);
+  const routePlannerRef = useRef<RoutePlannerHandle | null>(null);
   const dialogContentRef = useRef<HTMLDivElement>(null);
 
   const {
