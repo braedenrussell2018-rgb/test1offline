@@ -44,7 +44,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     showH3Overlay, setShowH3Overlay,
     h3Resolution, setH3Resolution,
     totalAddresses, maxCellCount,
-    mapContainer, map, startGeocoding, getCompanyName, invalidateSize,
+    mapContainer, map, routeLayerRef, startGeocoding, getCompanyName, invalidateSize,
   } = useContactsMap({ companies, persons, active: open });
 
   // Fullscreen API
