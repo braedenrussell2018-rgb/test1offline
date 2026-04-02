@@ -102,6 +102,7 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
   const map = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const h3LayerRef = useRef<L.LayerGroup | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFittedRef = useRef(false);
 
