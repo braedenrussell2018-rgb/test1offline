@@ -47,6 +47,14 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
     mapContainer, map, routeLayerRef, startGeocoding, getCompanyName, invalidateSize,
   } = useContactsMap({ companies, persons, active: open });
 
+  // When route planner is active and user clicks a marker, add it as a stop
+  useEffect(() => {
+    if (showRoutePlanner && selectedLocation && routePlannerRef.current) {
+      routePlannerRef.current.addStop(selectedLocation);
+      setSelectedLocation(null);
+    }
+  }, [selectedLocation, showRoutePlanner, setSelectedLocation]);
+
   // Fullscreen API
   const toggleFullscreen = useCallback(() => {
     if (!dialogContentRef.current) return;
