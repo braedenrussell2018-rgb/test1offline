@@ -334,7 +334,7 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
         </div>
 
         <div className="p-3 border-t text-xs text-muted-foreground flex justify-between items-center">
-          <span>Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • Click a marker or hexagon to see details</span>
+          <span>Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • {showRoutePlanner ? "Click markers to add route stops" : "Click a marker or hexagon to see details"}</span>
           {showH3Overlay && locations.length > 0 && (
             <span className="flex items-center gap-2">
               <span className="w-3 h-3 rounded" style={{ background: getHexColor(1, maxCellCount) }} /> Low
