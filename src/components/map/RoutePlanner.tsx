@@ -36,6 +36,8 @@ export const RoutePlanner = forwardRef<RoutePlannerHandle, RoutePlannerProps>(fu
   const [isCalculating, setIsCalculating] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
+  useImperativeHandle(ref, () => ({ addStop }), []);
+
   const addStop = useCallback((location: GeocodedLocation) => {
     const label = location.companies.length > 0
       ? location.companies[0].name
