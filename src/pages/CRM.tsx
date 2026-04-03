@@ -28,7 +28,8 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 const CRMContent = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState(() => {
-    return sessionStorage.getItem('crm_active_tab') || "companies";
+    const saved = sessionStorage.getItem('crm_active_tab');
+    return saved === 'invoices' ? 'notes' : saved || 'companies';
   });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
@@ -389,7 +390,7 @@ const CRMContent = () => {
               Contacts {debouncedQuery && `(${filteredPersons.length})`}
             </TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="companies" className="mt-6">
@@ -599,67 +600,74 @@ const CRMContent = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="invoices" className="mt-6">
+          <TabsContent value="notes" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Invoices by Company</CardTitle>
-                <CardDescription>View invoices organized by company</CardDescription>
+                <CardTitle>All Contact Notes</CardTitle>
+                <CardDescription>Notes across all contacts, sorted by most recent</CardDescription>
               </CardHeader>
               <CardContent>
-                {invoices.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No invoices yet. Invoices will appear here when created.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {invoices.map((invoice) => (
-                      <div
-                        key={invoice.id}
-                        className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <div className="font-semibold text-lg">{invoice.invoiceNumber}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {invoice.customerName}
+                {(() => {
+                  // Collect all notes from all persons with contact info
+                  const allNotes = persons.flatMap((person) => {
+                    const notes = Array.isArray(person.notes) ? person.notes : [];
+                    return notes.map((note: any) => ({
+                      text: typeof note === 'string' ? note : note?.text || '',
+                      timestamp: typeof note === 'string' ? null : note?.timestamp || null,
+                      contactName: person.name,
+                      contactId: person.id,
+                      companyName: person.companyId ? getCompanyName(person.companyId) : null,
+                    }));
+                  });
+
+                  // Sort by timestamp descending (most recent first), nulls last
+                  allNotes.sort((a, b) => {
+                    if (!a.timestamp && !b.timestamp) return 0;
+                    if (!a.timestamp) return 1;
+                    if (!b.timestamp) return -1;
+                    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+                  });
+
+                  if (allNotes.length === 0) {
+                    return (
+                      <p className="text-center text-muted-foreground py-8">
+                        No notes yet. Add notes to contacts to see them here.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {allNotes.map((note, idx) => (
+                        <div
+                          key={`${note.contactId}-${idx}`}
+                          className="border rounded-lg p-4 bg-card hover:bg-accent/5 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">
+                                <User className="h-3 w-3 mr-1" />
+                                {note.contactName}
+                              </Badge>
+                              {note.companyName && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Building2 className="h-3 w-3 mr-1" />
+                                  {note.companyName}
+                                </Badge>
+                              )}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(invoice.createdAt).toLocaleDateString()}
-                            </div>
+                            {note.timestamp && (
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(note.timestamp).toLocaleDateString()} {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold">${invoice.total.toFixed(2)}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {invoice.items.length} {invoice.items.length === 1 ? 'item' : 'items'}
-                            </div>
-                          </div>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                          <UserPlus className="h-3 w-3" />
-                          {invoice.salesmanName || "No salesman assigned"}
-                        </div>
-                        <div className="border-t pt-3 mt-3 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleInvoicePreview(invoice)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Preview PDF
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAssignSalesman("invoice", invoice.id, invoice.invoiceNumber, invoice.salesmanName)}
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Assign Salesman
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
