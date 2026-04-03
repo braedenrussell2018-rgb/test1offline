@@ -389,7 +389,7 @@ const CRMContent = () => {
               Contacts {debouncedQuery && `(${filteredPersons.length})`}
             </TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="companies" className="mt-6">
