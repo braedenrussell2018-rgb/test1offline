@@ -53,31 +53,19 @@ export function AddressAutocomplete({
 
     setIsLoading(true);
     try {
-      // Use Nominatim (OpenStreetMap) geocoding API - free, no API key required
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?` +
-        `format=json&q=${encodeURIComponent(query)}` +
-        `&limit=8&addressdetails=1&countrycodes=us`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            // Required by Nominatim usage policy
-            'User-Agent': 'LovableApp/1.0'
-          }
-        }
-      );
-      const data = await response.json();
-      
-      if (data && data.length > 0) {
-        setSuggestions(
-          data.map((item: any) => ({
-            id: item.place_id.toString(),
-            place_name: item.display_name,
-            place_type: item.type || item.class || 'place',
-            lat: parseFloat(item.lat),
-            lon: parseFloat(item.lon),
-          }))
-        );
+      const { data, error } = await supabase.functions.invoke('address-search', {
+        body: { query },
+      });
+
+      if (error) {
+        console.error("Address search error:", error);
+        setSuggestions([]);
+        return;
+      }
+
+      const results = data?.results || [];
+      if (results.length > 0) {
+        setSuggestions(results);
         setOpen(true);
       } else {
         setSuggestions([]);
