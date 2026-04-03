@@ -28,7 +28,8 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 const CRMContent = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState(() => {
-    return sessionStorage.getItem('crm_active_tab') || "companies";
+    const saved = sessionStorage.getItem('crm_active_tab');
+    return saved === 'invoices' ? 'notes' : saved || 'companies';
   });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
