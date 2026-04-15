@@ -1,0 +1,9 @@
+---
+name: Navigation and Stacking Context
+description: Z-index hierarchy for menu bar, dialogs, and overlays
+type: design
+---
+AppMenuBar z-index: 40 (lowered from 100 so dialogs render above it).
+Dialogs/sheets use default shadcn z-index (50) to overlay the menu bar.
+CRM Map Dialog: z-index 200.
+Global Search dropdown: z-index 9999.
