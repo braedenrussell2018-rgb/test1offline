@@ -1,36 +1,62 @@
 
 
-# Make Fullscreen & Pop-out Buttons Visible
+## Video Meetings Improvement Plan
 
-## Problem
-The fullscreen (`Maximize2`) and pop-out (`ExternalLink`) buttons exist but are ghost icon-only buttons that blend into the toolbar and may be hard to spot or hidden behind the dialog's default close button.
+### Priority 1 -- Pre-Join Lobby
+Create a `MeetingLobby` component shown before entering the room. Users see a local camera preview, can toggle mic/camera, set their display name, and click "Join" when ready.
 
-## Solution
-Move these buttons to sit directly next to the Refresh button with matching styling (`variant="ghost" size="sm"` with text labels), so they're clearly visible and consistent with the Refresh button style.
+### Priority 2 -- Invite Link & Meeting Code
+- Generate a short meeting code (e.g. 6-char alphanumeric) stored on the `video_meetings` table
+- Add a "Copy Link" button that copies `{app_url}/meeting/{code}`
+- Add a "Join by Code" input field on the dashboard
+- Add a `/meeting/:code` route that resolves the code and joins
 
-## Changes
+### Priority 3 -- Participant List Panel
+Add a toggleable sidebar showing all connected participants with:
+- Name, host badge, mute/video status icons
+- Host controls: mute a participant, remove from meeting
 
-**File: `src/components/ContactsMapDialog.tsx`** (lines 83-92)
+### Priority 4 -- Reactions & Hand Raise
+- Add reaction buttons (thumbs up, clap, heart, hand raise) in the control bar
+- Broadcast reactions via Supabase Realtime
+- Show floating emoji animations over participant tiles
+- Show a persistent "hand raised" indicator on the participant's video
 
-Replace the current icon-only fullscreen/pop-out buttons and reorder them to appear right next to Refresh:
+### Priority 5 -- Meeting Duration Timer
+Display elapsed time in the header since `started_at`, updating every second.
 
-```tsx
-<div className="flex items-center gap-2">
-  <Button variant="ghost" size="sm" onClick={startGeocoding} disabled={isLoading}>
-    <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-    Refresh
-  </Button>
-  <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-    {isFullscreen ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
-    {isFullscreen ? "Exit" : "Fullscreen"}
-  </Button>
-  <Button variant="ghost" size="sm" onClick={openPopout} title="Open in new window">
-    <ExternalLink className="h-4 w-4 mr-1" />
-    Pop Out
-  </Button>
-  {/* ... rest of controls (failed, H3 toggle, resolution) */}
-</div>
-```
+### Priority 6 -- Interactive Todo List
+Make the AI-generated action item checkboxes functional -- toggling updates the `ai_todo_list` JSONB in the database so progress is saved.
 
-This gives all three buttons the same visual treatment with text labels so they're easy to find.
+### Priority 7 -- Speaker View Toggle
+Add a button to switch between:
+- **Grid view** (current default): equal-sized tiles
+- **Speaker view**: active speaker large, others in a small strip
+
+### Priority 8 -- Meeting Scheduling
+- Add date/time picker to the create meeting dialog
+- Store `scheduled_at` on `video_meetings`
+- Show upcoming scheduled meetings in the banner with a countdown
+- Optional: integrate with the existing `WeeklyCalendar` component
+
+### Technical Details
+
+**Database migrations needed:**
+- Add `meeting_code` (text, unique) and `scheduled_at` (timestamptz, nullable) columns to `video_meetings`
+- Auto-generate meeting codes via a trigger or application logic
+
+**New components:**
+- `src/components/video/MeetingLobby.tsx`
+- `src/components/video/ParticipantList.tsx`
+- `src/components/video/MeetingReactions.tsx`
+
+**Modified files:**
+- `src/components/video/VideoMeetingRoom.tsx` -- add timer, reactions, participant panel, speaker view toggle
+- `src/components/video/CreateMeetingDropdown.tsx` -- add scheduling, copy link
+- `src/components/video/LiveMeetingsBanner.tsx` -- show scheduled meetings
+- `src/components/video/MeetingRecordingPlayer.tsx` -- make todo checkboxes interactive
+- `src/App.tsx` -- add `/meeting/:code` route
+
+### Implementation Order
+Tackle in priority order (1-8). Each priority is a self-contained deliverable.
 
