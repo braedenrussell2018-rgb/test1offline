@@ -1032,9 +1032,10 @@ export default function EmployeeDashboard() {
         {/* Calendar Tab */}
         <TabsContent value="calendar" className="space-y-4">
           <WeeklyCalendar
-            onCreateVideoMeeting={(meetingId, title) =>
-              setActiveVideoMeeting({ id: meetingId, title, isHost: true })
-            }
+            onCreateVideoMeeting={async (meetingId, title) => {
+              const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+              setPendingMeeting({ id: meetingId, title, isHost: true, code: data?.meeting_code });
+            }}
           />
         </TabsContent>
       </Tabs>
