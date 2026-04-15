@@ -871,9 +871,10 @@ export default function EmployeeDashboard() {
                 <CardDescription>Create, join, and rewatch video meetings with AI notes</CardDescription>
               </div>
               <CreateMeetingDropdown
-                onMeetingCreated={(meetingId, title) =>
-                  setActiveVideoMeeting({ id: meetingId, title, isHost: true })
-                }
+                onMeetingCreated={async (meetingId, title) => {
+                  const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+                  setPendingMeeting({ id: meetingId, title, isHost: true, code: data?.meeting_code });
+                }}
               />
             </CardHeader>
             <CardContent>
