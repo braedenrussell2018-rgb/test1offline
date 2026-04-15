@@ -13,6 +13,35 @@ serve(async (req) => {
   }
 
   try {
+    // --- Authentication ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+
+    // Verify the caller's JWT
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub as string;
+
     const { meetingId } = await req.json();
     if (!meetingId) {
       return new Response(JSON.stringify({ error: "meetingId is required" }), {
@@ -21,13 +50,10 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    // Use service role for DB operations (needed to update meeting)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get meeting details
+    // --- Authorization: verify caller is a participant or the meeting creator ---
     const { data: meeting, error: meetingError } = await supabase
       .from("video_meetings")
       .select("*")
@@ -35,14 +61,28 @@ serve(async (req) => {
       .single();
 
     if (meetingError || !meeting) {
-      console.error("Meeting not found:", meetingError);
       return new Response(JSON.stringify({ error: "Meeting not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get participants
+    const isCreator = meeting.created_by === userId;
+    const { data: participation } = await supabase
+      .from("video_meeting_participants")
+      .select("id")
+      .eq("meeting_id", meetingId)
+      .eq("user_id", userId)
+      .limit(1);
+
+    if (!isCreator && (!participation || participation.length === 0)) {
+      return new Response(JSON.stringify({ error: "Forbidden: not a participant" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get participants for AI prompt
     const { data: participants } = await supabase
       .from("video_meeting_participants")
       .select("user_name")
@@ -59,7 +99,7 @@ serve(async (req) => {
       });
     }
 
-    // Generate AI notes based on meeting metadata (since we can't transcribe video directly)
+    // Generate AI notes
     const prompt = `You are an AI meeting assistant. A company meeting just ended with the following details:
 
 Meeting Title: ${meeting.title}
@@ -157,7 +197,6 @@ Assign action items to the actual participants listed above. If no participants 
     const aiData = await aiResponse.json();
     console.log("AI response received");
 
-    // Extract tool call result
     let notes = { summary: "", key_points: [] as string[], todo_list: [] as any[] };
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
@@ -168,7 +207,6 @@ Assign action items to the actual participants listed above. If no participants 
       }
     }
 
-    // Update meeting with AI notes
     const { error: updateError } = await supabase
       .from("video_meetings")
       .update({
@@ -193,7 +231,7 @@ Assign action items to the actual participants listed above. If no participants 
   } catch (error) {
     console.error("Error processing meeting:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "An error occurred processing the meeting" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
