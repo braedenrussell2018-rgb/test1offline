@@ -1458,8 +1458,10 @@ export type Database = {
           created_by: string
           ended_at: string | null
           id: string
+          meeting_code: string | null
           meeting_type: string
           recording_url: string | null
+          scheduled_at: string | null
           started_at: string | null
           status: string
           title: string
@@ -1473,8 +1475,10 @@ export type Database = {
           created_by: string
           ended_at?: string | null
           id?: string
+          meeting_code?: string | null
           meeting_type?: string
           recording_url?: string | null
+          scheduled_at?: string | null
           started_at?: string | null
           status?: string
           title: string
@@ -1488,8 +1492,10 @@ export type Database = {
           created_by?: string
           ended_at?: string | null
           id?: string
+          meeting_code?: string | null
           meeting_type?: string
           recording_url?: string | null
+          scheduled_at?: string | null
           started_at?: string | null
           status?: string
           title?: string
