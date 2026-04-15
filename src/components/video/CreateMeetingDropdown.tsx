@@ -85,7 +85,7 @@ export function CreateMeetingDropdown({ onMeetingCreated }: CreateMeetingDropdow
     }
     const { data, error } = await (supabase as any)
       .from("video_meetings")
-      .select("id, title, status")
+      .select("id, title, status, created_at")
       .eq("meeting_code", joinCode.trim().toUpperCase())
       .maybeSingle();
 
