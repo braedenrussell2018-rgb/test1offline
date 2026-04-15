@@ -1460,8 +1460,10 @@ export type Database = {
           id: string
           meeting_code: string | null
           meeting_type: string
+          recording_tracks: Json | null
           recording_url: string | null
           scheduled_at: string | null
+          speaker_timeline: Json | null
           started_at: string | null
           status: string
           title: string
@@ -1477,8 +1479,10 @@ export type Database = {
           id?: string
           meeting_code?: string | null
           meeting_type?: string
+          recording_tracks?: Json | null
           recording_url?: string | null
           scheduled_at?: string | null
+          speaker_timeline?: Json | null
           started_at?: string | null
           status?: string
           title: string
@@ -1494,8 +1498,10 @@ export type Database = {
           id?: string
           meeting_code?: string | null
           meeting_type?: string
+          recording_tracks?: Json | null
           recording_url?: string | null
           scheduled_at?: string | null
+          speaker_timeline?: Json | null
           started_at?: string | null
           status?: string
           title?: string
