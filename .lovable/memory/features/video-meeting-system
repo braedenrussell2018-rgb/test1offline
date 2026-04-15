@@ -1,0 +1,23 @@
+---
+name: Video Meeting System
+description: WebRTC P2P meetings with per-participant recording, speaker detection, interactive multi-track playback, reactions, chat, scheduling
+type: feature
+---
+Internal peer-to-peer video conferencing system for authenticated employees, built using browser-native WebRTC and Supabase Realtime for signaling.
+
+**Recording**: Per-participant recording — each user's stream (camera+audio) is recorded individually via separate MediaRecorder instances. Screen shares recorded as separate tracks. All tracks uploaded to `meeting-recordings` bucket as `{meetingId}/{userId}.webm`.
+
+**Speaker Detection**: Uses Web Audio API AnalyserNode on each participant's audio track. Samples volume every 500ms during recording and stores `speaker_timeline` JSONB on `video_meetings`.
+
+**Playback**: `MultiTrackPlayer` component provides interactive playback with:
+- Participant sidebar with toggle checkboxes
+- Synced playback controls (single scrubber for all videos)
+- Active speaker highlighting (gold ring/badge) based on `speaker_timeline`
+- Responsive grid layout adapting to visible track count
+- Legacy fallback for old single-file recordings
+
+**Database**: `video_meetings` table includes `recording_tracks` (JSONB array of track metadata), `speaker_timeline` (JSONB array of timestamped speaker IDs), `meeting_code` (auto-generated 6-char), `scheduled_at`.
+
+**Features**: Pre-join lobby, meeting codes/invite links, participant list, emoji reactions, hand raise, meeting timer, speaker/grid view toggle, AI summary/action items, interactive todo checkboxes, chat with notification sounds.
+
+**Components**: `useWebRTC.ts`, `VideoMeetingRoom.tsx`, `MeetingLobby.tsx`, `MeetingChat.tsx`, `MeetingTimer.tsx`, `MeetingReactions.tsx`, `ParticipantList.tsx`, `MultiTrackPlayer.tsx`, `MeetingRecordingPlayer.tsx`, `CreateMeetingDropdown.tsx`, `LiveMeetingsBanner.tsx`.
