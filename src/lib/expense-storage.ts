@@ -146,10 +146,25 @@ export const getExpenses = async (): Promise<Expense[]> => {
     receiptUrl: e.receipt_url,
     creditCardLast4: e.credit_card_last4,
     createdAt: e.created_at || new Date().toISOString(),
+    userId: (e as any).user_id,
+    jobTitle: (e as any).job_title,
   }));
 };
 
 export const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>): Promise<Expense> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Get user's job title/role from user_roles
+  let jobTitle: string | null = null;
+  if (user) {
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+    if (roleData) jobTitle = roleData.role;
+  }
+
   const { data, error } = await supabase
     .from('expenses')
     .insert({
@@ -161,7 +176,9 @@ export const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>): Pr
       description: expense.description || null,
       receipt_url: expense.receiptUrl || null,
       credit_card_last4: expense.creditCardLast4 || null,
-    })
+      user_id: user?.id || null,
+      job_title: jobTitle,
+    } as any)
     .select()
     .single();
 
@@ -178,6 +195,8 @@ export const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>): Pr
     receiptUrl: data.receipt_url,
     creditCardLast4: data.credit_card_last4,
     createdAt: data.created_at || new Date().toISOString(),
+    userId: (data as any).user_id,
+    jobTitle: (data as any).job_title,
   };
 };
 
