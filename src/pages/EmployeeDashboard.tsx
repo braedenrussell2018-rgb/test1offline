@@ -446,6 +446,22 @@ export default function EmployeeDashboard() {
   );
 
 
+  // Show lobby before joining a meeting
+  if (pendingMeeting) {
+    return (
+      <MeetingLobby
+        meetingTitle={pendingMeeting.title}
+        meetingCode={pendingMeeting.code}
+        displayName={userName}
+        onJoin={() => {
+          setActiveVideoMeeting(pendingMeeting);
+          setPendingMeeting(null);
+        }}
+        onCancel={() => setPendingMeeting(null)}
+      />
+    );
+  }
+
   // If in an active video meeting, show full-screen meeting room
   if (activeVideoMeeting) {
     return (
