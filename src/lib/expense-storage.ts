@@ -11,6 +11,8 @@ export interface Expense {
   receiptUrl?: string;
   creditCardLast4?: string;
   createdAt: string;
+  userId?: string;
+  jobTitle?: string;
 }
 
 export const EXPENSE_CATEGORIES = [
