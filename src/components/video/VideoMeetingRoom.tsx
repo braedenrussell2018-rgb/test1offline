@@ -46,6 +46,7 @@ export function VideoMeetingRoom({
   const [userName, setUserName] = useState("Unknown");
   const [isUploading, setIsUploading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const recordingUploadPromise = useRef<Promise<void> | null>(null);
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "speaker">("grid");
@@ -84,40 +85,43 @@ export function VideoMeetingRoom({
   }, [meetingId]);
 
   const handleRecordingReady = useCallback(
-    async (blob: Blob) => {
-      setIsUploading(true);
-      toast.info("Uploading meeting recording...");
-      try {
-        const fileName = `${meetingId}/${Date.now()}.webm`;
-        const { error: uploadError } = await supabase.storage
-          .from("meeting-recordings")
-          .upload(fileName, blob, { contentType: "video/webm" });
+    (blob: Blob) => {
+      const uploadWork = (async () => {
+        setIsUploading(true);
+        toast.info("Uploading meeting recording...");
+        try {
+          const fileName = `${meetingId}/${Date.now()}.webm`;
+          const { error: uploadError } = await supabase.storage
+            .from("meeting-recordings")
+            .upload(fileName, blob, { contentType: "video/webm" });
 
-        if (uploadError) throw uploadError;
+          if (uploadError) throw uploadError;
 
-        await (supabase as any)
-          .from("video_meetings")
-          .update({
-            recording_url: fileName,
-            status: "ended",
-            ended_at: new Date().toISOString(),
-          })
-          .eq("id", meetingId);
+          await (supabase as any)
+            .from("video_meetings")
+            .update({
+              recording_url: fileName,
+              status: "ended",
+              ended_at: new Date().toISOString(),
+            })
+            .eq("id", meetingId);
 
-        toast.success("Recording saved! AI is processing the meeting...");
+          toast.success("Recording saved! AI is processing the meeting...");
 
-        supabase.functions
-          .invoke("process-meeting-recording", { body: { meetingId } })
-          .then(({ error }) => {
-            if (error) console.error("AI processing error:", error);
-            else toast.success("AI notes are ready!");
-          });
-      } catch (error) {
-        console.error("Upload error:", error);
-        toast.error("Failed to upload recording");
-      } finally {
-        setIsUploading(false);
-      }
+          supabase.functions
+            .invoke("process-meeting-recording", { body: { meetingId } })
+            .then(({ error }) => {
+              if (error) console.error("AI processing error:", error);
+              else toast.success("AI notes are ready!");
+            });
+        } catch (error) {
+          console.error("Upload error:", error);
+          toast.error("Failed to upload recording");
+        } finally {
+          setIsUploading(false);
+        }
+      })();
+      recordingUploadPromise.current = uploadWork;
     },
     [meetingId]
   );
@@ -239,7 +243,11 @@ export function VideoMeetingRoom({
     if (isHost && isRecording) {
       toast.info("Saving recording...");
       await stopRecording();
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Wait for upload to complete before leaving
+      if (recordingUploadPromise.current) {
+        await recordingUploadPromise.current;
+        recordingUploadPromise.current = null;
+      }
     }
 
     if (user?.id) {
@@ -270,7 +278,7 @@ export function VideoMeetingRoom({
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex">
+    <div className="fixed inset-0 z-[200] bg-background flex">
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
