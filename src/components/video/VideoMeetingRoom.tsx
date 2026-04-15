@@ -85,22 +85,45 @@ export function VideoMeetingRoom({
   }, [meetingId]);
 
   const handleRecordingReady = useCallback(
-    (blob: Blob) => {
+    (tracks: { blob: Blob; userId: string; userName: string; isScreenShare: boolean }[], speakerTimeline: { timestamp_ms: number; speaker_user_id: string }[]) => {
       const uploadWork = (async () => {
         setIsUploading(true);
-        toast.info("Uploading meeting recording...");
+        toast.info(`Uploading ${tracks.length} recording tracks...`);
         try {
-          const fileName = `${meetingId}/${Date.now()}.webm`;
-          const { error: uploadError } = await supabase.storage
-            .from("meeting-recordings")
-            .upload(fileName, blob, { contentType: "video/webm" });
+          const recordingTracks: { user_id: string; user_name: string; file_path: string; is_screen_share: boolean }[] = [];
 
-          if (uploadError) throw uploadError;
+          // Upload each track
+          await Promise.all(
+            tracks.map(async (track) => {
+              const suffix = track.isScreenShare ? "screen" : track.userId;
+              const fileName = `${meetingId}/${suffix}-${Date.now()}.webm`;
+              const { error: uploadError } = await supabase.storage
+                .from("meeting-recordings")
+                .upload(fileName, track.blob, { contentType: "video/webm" });
+
+              if (uploadError) {
+                console.error(`Upload error for ${track.userName}:`, uploadError);
+                return;
+              }
+
+              recordingTracks.push({
+                user_id: track.userId,
+                user_name: track.userName,
+                file_path: fileName,
+                is_screen_share: track.isScreenShare,
+              });
+            })
+          );
+
+          // Save metadata: use first non-screen track as legacy recording_url
+          const primaryTrack = recordingTracks.find(t => !t.is_screen_share) || recordingTracks[0];
 
           await (supabase as any)
             .from("video_meetings")
             .update({
-              recording_url: fileName,
+              recording_url: primaryTrack?.file_path || null,
+              recording_tracks: recordingTracks,
+              speaker_timeline: speakerTimeline,
               status: "ended",
               ended_at: new Date().toISOString(),
             })
