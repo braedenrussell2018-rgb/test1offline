@@ -1,62 +1,56 @@
 
 
-## Video Meetings Improvement Plan
+## Multi-Stream Recording & Interactive Playback
 
-### Priority 1 -- Pre-Join Lobby
-Create a `MeetingLobby` component shown before entering the room. Users see a local camera preview, can toggle mic/camera, set their display name, and click "Join" when ready.
+### Problem
+Currently, all participant video streams are composited into a single grid on a canvas and recorded as one video file. During playback, users can only watch this fixed grid -- they cannot isolate individual participants or see who was speaking.
 
-### Priority 2 -- Invite Link & Meeting Code
-- Generate a short meeting code (e.g. 6-char alphanumeric) stored on the `video_meetings` table
-- Add a "Copy Link" button that copies `{app_url}/meeting/{code}`
-- Add a "Join by Code" input field on the dashboard
-- Add a `/meeting/:code` route that resolves the code and joins
+### Solution: Per-Participant Recording + Interactive Playback UI
 
-### Priority 3 -- Participant List Panel
-Add a toggleable sidebar showing all connected participants with:
-- Name, host badge, mute/video status icons
-- Host controls: mute a participant, remove from meeting
+#### 1. Record Each Participant Individually
+Instead of compositing onto a canvas, record each participant's stream (camera + audio) as a separate file. Also record screen shares separately.
 
-### Priority 4 -- Reactions & Hand Raise
-- Add reaction buttons (thumbs up, clap, heart, hand raise) in the control bar
-- Broadcast reactions via Supabase Realtime
-- Show floating emoji animations over participant tiles
-- Show a persistent "hand raised" indicator on the participant's video
+- **During recording**: Create a `MediaRecorder` per participant stream (local + each remote peer) plus one for any active screen share
+- **On stop**: Upload each file to `meeting-recordings` bucket with path `{meetingId}/{userId}.webm` and `{meetingId}/screen.webm`
+- **Store metadata**: Save a `recording_tracks` JSONB array on `video_meetings` containing `[{user_id, user_name, file_path, is_screen_share}]`
 
-### Priority 5 -- Meeting Duration Timer
-Display elapsed time in the header since `started_at`, updating every second.
+#### 2. Active Speaker Detection
+Use the Web Audio API `AnalyserNode` on each participant's audio track to detect volume levels. Tag the loudest speaker in real-time.
 
-### Priority 6 -- Interactive Todo List
-Make the AI-generated action item checkboxes functional -- toggling updates the `ai_todo_list` JSONB in the database so progress is saved.
+- During recording, periodically (every 500ms) log `{timestamp_ms, speaker_user_id}` into an array
+- Save this as `speaker_timeline` JSONB on `video_meetings` when recording stops
+- During playback, highlight the active speaker based on video currentTime
 
-### Priority 7 -- Speaker View Toggle
-Add a button to switch between:
-- **Grid view** (current default): equal-sized tiles
-- **Speaker view**: active speaker large, others in a small strip
+#### 3. Interactive Playback UI (MeetingRecordingPlayer)
+Replace the single `<video>` element with a multi-panel viewer:
 
-### Priority 8 -- Meeting Scheduling
-- Add date/time picker to the create meeting dialog
-- Store `scheduled_at` on `video_meetings`
-- Show upcoming scheduled meetings in the banner with a countdown
-- Optional: integrate with the existing `WeeklyCalendar` component
+- **Participant sidebar**: List all recorded participants with thumbnails. Each has a checkbox to toggle visibility.
+- **Main view area**: Shows selected participant videos synced to the same playback time. Layout adapts (1 video = full width, 2 = side-by-side, etc.)
+- **Active speaker indicator**: Gold border/badge on whichever participant was speaking at the current timestamp
+- **Screen share track**: Appears as a selectable item labeled "Screen Share" in the sidebar
+- **Playback controls**: Single scrubber/play/pause that controls all visible videos simultaneously
 
-### Technical Details
+### Database Changes (Migration)
+```sql
+ALTER TABLE video_meetings
+  ADD COLUMN IF NOT EXISTS recording_tracks jsonb DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS speaker_timeline jsonb DEFAULT '[]';
+```
 
-**Database migrations needed:**
-- Add `meeting_code` (text, unique) and `scheduled_at` (timestamptz, nullable) columns to `video_meetings`
-- Auto-generate meeting codes via a trigger or application logic
+### Files Modified
+- `src/components/video/useWebRTC.ts` -- Replace single canvas recorder with per-stream recorders + speaker detection
+- `src/components/video/VideoMeetingRoom.tsx` -- Upload multiple track files on recording stop, save metadata
+- `src/components/video/MeetingRecordingPlayer.tsx` -- Complete rewrite of playback UI with multi-track viewer
 
-**New components:**
-- `src/components/video/MeetingLobby.tsx`
-- `src/components/video/ParticipantList.tsx`
-- `src/components/video/MeetingReactions.tsx`
+### Files Created
+- `src/components/video/MultiTrackPlayer.tsx` -- The interactive multi-video playback component with participant selection, synced scrubber, and speaker highlighting
 
-**Modified files:**
-- `src/components/video/VideoMeetingRoom.tsx` -- add timer, reactions, participant panel, speaker view toggle
-- `src/components/video/CreateMeetingDropdown.tsx` -- add scheduling, copy link
-- `src/components/video/LiveMeetingsBanner.tsx` -- show scheduled meetings
-- `src/components/video/MeetingRecordingPlayer.tsx` -- make todo checkboxes interactive
-- `src/App.tsx` -- add `/meeting/:code` route
-
-### Implementation Order
-Tackle in priority order (1-8). Each priority is a self-contained deliverable.
+### How Playback Works
+1. User opens a past meeting
+2. Component reads `recording_tracks` to know which files exist
+3. Fetches signed URLs for each track
+4. Renders a sidebar of participants with toggle checkboxes (all on by default)
+5. Selected videos play in a responsive grid, all synced to one timeline
+6. The `speaker_timeline` data highlights the active speaker with a visual indicator
+7. Users can toggle any combination: e.g. one person + screen share, or all participants
 
