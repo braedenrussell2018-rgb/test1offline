@@ -32,6 +32,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { CreateMeetingDropdown } from "@/components/video/CreateMeetingDropdown";
+import { MeetingLobby } from "@/components/video/MeetingLobby";
 import { LiveMeetingsBanner } from "@/components/video/LiveMeetingsBanner";
 import { MeetingRecordingPlayer } from "@/components/video/MeetingRecordingPlayer";
 import { VideoMeetingRoom } from "@/components/video/VideoMeetingRoom";
@@ -120,6 +121,7 @@ export default function EmployeeDashboard() {
 
   // Video meeting state
   const [activeVideoMeeting, setActiveVideoMeeting] = useState<{ id: string; title: string; isHost: boolean } | null>(null);
+  const [pendingMeeting, setPendingMeeting] = useState<{ id: string; title: string; isHost: boolean; code?: string } | null>(null);
   const [videoMeetings, setVideoMeetings] = useState<any[]>([]);
 
   // Conversation detail dialog state
