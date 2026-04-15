@@ -95,6 +95,7 @@ export default function EmployeeDashboard() {
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [userName, setUserNameLocal] = useState("Unknown");
 
   // Selected user for viewing (owner/developer can view other employees)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
