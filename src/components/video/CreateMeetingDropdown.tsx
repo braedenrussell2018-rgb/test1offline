@@ -97,6 +97,11 @@ export function CreateMeetingDropdown({ onMeetingCreated }: CreateMeetingDropdow
       toast.error("This meeting has ended");
       return;
     }
+    const meetingAge = Date.now() - new Date(data.created_at).getTime();
+    if (meetingAge > 12 * 60 * 60 * 1000) {
+      toast.error("This meeting has expired (over 12 hours old)");
+      return;
+    }
     setJoinDialogOpen(false);
     setJoinCode("");
     onMeetingCreated(data.id, data.title);
