@@ -60,7 +60,7 @@ export function AppMenuBar() {
   }
 
   return (
-    <div className="w-full relative z-[100]">
+    <div className="w-full relative z-[40]">
       {/* Dark navy banner */}
       <div className="w-full h-8 bg-[hsl(220,60%,15%)]" />
       
