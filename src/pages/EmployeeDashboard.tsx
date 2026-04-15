@@ -854,9 +854,10 @@ export default function EmployeeDashboard() {
         <TabsContent value="meetings" className="space-y-4">
           {/* Live Video Meetings Banner */}
           <LiveMeetingsBanner
-            onJoinMeeting={(meetingId, title) =>
-              setActiveVideoMeeting({ id: meetingId, title, isHost: false })
-            }
+            onJoinMeeting={async (meetingId, title) => {
+              const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+              setPendingMeeting({ id: meetingId, title, isHost: false, code: data?.meeting_code });
+            }}
           />
 
           {/* Video Meetings Section */}
