@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -245,9 +246,25 @@ export function MeetingRecordingPlayer({
                             key={i}
                             className="flex items-start gap-3 p-2 rounded hover:bg-muted/50"
                           >
-                            <Checkbox checked={item.completed} disabled />
+                            <Checkbox
+                              checked={item.completed}
+                              onCheckedChange={async (checked) => {
+                                const updatedList = [...selectedMeeting.ai_todo_list!];
+                                updatedList[i] = { ...updatedList[i], completed: !!checked };
+                                const { error } = await (supabase as any)
+                                  .from("video_meetings")
+                                  .update({ ai_todo_list: updatedList })
+                                  .eq("id", selectedMeeting.id);
+                                if (error) {
+                                  toast.error("Failed to update");
+                                } else {
+                                  setSelectedMeeting({ ...selectedMeeting, ai_todo_list: updatedList });
+                                  onRefresh();
+                                }
+                              }}
+                            />
                             <div className="flex-1">
-                              <p className="text-sm">{item.task}</p>
+                              <p className={`text-sm ${item.completed ? "line-through text-muted-foreground" : ""}`}>{item.task}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 {item.assignee}

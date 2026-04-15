@@ -29,6 +29,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import QuickBooksCallback from "./pages/QuickBooksCallback";
 import Legal from "./pages/Legal";
 import WarrantyTracking from "./pages/WarrantyTracking";
+import MeetingJoin from "./pages/MeetingJoin";
 import MapView from "./pages/MapView";
 
 const queryClient = new QueryClient({
@@ -148,6 +149,12 @@ const App = () => (
               <Route path="/map" element={
                 <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
                   <MapView />
+                </RoleProtectedRoute>
+              } />
+              {/* Meeting join by code */}
+              <Route path="/meeting/:code" element={
+                <RoleProtectedRoute allowedRoles={["owner", "employee", "developer"]} redirectTo="/spiff-program">
+                  <MeetingJoin />
                 </RoleProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

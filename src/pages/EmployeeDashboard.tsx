@@ -32,6 +32,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { CreateMeetingDropdown } from "@/components/video/CreateMeetingDropdown";
+import { MeetingLobby } from "@/components/video/MeetingLobby";
 import { LiveMeetingsBanner } from "@/components/video/LiveMeetingsBanner";
 import { MeetingRecordingPlayer } from "@/components/video/MeetingRecordingPlayer";
 import { VideoMeetingRoom } from "@/components/video/VideoMeetingRoom";
@@ -94,6 +95,7 @@ export default function EmployeeDashboard() {
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [userName, setUserNameLocal] = useState("Unknown");
 
   // Selected user for viewing (owner/developer can view other employees)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -120,6 +122,7 @@ export default function EmployeeDashboard() {
 
   // Video meeting state
   const [activeVideoMeeting, setActiveVideoMeeting] = useState<{ id: string; title: string; isHost: boolean } | null>(null);
+  const [pendingMeeting, setPendingMeeting] = useState<{ id: string; title: string; isHost: boolean; code?: string } | null>(null);
   const [videoMeetings, setVideoMeetings] = useState<any[]>([]);
 
   // Conversation detail dialog state
@@ -132,6 +135,13 @@ export default function EmployeeDashboard() {
   // The effective user ID to load data for
   const effectiveUserId = selectedUserId || user?.id;
   const isViewingOther = selectedUserId && selectedUserId !== user?.id;
+
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle()
+        .then(({ data }) => { if (data?.full_name) setUserNameLocal(data.full_name); });
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (effectiveUserId) {
@@ -443,6 +453,22 @@ export default function EmployeeDashboard() {
     meeting.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+
+  // Show lobby before joining a meeting
+  if (pendingMeeting) {
+    return (
+      <MeetingLobby
+        meetingTitle={pendingMeeting.title}
+        meetingCode={pendingMeeting.code}
+        displayName={userName}
+        onJoin={() => {
+          setActiveVideoMeeting(pendingMeeting);
+          setPendingMeeting(null);
+        }}
+        onCancel={() => setPendingMeeting(null)}
+      />
+    );
+  }
 
   // If in an active video meeting, show full-screen meeting room
   if (activeVideoMeeting) {
@@ -828,9 +854,10 @@ export default function EmployeeDashboard() {
         <TabsContent value="meetings" className="space-y-4">
           {/* Live Video Meetings Banner */}
           <LiveMeetingsBanner
-            onJoinMeeting={(meetingId, title) =>
-              setActiveVideoMeeting({ id: meetingId, title, isHost: false })
-            }
+            onJoinMeeting={async (meetingId, title) => {
+              const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+              setPendingMeeting({ id: meetingId, title, isHost: false, code: data?.meeting_code });
+            }}
           />
 
           {/* Video Meetings Section */}
@@ -844,9 +871,10 @@ export default function EmployeeDashboard() {
                 <CardDescription>Create, join, and rewatch video meetings with AI notes</CardDescription>
               </div>
               <CreateMeetingDropdown
-                onMeetingCreated={(meetingId, title) =>
-                  setActiveVideoMeeting({ id: meetingId, title, isHost: true })
-                }
+                onMeetingCreated={async (meetingId, title) => {
+                  const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+                  setPendingMeeting({ id: meetingId, title, isHost: true, code: data?.meeting_code });
+                }}
               />
             </CardHeader>
             <CardContent>
@@ -1004,9 +1032,10 @@ export default function EmployeeDashboard() {
         {/* Calendar Tab */}
         <TabsContent value="calendar" className="space-y-4">
           <WeeklyCalendar
-            onCreateVideoMeeting={(meetingId, title) =>
-              setActiveVideoMeeting({ id: meetingId, title, isHost: true })
-            }
+            onCreateVideoMeeting={async (meetingId, title) => {
+              const { data } = await (supabase as any).from("video_meetings").select("meeting_code").eq("id", meetingId).maybeSingle();
+              setPendingMeeting({ id: meetingId, title, isHost: true, code: data?.meeting_code });
+            }}
           />
         </TabsContent>
       </Tabs>
