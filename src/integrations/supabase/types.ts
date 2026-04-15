@@ -508,8 +508,10 @@ export type Database = {
           employee_name: string
           expense_date: string
           id: string
+          job_title: string | null
           receipt_url: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           amount: number
@@ -521,8 +523,10 @@ export type Database = {
           employee_name: string
           expense_date?: string
           id?: string
+          job_title?: string | null
           receipt_url?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -534,8 +538,10 @@ export type Database = {
           employee_name?: string
           expense_date?: string
           id?: string
+          job_title?: string | null
           receipt_url?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
