@@ -176,6 +176,9 @@ const Expenses = () => {
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                                {expense.jobTitle && (
+                                  <Badge variant="secondary" className="text-xs capitalize">{expense.jobTitle}</Badge>
+                                )}
                                 <span className="text-sm text-muted-foreground">
                                   {new Date(expense.expenseDate).toLocaleDateString()}
                                 </span>

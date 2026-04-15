@@ -260,6 +260,8 @@ export const getExpensesByCustomerId = async (customerId: string): Promise<Expen
     receiptUrl: e.receipt_url,
     creditCardLast4: e.credit_card_last4,
     createdAt: e.created_at || new Date().toISOString(),
+    userId: (e as any).user_id,
+    jobTitle: (e as any).job_title,
   }));
 };
 
