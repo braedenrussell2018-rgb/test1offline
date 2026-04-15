@@ -24,10 +24,12 @@ export function LiveMeetingsBanner({ onJoinMeeting }: LiveMeetingsBannerProps) {
   const [liveMeetings, setLiveMeetings] = useState<LiveMeeting[]>([]);
 
   const loadLiveMeetings = async () => {
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
     const { data } = await (supabase as any)
       .from("video_meetings")
       .select("id, title, status, created_by, started_at, meeting_code, scheduled_at")
       .in("status", ["waiting", "live", "scheduled"])
+      .gte("created_at", twelveHoursAgo)
       .order("created_at", { ascending: false });
 
     setLiveMeetings(data || []);

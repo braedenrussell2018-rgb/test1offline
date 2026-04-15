@@ -85,7 +85,7 @@ export function CreateMeetingDropdown({ onMeetingCreated }: CreateMeetingDropdow
     }
     const { data, error } = await (supabase as any)
       .from("video_meetings")
-      .select("id, title, status")
+      .select("id, title, status, created_at")
       .eq("meeting_code", joinCode.trim().toUpperCase())
       .maybeSingle();
 
@@ -95,6 +95,11 @@ export function CreateMeetingDropdown({ onMeetingCreated }: CreateMeetingDropdow
     }
     if (data.status === "ended") {
       toast.error("This meeting has ended");
+      return;
+    }
+    const meetingAge = Date.now() - new Date(data.created_at).getTime();
+    if (meetingAge > 12 * 60 * 60 * 1000) {
+      toast.error("This meeting has expired (over 12 hours old)");
       return;
     }
     setJoinDialogOpen(false);
