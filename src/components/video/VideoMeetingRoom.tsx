@@ -14,11 +14,19 @@ import {
   MonitorUp,
   MonitorOff,
   MessageSquare,
+  LayoutGrid,
+  Presentation,
+  Copy,
+  Check,
+  Hand,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebRTC } from "./useWebRTC";
 import { MeetingChat } from "./MeetingChat";
+import { MeetingTimer } from "./MeetingTimer";
+import { MeetingReactions } from "./MeetingReactions";
+import { ParticipantList } from "./ParticipantList";
 import { toast } from "sonner";
 
 interface VideoMeetingRoomProps {
@@ -38,7 +46,13 @@ export function VideoMeetingRoom({
   const [userName, setUserName] = useState("Unknown");
   const [isUploading, setIsUploading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [viewMode, setViewMode] = useState<"grid" | "speaker">("grid");
+  const [handRaised, setHandRaised] = useState(false);
+  const [meetingCode, setMeetingCode] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -54,6 +68,21 @@ export function VideoMeetingRoom({
     }
   }, [user?.id]);
 
+  // Load meeting code and started_at
+  useEffect(() => {
+    (supabase as any)
+      .from("video_meetings")
+      .select("meeting_code, started_at")
+      .eq("id", meetingId)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data) {
+          setMeetingCode(data.meeting_code);
+          setStartedAt(data.started_at);
+        }
+      });
+  }, [meetingId]);
+
   const handleRecordingReady = useCallback(
     async (blob: Blob) => {
       setIsUploading(true);
@@ -66,7 +95,6 @@ export function VideoMeetingRoom({
 
         if (uploadError) throw uploadError;
 
-        // Update meeting with recording URL
         await (supabase as any)
           .from("video_meetings")
           .update({
@@ -78,11 +106,8 @@ export function VideoMeetingRoom({
 
         toast.success("Recording saved! AI is processing the meeting...");
 
-        // Trigger AI processing
         supabase.functions
-          .invoke("process-meeting-recording", {
-            body: { meetingId },
-          })
+          .invoke("process-meeting-recording", { body: { meetingId } })
           .then(({ error }) => {
             if (error) console.error("AI processing error:", error);
             else toast.success("AI notes are ready!");
@@ -131,7 +156,6 @@ export function VideoMeetingRoom({
         await startMedia();
         await joinChannel();
 
-        // Register as participant
         await (supabase as any).from("video_meeting_participants").insert({
           meeting_id: meetingId,
           user_id: user.id,
@@ -139,15 +163,13 @@ export function VideoMeetingRoom({
           is_host: isHost,
         });
 
-        // Update meeting status to live if host
         if (isHost) {
+          const now = new Date().toISOString();
           await (supabase as any)
             .from("video_meetings")
-            .update({
-              status: "live",
-              started_at: new Date().toISOString(),
-            })
+            .update({ status: "live", started_at: now })
             .eq("id", meetingId);
+          setStartedAt(now);
         }
       } catch (error) {
         console.error("Failed to join meeting:", error);
@@ -158,7 +180,7 @@ export function VideoMeetingRoom({
     init();
   }, [user?.id, userName]);
 
-  // Track unread chat messages when sidebar is closed
+  // Track unread chat messages
   const isChatOpenRef = useRef(isChatOpen);
   isChatOpenRef.current = isChatOpen;
 
@@ -168,7 +190,6 @@ export function VideoMeetingRoom({
       .on("broadcast", { event: "chat-message" }, ({ payload }: any) => {
         if (payload?.userId !== user?.id && !isChatOpenRef.current) {
           setUnreadCount((c) => c + 1);
-          // Play a short notification sound
           try {
             const ctx = new AudioContext();
             const osc = ctx.createOscillator();
@@ -184,28 +205,43 @@ export function VideoMeetingRoom({
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [meetingId, user?.id]);
 
-  // Attach local stream or screen share to video element
   useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = isScreenSharing && screenStream ? screenStream : localStream;
     }
   }, [localStream, screenStream, isScreenSharing]);
 
+  // Broadcast hand raise
+  const toggleHandRaise = useCallback(() => {
+    const newState = !handRaised;
+    setHandRaised(newState);
+    const channel = supabase.channel(`meeting:${meetingId}`);
+    channel.send({
+      type: "broadcast",
+      event: "hand-raise",
+      payload: { userId: user?.id, userName, raised: newState },
+    });
+  }, [handRaised, meetingId, user?.id, userName]);
+
+  const handleCopyLink = () => {
+    if (meetingCode) {
+      navigator.clipboard.writeText(`${window.location.origin}/meeting/${meetingCode}`);
+      setCopied(true);
+      toast.success("Invite link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const handleEndCall = async () => {
-    // If host is recording, wait for the recording blob to be assembled before disconnecting
     if (isHost && isRecording) {
       toast.info("Saving recording...");
       await stopRecording();
-      // Give the onRecordingReady callback time to fire and start uploading
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    // Mark participant as left
     if (user?.id) {
       await (supabase as any)
         .from("video_meeting_participants")
@@ -214,15 +250,10 @@ export function VideoMeetingRoom({
         .eq("user_id", user.id);
     }
 
-    // If host and NOT recording (non-host or no recording), end the meeting
-    // If host WAS recording, handleRecordingReady already sets status to "ended"
     if (isHost && !isRecording) {
       await (supabase as any)
         .from("video_meetings")
-        .update({
-          status: "ended",
-          ended_at: new Date().toISOString(),
-        })
+        .update({ status: "ended", ended_at: new Date().toISOString() })
         .eq("id", meetingId);
     }
 
@@ -231,171 +262,207 @@ export function VideoMeetingRoom({
   };
 
   const participantArray = Array.from(participants.values());
-  const totalParticipants = participantArray.length + 1; // +1 for self
+  const totalParticipants = participantArray.length + 1;
+
+  // Speaker view: find active speaker (last participant with stream or first)
+  const activeSpeaker = viewMode === "speaker" && participantArray.length > 0
+    ? participantArray[0]
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex">
       <div className="flex-1 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
-        <div className="flex items-center gap-3">
-          <h2 className="font-semibold text-lg">{meetingTitle}</h2>
-          {isRecording && (
-            <Badge variant="destructive" className="gap-1 animate-pulse">
-              <Circle className="h-2 w-2 fill-current" />
-              Recording
-            </Badge>
-          )}
-          {isUploading && (
-            <Badge variant="secondary" className="gap-1">
-              <Upload className="h-3 w-3" />
-              Uploading...
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1">
-            <Users className="h-3 w-3" />
-            {totalParticipants}
-          </Badge>
-          {isConnected && (
-            <Badge variant="secondary" className="text-emerald-500">Connected</Badge>
-          )}
-        </div>
-      </div>
-
-      {/* Video Grid */}
-      <div className="flex-1 p-4 overflow-auto">
-        <div
-          className={`grid gap-4 h-full ${
-            totalParticipants <= 1
-              ? "grid-cols-1"
-              : totalParticipants <= 4
-              ? "grid-cols-2"
-              : "grid-cols-3"
-          }`}
-        >
-          {/* Local video */}
-          <Card className="relative overflow-hidden bg-muted flex items-center justify-center">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-2 left-2 flex items-center gap-1">
-              <Badge variant="secondary" className="text-xs">
-                You {isHost ? "(Host)" : ""}
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-lg">{meetingTitle}</h2>
+            <MeetingTimer startedAt={startedAt} />
+            {isRecording && (
+              <Badge variant="destructive" className="gap-1 animate-pulse">
+                <Circle className="h-2 w-2 fill-current" />
+                Recording
               </Badge>
-              {isAudioMuted && <MicOff className="h-3 w-3 text-destructive" />}
-            </div>
-          </Card>
+            )}
+            {isUploading && (
+              <Badge variant="secondary" className="gap-1">
+                <Upload className="h-3 w-3" />
+                Uploading...
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {meetingCode && (
+              <Button variant="ghost" size="sm" className="gap-1 text-xs font-mono" onClick={handleCopyLink}>
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {meetingCode}
+              </Button>
+            )}
+            <Badge variant="outline" className="gap-1">
+              <Users className="h-3 w-3" />
+              {totalParticipants}
+            </Badge>
+            {isConnected && (
+              <Badge variant="secondary" className="text-emerald-500">Connected</Badge>
+            )}
+          </div>
+        </div>
 
-          {/* Remote participants */}
-          {participantArray.map((participant) => (
-            <Card
-              key={participant.user_id}
-              className="relative overflow-hidden bg-muted flex items-center justify-center"
-            >
-              {participant.stream ? (
-                <RemoteVideo stream={participant.stream} />
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <Users className="h-12 w-12" />
-                  <span>Connecting...</span>
+        {/* Video Grid / Speaker View */}
+        <div className="flex-1 p-4 overflow-auto">
+          {viewMode === "grid" ? (
+            <div className={`grid gap-4 h-full ${
+              totalParticipants <= 1 ? "grid-cols-1"
+                : totalParticipants <= 4 ? "grid-cols-2"
+                : "grid-cols-3"
+            }`}>
+              <Card className="relative overflow-hidden bg-muted flex items-center justify-center">
+                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                  <Badge variant="secondary" className="text-xs">You {isHost ? "(Host)" : ""}</Badge>
+                  {isAudioMuted && <MicOff className="h-3 w-3 text-destructive" />}
+                  {handRaised && <Hand className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
                 </div>
-              )}
-              <div className="absolute bottom-2 left-2">
-                <Badge variant="secondary" className="text-xs">
-                  {participant.user_name}
-                  {participant.is_host ? " (Host)" : ""}
-                </Badge>
+              </Card>
+              {participantArray.map((participant) => (
+                <Card key={participant.user_id} className="relative overflow-hidden bg-muted flex items-center justify-center">
+                  {participant.stream ? (
+                    <RemoteVideo stream={participant.stream} />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Users className="h-12 w-12" />
+                      <span>Connecting...</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {participant.user_name}{participant.is_host ? " (Host)" : ""}
+                    </Badge>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            /* Speaker View */
+            <div className="flex flex-col h-full gap-3">
+              <div className="flex-1 min-h-0">
+                <Card className="relative overflow-hidden bg-muted flex items-center justify-center h-full">
+                  {activeSpeaker?.stream ? (
+                    <RemoteVideo stream={activeSpeaker.stream} />
+                  ) : (
+                    <>
+                      <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                      <div className="absolute bottom-2 left-2">
+                        <Badge variant="secondary" className="text-xs">You {isHost ? "(Host)" : ""}</Badge>
+                      </div>
+                    </>
+                  )}
+                  {activeSpeaker && (
+                    <div className="absolute bottom-2 left-2">
+                      <Badge variant="secondary" className="text-xs">{activeSpeaker.user_name}</Badge>
+                    </div>
+                  )}
+                </Card>
               </div>
-            </Card>
-          ))}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {activeSpeaker && (
+                  <Card className="relative overflow-hidden bg-muted flex items-center justify-center w-32 h-24 shrink-0">
+                    <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    <div className="absolute bottom-1 left-1">
+                      <Badge variant="secondary" className="text-[10px]">You</Badge>
+                    </div>
+                  </Card>
+                )}
+                {participantArray.filter(p => p !== activeSpeaker).map((p) => (
+                  <Card key={p.user_id} className="relative overflow-hidden bg-muted flex items-center justify-center w-32 h-24 shrink-0">
+                    {p.stream ? <RemoteVideo stream={p.stream} /> : <Users className="h-6 w-6 text-muted-foreground" />}
+                    <div className="absolute bottom-1 left-1">
+                      <Badge variant="secondary" className="text-[10px]">{p.user_name}</Badge>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-center gap-3 px-4 py-4 border-t bg-card flex-wrap">
+          <Button variant={isAudioMuted ? "destructive" : "outline"} size="icon" className="h-12 w-12 rounded-full" onClick={toggleAudio}>
+            {isAudioMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          </Button>
+          <Button variant={isVideoMuted ? "destructive" : "outline"} size="icon" className="h-12 w-12 rounded-full" onClick={toggleVideo}>
+            {isVideoMuted ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+          </Button>
+          <Button variant={isScreenSharing ? "destructive" : "outline"} size="icon" className="h-12 w-12 rounded-full" onClick={isScreenSharing ? stopScreenShare : startScreenShare} title={isScreenSharing ? "Stop sharing" : "Share screen"}>
+            {isScreenSharing ? <MonitorOff className="h-5 w-5" /> : <MonitorUp className="h-5 w-5" />}
+          </Button>
+
+          <MeetingReactions
+            meetingId={meetingId}
+            userId={user?.id || ""}
+            userName={userName}
+            handRaised={handRaised}
+            onToggleHand={toggleHandRaise}
+          />
+
+          <Button
+            variant={viewMode === "speaker" ? "secondary" : "outline"}
+            size="icon"
+            className="h-12 w-12 rounded-full"
+            onClick={() => setViewMode(v => v === "grid" ? "speaker" : "grid")}
+            title={viewMode === "grid" ? "Speaker view" : "Grid view"}
+          >
+            {viewMode === "grid" ? <Presentation className="h-5 w-5" /> : <LayoutGrid className="h-5 w-5" />}
+          </Button>
+
+          <Button
+            variant={isParticipantsOpen ? "secondary" : "outline"}
+            size="icon"
+            className="h-12 w-12 rounded-full"
+            onClick={() => setIsParticipantsOpen(!isParticipantsOpen)}
+            title="Participants"
+          >
+            <Users className="h-5 w-5" />
+          </Button>
+
+          <Button
+            variant={isChatOpen ? "secondary" : "outline"}
+            size="icon"
+            className="h-12 w-12 rounded-full relative"
+            onClick={() => { setIsChatOpen(!isChatOpen); if (!isChatOpen) setUnreadCount(0); }}
+            title="Toggle chat"
+          >
+            <MessageSquare className="h-5 w-5" />
+            {!isChatOpen && unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Button>
+
+          {isHost && (
+            <Button variant={isRecording ? "destructive" : "secondary"} className="rounded-full gap-2" onClick={isRecording ? stopRecording : startRecording}>
+              <Circle className={`h-4 w-4 ${isRecording ? "fill-current animate-pulse" : ""}`} />
+              {isRecording ? "Stop Recording" : "Start Recording"}
+            </Button>
+          )}
+
+          <Button variant="destructive" size="icon" className="h-12 w-12 rounded-full" onClick={handleEndCall}>
+            <PhoneOff className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-4 px-4 py-4 border-t bg-card">
-        <Button
-          variant={isAudioMuted ? "destructive" : "outline"}
-          size="icon"
-          className="h-12 w-12 rounded-full"
-          onClick={toggleAudio}
-        >
-          {isAudioMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-        </Button>
-
-        <Button
-          variant={isVideoMuted ? "destructive" : "outline"}
-          size="icon"
-          className="h-12 w-12 rounded-full"
-          onClick={toggleVideo}
-        >
-          {isVideoMuted ? (
-            <VideoOff className="h-5 w-5" />
-          ) : (
-            <Video className="h-5 w-5" />
-          )}
-        </Button>
-
-        <Button
-          variant={isScreenSharing ? "destructive" : "outline"}
-          size="icon"
-          className="h-12 w-12 rounded-full"
-          onClick={isScreenSharing ? stopScreenShare : startScreenShare}
-          title={isScreenSharing ? "Stop sharing" : "Share screen"}
-        >
-          {isScreenSharing ? (
-            <MonitorOff className="h-5 w-5" />
-          ) : (
-            <MonitorUp className="h-5 w-5" />
-          )}
-        </Button>
-
-        <Button
-          variant={isChatOpen ? "secondary" : "outline"}
-          size="icon"
-          className="h-12 w-12 rounded-full relative"
-          onClick={() => {
-            setIsChatOpen(!isChatOpen);
-            if (!isChatOpen) setUnreadCount(0);
-          }}
-          title="Toggle chat"
-        >
-          <MessageSquare className="h-5 w-5" />
-          {!isChatOpen && unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </Button>
-
-        {isHost && (
-          <Button
-            variant={isRecording ? "destructive" : "secondary"}
-            className="rounded-full gap-2"
-            onClick={isRecording ? stopRecording : startRecording}
-          >
-            <Circle
-              className={`h-4 w-4 ${isRecording ? "fill-current animate-pulse" : ""}`}
-            />
-            {isRecording ? "Stop Recording" : "Start Recording"}
-          </Button>
-        )}
-
-        <Button
-          variant="destructive"
-          size="icon"
-          className="h-12 w-12 rounded-full"
-          onClick={handleEndCall}
-        >
-          <PhoneOff className="h-5 w-5" />
-        </Button>
-      </div>
-      </div>
+      {isParticipantsOpen && (
+        <ParticipantList
+          participants={participantArray}
+          selfName={userName}
+          selfIsHost={isHost}
+          isAudioMuted={isAudioMuted}
+          isVideoMuted={isVideoMuted}
+          onClose={() => setIsParticipantsOpen(false)}
+        />
+      )}
 
       {isChatOpen && (
         <MeetingChat
@@ -418,12 +485,5 @@ function RemoteVideo({ stream }: { stream: MediaStream }) {
     }
   }, [stream]);
 
-  return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      className="w-full h-full object-cover"
-    />
-  );
+  return <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />;
 }
