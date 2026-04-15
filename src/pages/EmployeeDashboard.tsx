@@ -137,6 +137,13 @@ export default function EmployeeDashboard() {
   const isViewingOther = selectedUserId && selectedUserId !== user?.id;
 
   useEffect(() => {
+    if (user?.id) {
+      supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle()
+        .then(({ data }) => { if (data?.full_name) setUserNameLocal(data.full_name); });
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
     if (effectiveUserId) {
       loadData();
     }
