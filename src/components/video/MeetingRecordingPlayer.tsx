@@ -320,14 +320,14 @@ export function MeetingRecordingPlayer({
 function LegacySinglePlayer({ recordingPath }: { recordingPath: string }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     supabase.storage
       .from("meeting-recordings")
       .createSignedUrl(recordingPath, 3600)
       .then(({ data }) => {
         if (data) setVideoUrl(data.signedUrl);
       });
-  });
+  }, [recordingPath]);
 
   if (!videoUrl) {
     return (
