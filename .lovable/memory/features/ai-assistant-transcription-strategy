@@ -1,0 +1,11 @@
+---
+name: AI Assistant transcription and chat strategy
+description: AI Assistant uses Gemini-3-flash-preview with full chat history context, markdown rendering, and conversation search
+type: feature
+---
+AI Assistant uses google/gemini-3-flash-preview for reasoning, with responses rendered via react-markdown.
+Full chat history is sent to the edge function for multi-turn context.
+History tab has search filtering by contact/summary/transcript and sort by newest/oldest.
+Chat auto-scrolls to bottom on new messages.
+Local Whisper for transcription, audio archived in private storage with signed URLs.
+Responses indicate sources: 📁 (Company Database) or 🌐 (General Knowledge).
