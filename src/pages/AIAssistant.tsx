@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useLocalWhisper } from "@/hooks/useLocalWhisper";
@@ -672,12 +673,37 @@ export default function AIAssistant() {
     setIsSavingDirect(false);
   };
 
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historySortOrder, setHistorySortOrder] = useState<"newest" | "oldest">("newest");
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, isAsking]);
+
+  const filteredConversations = conversations
+    .filter((conv) => {
+      if (!historySearch.trim()) return true;
+      const term = historySearch.toLowerCase();
+      const contactName = getContactName(conv.contact_id).toLowerCase();
+      const summary = (conv.summary || "").toLowerCase();
+      const transcript = conv.transcript.toLowerCase();
+      return contactName.includes(term) || summary.includes(term) || transcript.includes(term);
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return historySortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+
   const askQuestion = async () => {
     if (!question.trim()) return;
 
     const userQuestion = question;
     setQuestion("");
-    setChatHistory(prev => [...prev, { role: 'user', content: userQuestion }]);
+    const newHistory = [...chatHistory, { role: 'user' as const, content: userQuestion }];
+    setChatHistory(newHistory);
     setIsAsking(true);
 
     try {
@@ -688,6 +714,7 @@ export default function AIAssistant() {
           action: 'ask_question',
           question: userQuestion,
           conversationIds,
+          messages: chatHistory, // send full prior history for context
         },
       });
 
@@ -1103,18 +1130,35 @@ export default function AIAssistant() {
               <CardHeader>
                 <CardTitle>Conversation History</CardTitle>
                 <CardDescription>
-                  {conversations.length} recorded conversation{conversations.length !== 1 ? 's' : ''}
+                  {filteredConversations.length} of {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
                 </CardDescription>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Search by contact, summary, or transcript..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select value={historySortOrder} onValueChange={(v) => setHistorySortOrder(v as "newest" | "oldest")}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-4">
-                    {conversations.length === 0 ? (
+                    {filteredConversations.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8">
-                        No conversations yet. Start by recording one!
+                        {historySearch ? "No conversations match your search." : "No conversations yet. Start by recording one!"}
                       </p>
                     ) : (
-                      conversations.map((conv) => (
+                      filteredConversations.map((conv) => (
                         <Card key={conv.id} className="border">
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between">
@@ -1256,23 +1300,8 @@ export default function AIAssistant() {
                           }`}
                         >
                           {msg.role === 'assistant' ? (
-                            <div className="whitespace-pre-wrap">
-                              {msg.content.split('\n').map((line, lineIdx) => {
-                                // Render source indicators with styling
-                                if (line.includes('**Source:')) {
-                                  const sourceMatch = line.match(/\*\*Source: (.+?)\*\*/);
-                                  if (sourceMatch) {
-                                    const emoji = line.startsWith('📁🌐') ? '📁🌐' : line.startsWith('📁') ? '📁' : '🌐';
-                                    return (
-                                      <div key={lineIdx} className="font-semibold text-primary mb-2 pb-2 border-b border-border">
-                                        {emoji} Source: {sourceMatch[1]}
-                                      </div>
-                                    );
-                                  }
-                                }
-                                // Render regular lines
-                                return <span key={lineIdx}>{line}{lineIdx < msg.content.split('\n').length - 1 ? '\n' : ''}</span>;
-                              })}
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
                             </div>
                           ) : (
                             <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1286,6 +1315,7 @@ export default function AIAssistant() {
                         Thinking...
                       </div>
                     )}
+                    <div ref={chatEndRef} />
                   </div>
                 </ScrollArea>
                 
