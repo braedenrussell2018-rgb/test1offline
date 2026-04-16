@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2, AlertTriangle } from "lucide-react";
 import { inventoryStorage, Note, Branch, Company } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessCardScanner } from "@/hooks/useBusinessCardScanner";

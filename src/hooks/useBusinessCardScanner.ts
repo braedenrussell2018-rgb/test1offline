@@ -20,6 +20,33 @@ export interface ScanResult {
   address?: string;
   isAIEnhanced: boolean;
   rawText?: string;
+  needsReview?: boolean;
+  confidence?: Record<string, boolean>;
+}
+
+/**
+ * Resize image to max dimension while maintaining aspect ratio.
+ * Returns a base64 data URL.
+ */
+function resizeImage(dataUrl: string, maxWidth = 1200): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.width <= maxWidth) {
+        resolve(dataUrl);
+        return;
+      }
+      const scale = maxWidth / img.width;
+      const canvas = document.createElement('canvas');
+      canvas.width = maxWidth;
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 export function useBusinessCardScanner() {
@@ -29,26 +56,21 @@ export function useBusinessCardScanner() {
   const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
   const [online, setOnline] = useState(isOnline());
 
-  // Track online/offline status
   useEffect(() => {
     const handleOnline = () => setOnline(true);
     const handleOffline = () => setOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Load pending scans on mount
   useEffect(() => {
     setPendingScans(getPendingScans());
   }, []);
 
-  // Process pending scans when coming back online
   useEffect(() => {
     if (online && pendingScans.length > 0) {
       toast({
@@ -58,15 +80,12 @@ export function useBusinessCardScanner() {
     }
   }, [online, pendingScans.length, toast]);
 
-  /**
-   * Scan a business card - uses local OCR first, then AI if online
-   */
   const scanBusinessCard = useCallback(async (imageData: string): Promise<ScanResult> => {
     setIsScanning(true);
     setScanProgress(0);
 
     try {
-      // Step 1: Always do local OCR first for immediate results
+      // Step 1: Local OCR for immediate results
       toast({
         title: online ? 'Scanning...' : 'Scanning offline...',
         description: 'Extracting text from image...',
@@ -76,7 +95,7 @@ export function useBusinessCardScanner() {
         setScanProgress(progress);
       });
 
-      // Step 2: If online, enhance with AI
+      // Step 2: If online, enhance with AI (using compressed image)
       if (online) {
         setScanProgress(100);
         toast({
@@ -85,31 +104,33 @@ export function useBusinessCardScanner() {
         });
 
         try {
+          const compressedImage = await resizeImage(imageData, 1200);
+
           const { data, error } = await supabase.functions.invoke('scan-business-card', {
-            body: { imageData },
+            body: { imageData: compressedImage },
           });
 
           if (!error && data?.contactInfo) {
             return {
               ...data.contactInfo,
               isAIEnhanced: true,
+              needsReview: data.needsReview ?? false,
+              confidence: data.confidence,
             };
           }
         } catch (aiError) {
           console.warn('AI enhancement failed, using local result:', aiError);
         }
       } else {
-        // Save for later AI enhancement
         savePendingScan(imageData, localResult);
         setPendingScans(getPendingScans());
-        
+
         toast({
           title: 'Offline scan complete',
           description: 'Results saved. AI enhancement available when online.',
         });
       }
 
-      // Return local result
       return {
         name: localResult.name,
         email: localResult.email,
@@ -129,9 +150,6 @@ export function useBusinessCardScanner() {
     }
   }, [online, toast]);
 
-  /**
-   * Enhance a pending scan with AI
-   */
   const enhancePendingScan = useCallback(async (pendingScan: PendingScan): Promise<ScanResult | null> => {
     if (!online) {
       toast({
@@ -143,13 +161,14 @@ export function useBusinessCardScanner() {
     }
 
     try {
+      const compressedImage = await resizeImage(pendingScan.imageData, 1200);
+
       const { data, error } = await supabase.functions.invoke('scan-business-card', {
-        body: { imageData: pendingScan.imageData },
+        body: { imageData: compressedImage },
       });
 
       if (error) throw error;
 
-      // Remove from pending list
       removePendingScan(pendingScan.id);
       setPendingScans(getPendingScans());
 
@@ -161,6 +180,8 @@ export function useBusinessCardScanner() {
       return {
         ...data.contactInfo,
         isAIEnhanced: true,
+        needsReview: data.needsReview ?? false,
+        confidence: data.confidence,
       };
     } catch (error) {
       console.error('AI enhancement failed:', error);
@@ -173,9 +194,6 @@ export function useBusinessCardScanner() {
     }
   }, [online, toast]);
 
-  /**
-   * Dismiss a pending scan
-   */
   const dismissPendingScan = useCallback((id: string) => {
     removePendingScan(id);
     setPendingScans(getPendingScans());
