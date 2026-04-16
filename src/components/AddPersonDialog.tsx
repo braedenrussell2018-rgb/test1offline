@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { UserPlus, Upload, X, Plus, Scan, Wifi, WifiOff, Loader2, AlertTriangle } from "lucide-react";
 import { inventoryStorage, Note, Branch, Company } from "@/lib/inventory-storage";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessCardScanner } from "@/hooks/useBusinessCardScanner";
@@ -43,6 +43,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [businessCardPhoto, setBusinessCardPhoto] = useState<string>("");
+  const [scanNeedsReview, setScanNeedsReview] = useState(false);
   const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const { toast } = useToast();
@@ -132,6 +133,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
     try {
       const result = await scanBusinessCard(businessCardPhoto);
+      setScanNeedsReview(result.needsReview ?? false);
       
       // Auto-fill the form fields
       if (result.name) {
@@ -168,7 +170,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       toast({
         title: result.isAIEnhanced ? "Scan complete" : "Offline scan complete",
         description: result.isAIEnhanced 
-          ? "Business card scanned with AI enhancement!" 
+          ? (result.needsReview ? "Some fields may need review — please verify." : "Business card scanned with AI enhancement!")
           : "Basic text extracted. AI enhancement available when online.",
       });
     } catch (error) {
@@ -642,6 +644,12 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                         ? "Scan with AI" 
                         : "Scan Offline"}
                   </Button>
+                  {scanNeedsReview && (
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-accent text-accent-foreground text-xs">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                      <span>Some fields may be inaccurate. Please review before saving.</span>
+                    </div>
+                  )}
                   {!isOnline && (
                     <p className="text-xs text-muted-foreground text-center">
                       Basic text extraction. AI enhancement when online.
