@@ -14,8 +14,10 @@ import { Company, Person } from "@/lib/inventory-storage";
 import { PersonDetailDialog } from "@/components/PersonDetailDialog";
 import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-export default function MapView() {
+function MapViewContent() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
@@ -68,33 +70,22 @@ export default function MapView() {
   }, []);
 
   const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    else document.exitFullscreen().catch(() => {});
   }, []);
 
   useEffect(() => {
-    const handler = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-      invalidateSize();
-    };
+    const handler = () => { setIsFullscreen(!!document.fullscreenElement); invalidateSize(); };
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, [invalidateSize]);
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Toolbar */}
       <div className="border-b bg-card px-4 py-2 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/crm")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to CRM
-          </Button>
-          <h1 className="font-semibold flex items-center gap-2">
-            <MapPin className="h-5 w-5" /> Contacts & Companies Map
-          </h1>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/crm")}><ArrowLeft className="h-4 w-4 mr-1" /> Back to CRM</Button>
+          <h1 className="font-semibold flex items-center gap-2"><MapPin className="h-5 w-5" /> Contacts & Companies Map</h1>
         </div>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
@@ -110,9 +101,7 @@ export default function MapView() {
           )}
           <div className="flex items-center gap-2">
             <Switch id="h3-toggle-page" checked={showH3Overlay} onCheckedChange={setShowH3Overlay} />
-            <Label htmlFor="h3-toggle-page" className="flex items-center gap-1 text-sm cursor-pointer">
-              <Hexagon className="h-4 w-4" /> H3 Heatmap
-            </Label>
+            <Label htmlFor="h3-toggle-page" className="flex items-center gap-1 text-sm cursor-pointer"><Hexagon className="h-4 w-4" /> H3 Heatmap</Label>
           </div>
           {showH3Overlay && (
             <select value={h3Resolution} onChange={(e) => setH3Resolution(Number(e.target.value))} className="text-sm border rounded px-2 py-1 bg-background">
@@ -126,11 +115,9 @@ export default function MapView() {
         </div>
       </div>
 
-      {/* Map + sidebar */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 relative">
           <div ref={mapContainer} className="absolute inset-0" />
-
           {isLoading && !isLoadingMinimized && (
             <div className={`absolute inset-0 flex items-center justify-center ${locations.length > 0 ? 'bg-background/80' : 'bg-muted'}`}>
               <div className="flex flex-col items-center gap-4 max-w-md px-8 bg-card p-6 rounded-lg shadow-lg">
@@ -141,13 +128,10 @@ export default function MapView() {
                   <button onClick={() => setIsLoadingMinimized(true)} className="text-xs text-primary hover:underline text-center cursor-pointer">
                     {locations.length} locations shown. Click to view map while processing...
                   </button>
-                ) : (
-                  <p className="text-xs text-muted-foreground text-center">First load may take a while. Addresses are cached for 24 hours.</p>
-                )}
+                ) : <p className="text-xs text-muted-foreground text-center">First load may take a while. Addresses are cached for 24 hours.</p>}
               </div>
             </div>
           )}
-
           {isLoading && isLoadingMinimized && (
             <div className="absolute bottom-4 right-4 z-[5000] bg-card border rounded-lg shadow-lg p-3 w-64 animate-in slide-in-from-bottom-2">
               <div className="flex items-center gap-2 mb-2">
@@ -159,7 +143,6 @@ export default function MapView() {
               <p className="text-[10px] text-muted-foreground mt-1 truncate">{geocodeStatus}</p>
             </div>
           )}
-
           {!isLoading && locations.length === 0 && dataLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted">
               <div className="flex flex-col items-center gap-2 text-center px-4">
@@ -177,17 +160,13 @@ export default function MapView() {
               <h3 className="font-semibold text-sm truncate flex-1">
                 {selectedH3Cell ? `Region (${selectedH3Cell.count} contacts)` : selectedLocation?.address}
               </h3>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedLocation(null); setSelectedH3Cell(null); }}>
-                <X className="h-4 w-4" />
-              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedLocation(null); setSelectedH3Cell(null); }}><X className="h-4 w-4" /></Button>
             </div>
             <ScrollArea className="flex-1 p-3">
               <div className="space-y-3">
                 {selectedData.companies.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Building2 className="h-3 w-3" /> Companies ({selectedData.companies.length})
-                    </h4>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Building2 className="h-3 w-3" /> Companies ({selectedData.companies.length})</h4>
                     <div className="space-y-2">
                       {selectedData.companies.map(company => (
                         <CompanyDetailDialog key={company.id} company={company} persons={persons.filter(p => p.companyId === company.id)} onPersonClick={() => {}} onUpdate={onRefresh}>
@@ -209,9 +188,7 @@ export default function MapView() {
                 )}
                 {selectedData.persons.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <User className="h-3 w-3" /> Contacts ({selectedData.persons.length})
-                    </h4>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><User className="h-3 w-3" /> Contacts ({selectedData.persons.length})</h4>
                     <div className="space-y-2">
                       {selectedData.persons.map(person => (
                         <PersonDetailDialog key={person.id} person={person} companyName={getCompanyName(person.companyId)} onUpdate={onRefresh}>
@@ -238,7 +215,6 @@ export default function MapView() {
         )}
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-2 border-t text-xs text-muted-foreground flex justify-between items-center shrink-0">
         <span>Showing {locations.length} location{locations.length !== 1 ? "s" : ""} • Click a marker or hexagon to see details</span>
         {showH3Overlay && locations.length > 0 && (
@@ -249,13 +225,10 @@ export default function MapView() {
         )}
       </div>
 
-      {/* Failed Locations Dialog */}
       <Dialog open={showFailedDialog} onOpenChange={setShowFailedDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" /> Failed Addresses
-            </DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><AlertCircle className="h-5 w-5 text-destructive" /> Failed Addresses</DialogTitle>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto pr-2">
             <p className="text-sm text-muted-foreground mb-4">The following addresses could not be located.</p>
@@ -268,16 +241,14 @@ export default function MapView() {
                       {fail.companies.map(c => (
                         <CompanyDetailDialog key={c.id} company={c} persons={persons.filter(p => p.companyId === c.id)} onPersonClick={() => {}} onUpdate={onRefresh}>
                           <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
-                            <Building2 className="h-3 w-3" />
-                            <span className="underline decoration-dotted">{c.name}</span>
+                            <Building2 className="h-3 w-3" /><span className="underline decoration-dotted">{c.name}</span>
                           </div>
                         </CompanyDetailDialog>
                       ))}
                       {fail.persons.map(p => (
                         <PersonDetailDialog key={p.id} person={p} companyName={getCompanyName(p.companyId)} onUpdate={onRefresh}>
                           <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
-                            <User className="h-3 w-3" />
-                            <span className="underline decoration-dotted">{p.name}</span>
+                            <User className="h-3 w-3" /><span className="underline decoration-dotted">{p.name}</span>
                           </div>
                         </PersonDetailDialog>
                       ))}
@@ -290,5 +261,15 @@ export default function MapView() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function MapView() {
+  return (
+    <ProtectedRoute>
+      <ErrorBoundary>
+        <MapViewContent />
+      </ErrorBoundary>
+    </ProtectedRoute>
   );
 }
