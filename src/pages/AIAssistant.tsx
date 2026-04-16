@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useLocalWhisper } from "@/hooks/useLocalWhisper";
@@ -672,12 +673,37 @@ export default function AIAssistant() {
     setIsSavingDirect(false);
   };
 
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historySortOrder, setHistorySortOrder] = useState<"newest" | "oldest">("newest");
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, isAsking]);
+
+  const filteredConversations = conversations
+    .filter((conv) => {
+      if (!historySearch.trim()) return true;
+      const term = historySearch.toLowerCase();
+      const contactName = getContactName(conv.contact_id).toLowerCase();
+      const summary = (conv.summary || "").toLowerCase();
+      const transcript = conv.transcript.toLowerCase();
+      return contactName.includes(term) || summary.includes(term) || transcript.includes(term);
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return historySortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+
   const askQuestion = async () => {
     if (!question.trim()) return;
 
     const userQuestion = question;
     setQuestion("");
-    setChatHistory(prev => [...prev, { role: 'user', content: userQuestion }]);
+    const newHistory = [...chatHistory, { role: 'user' as const, content: userQuestion }];
+    setChatHistory(newHistory);
     setIsAsking(true);
 
     try {
@@ -688,6 +714,7 @@ export default function AIAssistant() {
           action: 'ask_question',
           question: userQuestion,
           conversationIds,
+          messages: chatHistory, // send full prior history for context
         },
       });
 
