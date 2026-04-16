@@ -43,6 +43,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [businessCardPhoto, setBusinessCardPhoto] = useState<string>("");
+  const [scanNeedsReview, setScanNeedsReview] = useState(false);
   const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const { toast } = useToast();
@@ -132,6 +133,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
 
     try {
       const result = await scanBusinessCard(businessCardPhoto);
+      setScanNeedsReview(result.needsReview ?? false);
       
       // Auto-fill the form fields
       if (result.name) {
@@ -168,7 +170,7 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
       toast({
         title: result.isAIEnhanced ? "Scan complete" : "Offline scan complete",
         description: result.isAIEnhanced 
-          ? "Business card scanned with AI enhancement!" 
+          ? (result.needsReview ? "Some fields may need review — please verify." : "Business card scanned with AI enhancement!")
           : "Basic text extracted. AI enhancement available when online.",
       });
     } catch (error) {
