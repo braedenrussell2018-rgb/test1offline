@@ -149,8 +149,6 @@ function AccountingContent() {
   const avgInventoryAge = inventoryAges.length > 0 ? inventoryAges.reduce((sum, age) => sum + age, 0) / inventoryAges.length : 0;
   const salePriceValue = availableItems.reduce((sum, item) => sum + (item.salePrice || 0), 0);
 
-  // Pagination for invoices
-  const invoicePagination = usePagination({ totalItems: filteredInvoices.length, initialPageSize: 25 });
   const paginatedPaidInvoices = paidInvoices.slice(0, 10);
   const paginatedUnpaidInvoices = unpaidInvoices.slice(0, 10);
 

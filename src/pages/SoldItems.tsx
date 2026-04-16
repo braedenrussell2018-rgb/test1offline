@@ -1,11 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Package } from "lucide-react";
 import { inventoryStorage, InventoryItem } from "@/lib/inventory-storage";
 import { format, parseISO, startOfMonth } from "date-fns";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useAsyncData } from "@/hooks/useAsyncData";
+import { EmptyState } from "@/components/EmptyState";
 
 interface MonthGroup {
   month: string;
@@ -14,52 +18,63 @@ interface MonthGroup {
   totalValue: number;
 }
 
+function SoldItemsSkeleton() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="border-b bg-card">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-10" />
+            <div><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-48 mt-2" /></div>
+          </div>
+        </div>
+      </div>
+      <div className="container mx-auto px-4 py-8 space-y-6">
+        {[1, 2].map(i => <Card key={i}><CardContent className="pt-6"><Skeleton className="h-32 w-full" /></CardContent></Card>)}
+      </div>
+    </div>
+  );
+}
+
 function SoldItemsContent() {
-  const [monthGroups, setMonthGroups] = useState<MonthGroup[]>([]);
+  const fetchSoldItems = useCallback(async (): Promise<MonthGroup[]> => {
+    const items = await inventoryStorage.getItems();
+    const soldItems = items.filter(item => item.status === 'sold' && item.soldDate);
 
-  useEffect(() => {
-    const loadSoldItems = async () => {
-      const items = await inventoryStorage.getItems();
-      const soldItems = items.filter(item => item.status === 'sold' && item.soldDate);
+    const grouped = new Map<string, InventoryItem[]>();
+    soldItems.forEach(item => {
+      if (item.soldDate) {
+        const monthKey = format(startOfMonth(parseISO(item.soldDate)), 'yyyy-MM');
+        if (!grouped.has(monthKey)) grouped.set(monthKey, []);
+        grouped.get(monthKey)!.push(item);
+      }
+    });
 
-      // Group by month
-      const grouped = new Map<string, InventoryItem[]>();
-      soldItems.forEach(item => {
-        if (item.soldDate) {
-          const monthKey = format(startOfMonth(parseISO(item.soldDate)), 'yyyy-MM');
-          if (!grouped.has(monthKey)) {
-            grouped.set(monthKey, []);
-          }
-          grouped.get(monthKey)!.push(item);
-        }
-      });
-
-      // Convert to array and sort by month (newest first)
-      const groups: MonthGroup[] = Array.from(grouped.entries())
-        .map(([monthKey, items]) => ({
-          month: format(parseISO(monthKey + '-01'), 'MMMM yyyy'),
-          monthKey,
-          items,
-          totalValue: items.reduce((sum, item) => sum + item.salePrice, 0),
-        }))
-        .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-
-      setMonthGroups(groups);
-    };
-
-    loadSoldItems();
+    return Array.from(grouped.entries())
+      .map(([monthKey, items]) => ({
+        month: format(parseISO(monthKey + '-01'), 'MMMM yyyy'),
+        monthKey, items,
+        totalValue: items.reduce((sum, item) => sum + item.salePrice, 0),
+      }))
+      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   }, []);
+
+  const { data: monthGroups, loading } = useAsyncData(fetchSoldItems, {
+    loadOnMount: true,
+    errorMessage: "Failed to load sold items",
+    cacheKey: "sold-items-data",
+  });
+
+  const groups = monthGroups || [];
+
+  if (loading) return <SoldItemsSkeleton />;
 
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b bg-card">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Link to="/"><Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button></Link>
             <div>
               <h1 className="text-3xl font-bold text-foreground">Sold Items by Month</h1>
               <p className="text-muted-foreground mt-1">View items sold in previous months</p>
@@ -69,64 +84,37 @@ function SoldItemsContent() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {monthGroups.length === 0 ? (
-          <Card>
-            <CardContent className="py-12">
-              <p className="text-center text-muted-foreground">
-                No sold items found.
-              </p>
-            </CardContent>
-          </Card>
+        {groups.length === 0 ? (
+          <Card><CardContent><EmptyState icon={Package} title="No sold items found" description="Items will appear here once they are sold" /></CardContent></Card>
         ) : (
           <div className="space-y-6">
-            {monthGroups.map((group) => (
+            {groups.map((group) => (
               <Card key={group.monthKey}>
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-2xl">{group.month}</CardTitle>
                     <div className="text-right">
-                      <div className="text-lg font-semibold text-muted-foreground">
-                        {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
-                      </div>
-                      <div className="text-xl font-bold">
-                        ${group.totalValue.toFixed(2)}
-                      </div>
+                      <div className="text-lg font-semibold text-muted-foreground">{group.items.length} {group.items.length === 1 ? 'item' : 'items'}</div>
+                      <div className="text-xl font-bold">${group.totalValue.toFixed(2)}</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {group.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors"
-                      >
+                      <div key={item.id} className="flex items-start justify-between p-4 border rounded-lg bg-card hover:bg-accent/10 transition-colors">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <Package className="h-4 w-4 text-muted-foreground" />
                             <span className="font-semibold">{item.partNumber}</span>
-                            {item.serialNumber && (
-                              <span className="text-sm text-muted-foreground">SN: {item.serialNumber}</span>
-                            )}
+                            {item.serialNumber && <span className="text-sm text-muted-foreground">SN: {item.serialNumber}</span>}
                           </div>
                           <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                            <span className="text-muted-foreground">
-                              Sale Price: <span className="font-medium text-foreground">${item.salePrice.toFixed(2)}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Cost: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span>
-                            </span>
-                            {item.soldDate && (
-                              <span className="text-muted-foreground col-span-2">
-                                Sold: {format(parseISO(item.soldDate), 'MMM dd, yyyy')}
-                              </span>
-                            )}
-                            {item.invoiceId && (
-                              <span className="text-muted-foreground col-span-2">
-                                Invoice: <span className="font-medium text-foreground">{item.invoiceId}</span>
-                              </span>
-                            )}
+                            <span className="text-muted-foreground">Sale Price: <span className="font-medium text-foreground">${item.salePrice.toFixed(2)}</span></span>
+                            <span className="text-muted-foreground">Cost: <span className="font-medium text-foreground">${item.cost.toFixed(2)}</span></span>
+                            {item.soldDate && <span className="text-muted-foreground col-span-2">Sold: {format(parseISO(item.soldDate), 'MMM dd, yyyy')}</span>}
+                            {item.invoiceId && <span className="text-muted-foreground col-span-2">Invoice: <span className="font-medium text-foreground">{item.invoiceId}</span></span>}
                           </div>
                         </div>
                       </div>
@@ -145,7 +133,9 @@ function SoldItemsContent() {
 export default function SoldItems() {
   return (
     <ProtectedRoute>
-      <SoldItemsContent />
+      <ErrorBoundary>
+        <SoldItemsContent />
+      </ErrorBoundary>
     </ProtectedRoute>
   );
 }
