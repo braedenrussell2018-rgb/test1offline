@@ -644,6 +644,12 @@ export function AddPersonDialog({ onPersonAdded }: AddPersonDialogProps) {
                         ? "Scan with AI" 
                         : "Scan Offline"}
                   </Button>
+                  {scanNeedsReview && (
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-accent text-accent-foreground text-xs">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                      <span>Some fields may be inaccurate. Please review before saving.</span>
+                    </div>
+                  )}
                   {!isOnline && (
                     <p className="text-xs text-muted-foreground text-center">
                       Basic text extraction. AI enhancement when online.
