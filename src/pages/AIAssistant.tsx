@@ -1300,23 +1300,8 @@ export default function AIAssistant() {
                           }`}
                         >
                           {msg.role === 'assistant' ? (
-                            <div className="whitespace-pre-wrap">
-                              {msg.content.split('\n').map((line, lineIdx) => {
-                                // Render source indicators with styling
-                                if (line.includes('**Source:')) {
-                                  const sourceMatch = line.match(/\*\*Source: (.+?)\*\*/);
-                                  if (sourceMatch) {
-                                    const emoji = line.startsWith('📁🌐') ? '📁🌐' : line.startsWith('📁') ? '📁' : '🌐';
-                                    return (
-                                      <div key={lineIdx} className="font-semibold text-primary mb-2 pb-2 border-b border-border">
-                                        {emoji} Source: {sourceMatch[1]}
-                                      </div>
-                                    );
-                                  }
-                                }
-                                // Render regular lines
-                                return <span key={lineIdx}>{line}{lineIdx < msg.content.split('\n').length - 1 ? '\n' : ''}</span>;
-                              })}
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
                             </div>
                           ) : (
                             <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1330,6 +1315,7 @@ export default function AIAssistant() {
                         Thinking...
                       </div>
                     )}
+                    <div ref={chatEndRef} />
                   </div>
                 </ScrollArea>
                 
