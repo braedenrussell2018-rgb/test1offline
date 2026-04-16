@@ -1130,18 +1130,35 @@ export default function AIAssistant() {
               <CardHeader>
                 <CardTitle>Conversation History</CardTitle>
                 <CardDescription>
-                  {conversations.length} recorded conversation{conversations.length !== 1 ? 's' : ''}
+                  {filteredConversations.length} of {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
                 </CardDescription>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Search by contact, summary, or transcript..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select value={historySortOrder} onValueChange={(v) => setHistorySortOrder(v as "newest" | "oldest")}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-4">
-                    {conversations.length === 0 ? (
+                    {filteredConversations.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8">
-                        No conversations yet. Start by recording one!
+                        {historySearch ? "No conversations match your search." : "No conversations yet. Start by recording one!"}
                       </p>
                     ) : (
-                      conversations.map((conv) => (
+                      filteredConversations.map((conv) => (
                         <Card key={conv.id} className="border">
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between">
