@@ -64,7 +64,7 @@ serve(async (req) => {
 
     console.log("Authenticated user:", user.id);
 
-    const { action, transcript, contacts, conversationIds, question } = await req.json();
+    const { action, transcript, contacts, conversationIds, question, messages: chatMessages } = await req.json();
     console.log(`AI Assistant action: ${action} for user: ${user.id}`);
 
     // Use Lovable AI
@@ -76,7 +76,7 @@ serve(async (req) => {
     }
 
     const apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    const model = "google/gemini-2.5-flash";
+    const model = "google/gemini-3-flash-preview";
 
     console.log(`Using Lovable AI with model: ${model}`);
 
@@ -220,6 +220,23 @@ ${conversationContext}` : 'No company conversation history available.'}`;
 
       console.log("Sending question to Lovable AI...");
 
+      // Build messages array: system prompt + full chat history (if provided) + current question
+      const aiMessages: { role: string; content: string }[] = [
+        { role: "system", content: systemPromptWithData },
+      ];
+
+      // Append prior chat history for context
+      if (chatMessages && Array.isArray(chatMessages)) {
+        for (const msg of chatMessages) {
+          if (msg.role && msg.content) {
+            aiMessages.push({ role: msg.role, content: msg.content });
+          }
+        }
+      }
+
+      // Append current question
+      aiMessages.push({ role: "user", content: question });
+
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -228,10 +245,7 @@ ${conversationContext}` : 'No company conversation history available.'}`;
         },
         body: JSON.stringify({
           model,
-          messages: [
-            { role: "system", content: systemPromptWithData },
-            { role: "user", content: question }
-          ],
+          messages: aiMessages,
         }),
       });
 
