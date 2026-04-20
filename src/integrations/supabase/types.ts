@@ -605,14 +605,19 @@ export type Database = {
           id: string
           invoice_number: string
           items: Json
+          last_edited_at: string | null
+          last_edited_by: string | null
+          notes: string | null
           paid: boolean | null
           paid_at: string | null
           salesman_name: string | null
           ship_to_address: string | null
           ship_to_name: string | null
           shipping: number | null
+          source_quote_id: string | null
           status: string
           subtotal: number
+          tax: number
           total: number
         }
         Insert: {
@@ -626,14 +631,19 @@ export type Database = {
           id?: string
           invoice_number: string
           items?: Json
+          last_edited_at?: string | null
+          last_edited_by?: string | null
+          notes?: string | null
           paid?: boolean | null
           paid_at?: string | null
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          source_quote_id?: string | null
           status?: string
           subtotal: number
+          tax?: number
           total: number
         }
         Update: {
@@ -647,14 +657,19 @@ export type Database = {
           id?: string
           invoice_number?: string
           items?: Json
+          last_edited_at?: string | null
+          last_edited_by?: string | null
+          notes?: string | null
           paid?: boolean | null
           paid_at?: string | null
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          source_quote_id?: string | null
           status?: string
           subtotal?: number
+          tax?: number
           total?: number
         }
         Relationships: []
@@ -1066,14 +1081,18 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           discount: number | null
+          expires_at: string | null
           id: string
           items: Json
+          notes: string | null
           quote_number: string
           salesman_name: string | null
           ship_to_address: string | null
           ship_to_name: string | null
           shipping: number | null
+          status: string
           subtotal: number
+          tax: number
           total: number
         }
         Insert: {
@@ -1083,14 +1102,18 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           discount?: number | null
+          expires_at?: string | null
           id?: string
           items?: Json
+          notes?: string | null
           quote_number: string
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          status?: string
           subtotal: number
+          tax?: number
           total: number
         }
         Update: {
@@ -1100,14 +1123,18 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           discount?: number | null
+          expires_at?: string | null
           id?: string
           items?: Json
+          notes?: string | null
           quote_number?: string
           salesman_name?: string | null
           ship_to_address?: string | null
           ship_to_name?: string | null
           shipping?: number | null
+          status?: string
           subtotal?: number
+          tax?: number
           total?: number
         }
         Relationships: []
