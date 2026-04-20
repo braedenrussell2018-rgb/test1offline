@@ -662,7 +662,7 @@ export const getQuotes = async (): Promise<Quote[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => ({
+  return (data || []).map((row: any) => ({
     id: String(row.id),
     quoteNumber: String(row.quote_number),
     customerName: String(row.customer_name),
@@ -672,19 +672,26 @@ export const getQuotes = async (): Promise<Quote[]> => {
     shipToName: row.ship_to_name as string | undefined,
     shipToAddress: row.ship_to_address as string | undefined,
     salesmanName: row.salesman_name as string | undefined,
-    items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
+    items: row.items as Array<DocLineItem>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
+    tax: row.tax !== null && row.tax !== undefined ? Number(row.tax) : 0,
+    notes: row.notes as string | undefined,
     total: Number(row.total),
+    status: (row.status as Quote['status']) || 'pending',
+    expiresAt: row.expires_at as string | undefined,
     createdAt: String(row.created_at),
   }));
 };
 
-export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
+export const addQuote = async (
+  quote: Omit<Quote, "id">,
+  status: Quote['status'] = 'pending'
+): Promise<Quote> => {
   const { data, error } = await supabase
     .from("quotes")
-    .insert({
+    .insert([{
       quote_number: quote.quoteNumber,
       customer_name: quote.customerName,
       customer_email: quote.customerEmail,
@@ -693,33 +700,84 @@ export const addQuote = async (quote: Omit<Quote, "id">): Promise<Quote> => {
       ship_to_name: quote.shipToName,
       ship_to_address: quote.shipToAddress,
       salesman_name: quote.salesmanName,
-      items: quote.items,
+      items: quote.items as any,
       subtotal: quote.subtotal,
       discount: quote.discount,
       shipping: quote.shipping,
+      tax: quote.tax || 0,
+      notes: quote.notes,
       total: quote.total,
-    })
+      status: status,
+      expires_at: quote.expiresAt,
+    }])
     .select()
     .single();
 
   if (error) throw error;
+  const row: any = data;
   return {
-    id: data.id,
-    quoteNumber: data.quote_number,
-    customerName: data.customer_name,
-    customerEmail: data.customer_email,
-    customerPhone: data.customer_phone,
-    customerAddress: data.customer_address,
-    shipToName: data.ship_to_name,
-    shipToAddress: data.ship_to_address,
-    salesmanName: data.salesman_name,
-    items: data.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
-    subtotal: Number(data.subtotal),
-    discount: Number(data.discount),
-    shipping: Number(data.shipping),
-    total: Number(data.total),
-    createdAt: data.created_at,
+    id: row.id,
+    quoteNumber: row.quote_number,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    customerAddress: row.customer_address,
+    shipToName: row.ship_to_name,
+    shipToAddress: row.ship_to_address,
+    salesmanName: row.salesman_name,
+    items: row.items as Array<DocLineItem>,
+    subtotal: Number(row.subtotal),
+    discount: Number(row.discount),
+    shipping: Number(row.shipping),
+    tax: row.tax !== null && row.tax !== undefined ? Number(row.tax) : 0,
+    notes: row.notes,
+    total: Number(row.total),
+    status: (row.status as Quote['status']) || 'pending',
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
   };
+};
+
+export const updateQuote = async (id: string, updates: {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  shipToAddress?: string;
+  salesmanName?: string;
+  items?: Array<DocLineItem>;
+  subtotal?: number;
+  discount?: number;
+  shipping?: number;
+  tax?: number;
+  notes?: string;
+  total?: number;
+  status?: Quote['status'];
+  expiresAt?: string;
+}): Promise<void> => {
+  const updateData: Record<string, unknown> = {};
+  if (updates.customerName !== undefined) updateData.customer_name = updates.customerName;
+  if (updates.customerEmail !== undefined) updateData.customer_email = updates.customerEmail;
+  if (updates.customerPhone !== undefined) updateData.customer_phone = updates.customerPhone;
+  if (updates.customerAddress !== undefined) updateData.customer_address = updates.customerAddress;
+  if (updates.shipToAddress !== undefined) updateData.ship_to_address = updates.shipToAddress;
+  if (updates.salesmanName !== undefined) updateData.salesman_name = updates.salesmanName;
+  if (updates.items !== undefined) updateData.items = updates.items;
+  if (updates.subtotal !== undefined) updateData.subtotal = updates.subtotal;
+  if (updates.discount !== undefined) updateData.discount = updates.discount;
+  if (updates.shipping !== undefined) updateData.shipping = updates.shipping;
+  if (updates.tax !== undefined) updateData.tax = updates.tax;
+  if (updates.notes !== undefined) updateData.notes = updates.notes;
+  if (updates.total !== undefined) updateData.total = updates.total;
+  if (updates.status !== undefined) updateData.status = updates.status;
+  if (updates.expiresAt !== undefined) updateData.expires_at = updates.expiresAt;
+
+  const { error } = await supabase
+    .from("quotes")
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) throw error;
 };
 
 export const deleteQuote = async (id: string): Promise<void> => {
