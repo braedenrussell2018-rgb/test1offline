@@ -24,6 +24,15 @@ export interface InventoryItem {
   minSalePrice?: number;
 }
 
+export interface DocLineItem {
+  itemId: string;
+  partNumber: string;
+  serialNumber?: string;
+  description: string;
+  price: number;
+  quantity?: number;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -35,21 +44,20 @@ export interface Invoice {
   shipToName?: string;
   shipToAddress?: string;
   salesmanName?: string;
-  items: {
-    itemId: string;
-    partNumber: string;
-    serialNumber?: string;
-    description: string;
-    price: number;
-  }[];
+  items: DocLineItem[];
   subtotal: number;
   discount: number;
   shippingCost: number;
+  tax?: number;
+  notes?: string;
   total: number;
   createdAt: string;
   paid?: boolean;
   paidAt?: string;
   status?: 'draft' | 'finalized';
+  sourceQuoteId?: string;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }
 
 export interface Quote {
@@ -62,18 +70,15 @@ export interface Quote {
   shipToName?: string;
   shipToAddress?: string;
   salesmanName?: string;
-  items: {
-    itemId: string;
-    partNumber: string;
-    serialNumber?: string;
-    description: string;
-    price: number;
-  }[];
+  items: DocLineItem[];
   subtotal: number;
   discount: number;
   shippingCost: number;
+  tax?: number;
+  notes?: string;
   total: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'expired';
+  expiresAt?: string;
   createdAt: string;
 }
 
