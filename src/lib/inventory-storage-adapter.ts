@@ -343,15 +343,21 @@ export const getInvoices = async (): Promise<Invoice[]> => {
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
+      quantity: item.quantity || 1,
     })),
     subtotal: inv.subtotal,
     discount: inv.discount,
     shippingCost: inv.shipping,
+    tax: inv.tax || 0,
+    notes: inv.notes,
     total: inv.total,
     createdAt: inv.createdAt,
     paid: inv.paid || false,
     paidAt: inv.paidAt,
     status: inv.status,
+    sourceQuoteId: inv.sourceQuoteId,
+    lastEditedAt: inv.lastEditedAt,
+    lastEditedBy: inv.lastEditedBy,
   }));
 };
 
@@ -371,11 +377,15 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">, sta
       serialNumber: item.serialNumber,
       description: item.description,
       sellPrice: item.price,
+      quantity: item.quantity || 1,
     })),
     subtotal: invoice.subtotal,
     discount: invoice.discount,
     shipping: invoice.shippingCost,
+    tax: invoice.tax || 0,
+    notes: invoice.notes,
     total: invoice.total,
+    sourceQuoteId: invoice.sourceQuoteId,
     createdAt: new Date().toISOString(),
   }, status);
 
@@ -395,13 +405,17 @@ export const addInvoice = async (invoice: Omit<Invoice, "id" | "createdAt">, sta
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
+      quantity: item.quantity || 1,
     })),
     subtotal: dbInvoice.subtotal,
     discount: dbInvoice.discount,
     shippingCost: dbInvoice.shipping,
+    tax: dbInvoice.tax || 0,
+    notes: dbInvoice.notes,
     total: dbInvoice.total,
     createdAt: dbInvoice.createdAt,
     status: dbInvoice.status,
+    sourceQuoteId: dbInvoice.sourceQuoteId,
   };
 };
 
@@ -416,27 +430,37 @@ export const updateInvoice = async (id: string, updates: {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  customerAddress?: string;
   shipToAddress?: string;
   salesmanName?: string;
-  items?: { itemId: string; partNumber: string; serialNumber?: string; description: string; price: number }[];
+  items?: DocLineItem[];
   subtotal?: number;
   discount?: number;
   shippingCost?: number;
+  tax?: number;
+  notes?: string;
   total?: number;
   status?: 'draft' | 'finalized';
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }): Promise<void> => {
   const dbUpdates: Parameters<typeof db.updateInvoice>[1] = {};
-  
+
   if (updates.customerName !== undefined) dbUpdates.customerName = updates.customerName;
   if (updates.customerEmail !== undefined) dbUpdates.customerEmail = updates.customerEmail;
   if (updates.customerPhone !== undefined) dbUpdates.customerPhone = updates.customerPhone;
+  if (updates.customerAddress !== undefined) dbUpdates.customerAddress = updates.customerAddress;
   if (updates.shipToAddress !== undefined) dbUpdates.shipToAddress = updates.shipToAddress;
   if (updates.salesmanName !== undefined) dbUpdates.salesmanName = updates.salesmanName;
   if (updates.subtotal !== undefined) dbUpdates.subtotal = updates.subtotal;
   if (updates.discount !== undefined) dbUpdates.discount = updates.discount;
   if (updates.shippingCost !== undefined) dbUpdates.shipping = updates.shippingCost;
+  if (updates.tax !== undefined) dbUpdates.tax = updates.tax;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.total !== undefined) dbUpdates.total = updates.total;
   if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.lastEditedAt !== undefined) dbUpdates.lastEditedAt = updates.lastEditedAt;
+  if (updates.lastEditedBy !== undefined) dbUpdates.lastEditedBy = updates.lastEditedBy;
   if (updates.items !== undefined) {
     dbUpdates.items = updates.items.map(item => ({
       id: item.itemId,
@@ -444,6 +468,7 @@ export const updateInvoice = async (id: string, updates: {
       serialNumber: item.serialNumber,
       description: item.description,
       sellPrice: item.price,
+      quantity: item.quantity || 1,
     }));
   }
 
