@@ -586,27 +586,6 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">, status: 'draft' |
   };
 };
 
-  if (error) throw error;
-  return {
-    id: data.id,
-    invoiceNumber: data.invoice_number,
-    customerName: data.customer_name,
-    customerEmail: data.customer_email,
-    customerPhone: data.customer_phone,
-    customerAddress: data.customer_address,
-    shipToName: data.ship_to_name,
-    shipToAddress: data.ship_to_address,
-    salesmanName: data.salesman_name,
-    items: data.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
-    subtotal: Number(data.subtotal),
-    discount: Number(data.discount),
-    shipping: Number(data.shipping),
-    total: Number(data.total),
-    createdAt: data.created_at,
-    status: (data as any).status as 'draft' | 'finalized',
-  };
-};
-
 export const updateInvoice = async (id: string, updates: {
   paid?: boolean;
   paidAt?: string;
@@ -614,13 +593,19 @@ export const updateInvoice = async (id: string, updates: {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  customerAddress?: string;
   shipToAddress?: string;
-  items?: Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>;
+  items?: Array<DocLineItem>;
   subtotal?: number;
   discount?: number;
   shipping?: number;
+  tax?: number;
+  notes?: string;
   total?: number;
   status?: 'draft' | 'finalized';
+  sourceQuoteId?: string;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }): Promise<void> => {
   const updateData: Record<string, unknown> = {};
   if (updates.paid !== undefined) updateData.paid = updates.paid;
@@ -629,13 +614,19 @@ export const updateInvoice = async (id: string, updates: {
   if (updates.customerName !== undefined) updateData.customer_name = updates.customerName;
   if (updates.customerEmail !== undefined) updateData.customer_email = updates.customerEmail;
   if (updates.customerPhone !== undefined) updateData.customer_phone = updates.customerPhone;
+  if (updates.customerAddress !== undefined) updateData.customer_address = updates.customerAddress;
   if (updates.shipToAddress !== undefined) updateData.ship_to_address = updates.shipToAddress;
   if (updates.items !== undefined) updateData.items = updates.items;
   if (updates.subtotal !== undefined) updateData.subtotal = updates.subtotal;
   if (updates.discount !== undefined) updateData.discount = updates.discount;
   if (updates.shipping !== undefined) updateData.shipping = updates.shipping;
+  if (updates.tax !== undefined) updateData.tax = updates.tax;
+  if (updates.notes !== undefined) updateData.notes = updates.notes;
   if (updates.total !== undefined) updateData.total = updates.total;
   if (updates.status !== undefined) updateData.status = updates.status;
+  if (updates.sourceQuoteId !== undefined) updateData.source_quote_id = updates.sourceQuoteId;
+  if (updates.lastEditedAt !== undefined) updateData.last_edited_at = updates.lastEditedAt;
+  if (updates.lastEditedBy !== undefined) updateData.last_edited_by = updates.lastEditedBy;
 
   const { error } = await supabase
     .from("invoices")
