@@ -51,6 +51,15 @@ export interface Person {
   updatedByName?: string;
 }
 
+export interface DocLineItem {
+  id: string;
+  partNumber: string;
+  description: string;
+  sellPrice: number;
+  serialNumber?: string;
+  quantity?: number;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -61,21 +70,20 @@ export interface Invoice {
   shipToName?: string;
   shipToAddress?: string;
   salesmanName?: string;
-  items: Array<{
-    id: string;
-    partNumber: string;
-    description: string;
-    sellPrice: number;
-    serialNumber?: string;
-  }>;
+  items: Array<DocLineItem>;
   subtotal: number;
   discount: number;
   shipping: number;
+  tax?: number;
+  notes?: string;
   total: number;
   createdAt: string;
   paid?: boolean;
   paidAt?: string;
   status?: 'draft' | 'finalized';
+  sourceQuoteId?: string;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }
 
 export interface Quote {
@@ -88,17 +96,15 @@ export interface Quote {
   shipToName?: string;
   shipToAddress?: string;
   salesmanName?: string;
-  items: Array<{
-    id: string;
-    partNumber: string;
-    description: string;
-    sellPrice: number;
-    serialNumber?: string;
-  }>;
+  items: Array<DocLineItem>;
   subtotal: number;
   discount: number;
   shipping: number;
+  tax?: number;
+  notes?: string;
   total: number;
+  status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'expired';
+  expiresAt?: string;
   createdAt: string;
 }
 
