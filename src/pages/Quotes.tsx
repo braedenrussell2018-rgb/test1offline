@@ -88,8 +88,7 @@ function QuotesContent() {
       toast({ title: "Invoice created", description: `Invoice ${invoice.invoiceNumber} has been created` });
       navigate('/');
     }
-    const updatedQuote = { ...quote!, status: newStatus };
-    await inventoryStorage.updateQuote(updatedQuote);
+    await inventoryStorage.updateQuote(quoteId, { status: newStatus });
     refresh();
     toast({ title: "Status updated", description: `Quote status changed to ${newStatus}` });
   };
