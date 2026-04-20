@@ -509,7 +509,7 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => ({
+  return (data || []).map((row: any) => ({
     id: String(row.id),
     invoiceNumber: String(row.invoice_number),
     customerName: String(row.customer_name),
@@ -519,22 +519,27 @@ export const getInvoices = async (): Promise<Invoice[]> => {
     shipToName: row.ship_to_name as string | undefined,
     shipToAddress: row.ship_to_address as string | undefined,
     salesmanName: row.salesman_name as string | undefined,
-    items: row.items as Array<{ id: string; partNumber: string; description: string; sellPrice: number; serialNumber?: string }>,
+    items: row.items as Array<DocLineItem>,
     subtotal: Number(row.subtotal),
     discount: Number(row.discount),
     shipping: Number(row.shipping),
+    tax: row.tax !== null && row.tax !== undefined ? Number(row.tax) : 0,
+    notes: row.notes as string | undefined,
     total: Number(row.total),
     createdAt: String(row.created_at),
     paid: Boolean(row.paid),
     paidAt: row.paid_at as string | undefined,
-    status: (row as any).status as 'draft' | 'finalized' | undefined,
+    status: row.status as 'draft' | 'finalized' | undefined,
+    sourceQuoteId: row.source_quote_id as string | undefined,
+    lastEditedAt: row.last_edited_at as string | undefined,
+    lastEditedBy: row.last_edited_by as string | undefined,
   }));
 };
 
 export const addInvoice = async (invoice: Omit<Invoice, "id">, status: 'draft' | 'finalized' = 'finalized'): Promise<Invoice> => {
   const { data, error } = await supabase
     .from("invoices")
-    .insert({
+    .insert([{
       invoice_number: invoice.invoiceNumber,
       customer_name: invoice.customerName,
       customer_email: invoice.customerEmail,
@@ -543,15 +548,43 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">, status: 'draft' |
       ship_to_name: invoice.shipToName,
       ship_to_address: invoice.shipToAddress,
       salesman_name: invoice.salesmanName,
-      items: invoice.items,
+      items: invoice.items as any,
       subtotal: invoice.subtotal,
       discount: invoice.discount,
       shipping: invoice.shipping,
+      tax: invoice.tax || 0,
+      notes: invoice.notes,
       total: invoice.total,
       status: status,
-    })
+      source_quote_id: invoice.sourceQuoteId,
+    }])
     .select()
     .single();
+
+  if (error) throw error;
+  const row: any = data;
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    customerAddress: row.customer_address,
+    shipToName: row.ship_to_name,
+    shipToAddress: row.ship_to_address,
+    salesmanName: row.salesman_name,
+    items: row.items as Array<DocLineItem>,
+    subtotal: Number(row.subtotal),
+    discount: Number(row.discount),
+    shipping: Number(row.shipping),
+    tax: row.tax !== null && row.tax !== undefined ? Number(row.tax) : 0,
+    notes: row.notes,
+    total: Number(row.total),
+    createdAt: row.created_at,
+    status: row.status as 'draft' | 'finalized',
+    sourceQuoteId: row.source_quote_id,
+  };
+};
 
   if (error) throw error;
   return {
