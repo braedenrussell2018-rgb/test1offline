@@ -502,17 +502,24 @@ export const getQuotes = async (): Promise<Quote[]> => {
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
+      quantity: item.quantity || 1,
     })),
     subtotal: quote.subtotal,
     discount: quote.discount,
     shippingCost: quote.shipping,
+    tax: quote.tax || 0,
+    notes: quote.notes,
     total: quote.total,
-    status: 'pending',
+    status: quote.status || 'pending',
+    expiresAt: quote.expiresAt,
     createdAt: quote.createdAt,
   }));
 };
 
-export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<Quote> => {
+export const addQuote = async (
+  quote: Omit<Quote, "id" | "createdAt">,
+  status: Quote['status'] = 'pending'
+): Promise<Quote> => {
   const dbQuote = await db.addQuote({
     quoteNumber: quote.quoteNumber,
     customerName: quote.customerName!,
@@ -528,13 +535,17 @@ export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<
       serialNumber: item.serialNumber,
       description: item.description,
       sellPrice: item.price,
+      quantity: item.quantity || 1,
     })),
     subtotal: quote.subtotal,
     discount: quote.discount,
     shipping: quote.shippingCost,
+    tax: quote.tax || 0,
+    notes: quote.notes,
     total: quote.total,
+    expiresAt: quote.expiresAt,
     createdAt: new Date().toISOString(),
-  });
+  }, status);
 
   return {
     id: dbQuote.id,
@@ -552,12 +563,16 @@ export const addQuote = async (quote: Omit<Quote, "id" | "createdAt">): Promise<
       serialNumber: item.serialNumber,
       description: item.description,
       price: item.sellPrice,
+      quantity: item.quantity || 1,
     })),
     subtotal: dbQuote.subtotal,
     discount: dbQuote.discount,
     shippingCost: dbQuote.shipping,
+    tax: dbQuote.tax || 0,
+    notes: dbQuote.notes,
     total: dbQuote.total,
-    status: 'pending',
+    status: dbQuote.status || 'pending',
+    expiresAt: dbQuote.expiresAt,
     createdAt: dbQuote.createdAt,
   };
 };
@@ -570,7 +585,6 @@ export const deleteQuote = async (id: string): Promise<void> => {
 export const getPersons = getPeople; // Alias for compatibility
 
 export const addNoteToPerson = async (personId: string, noteText: string): Promise<void> => {
-  // Use the security definer function to add notes (allows any authenticated user to add notes)
   const { error } = await supabase.rpc('add_note_to_contact', {
     p_person_id: personId,
     p_note_text: noteText
@@ -582,11 +596,49 @@ export const addNoteToPerson = async (personId: string, noteText: string): Promi
 export const createInvoice = addInvoice; // Alias for compatibility
 export const createQuote = addQuote; // Alias for compatibility
 
-export const updateQuote = async (quote: Quote): Promise<void> => {
-  // For now, we'll delete and recreate since we don't have an update function
-  // In a real implementation, you'd add an update function to supabase-storage
-  await deleteQuote(quote.id);
-  await addQuote(quote);
+export const updateQuote = async (id: string, updates: {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  shipToAddress?: string;
+  salesmanName?: string;
+  items?: DocLineItem[];
+  subtotal?: number;
+  discount?: number;
+  shippingCost?: number;
+  tax?: number;
+  notes?: string;
+  total?: number;
+  status?: Quote['status'];
+  expiresAt?: string;
+}): Promise<void> => {
+  const dbUpdates: Parameters<typeof db.updateQuote>[1] = {};
+  if (updates.customerName !== undefined) dbUpdates.customerName = updates.customerName;
+  if (updates.customerEmail !== undefined) dbUpdates.customerEmail = updates.customerEmail;
+  if (updates.customerPhone !== undefined) dbUpdates.customerPhone = updates.customerPhone;
+  if (updates.customerAddress !== undefined) dbUpdates.customerAddress = updates.customerAddress;
+  if (updates.shipToAddress !== undefined) dbUpdates.shipToAddress = updates.shipToAddress;
+  if (updates.salesmanName !== undefined) dbUpdates.salesmanName = updates.salesmanName;
+  if (updates.subtotal !== undefined) dbUpdates.subtotal = updates.subtotal;
+  if (updates.discount !== undefined) dbUpdates.discount = updates.discount;
+  if (updates.shippingCost !== undefined) dbUpdates.shipping = updates.shippingCost;
+  if (updates.tax !== undefined) dbUpdates.tax = updates.tax;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+  if (updates.total !== undefined) dbUpdates.total = updates.total;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.expiresAt !== undefined) dbUpdates.expiresAt = updates.expiresAt;
+  if (updates.items !== undefined) {
+    dbUpdates.items = updates.items.map(item => ({
+      id: item.itemId,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      description: item.description,
+      sellPrice: item.price,
+      quantity: item.quantity || 1,
+    }));
+  }
+  await db.updateQuote(id, dbUpdates);
 };
 
 // Legacy compatibility - export as default object
