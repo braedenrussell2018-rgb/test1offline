@@ -182,6 +182,11 @@ function QuotesContent() {
                       <Button size="sm" variant="outline" onClick={() => { setPreviewQuote(quote); setPreviewOpen(true); }}>
                         <Eye className="mr-2 h-4 w-4" />Preview PDF
                       </Button>
+                      {(quote.status === 'pending' || quote.status === 'draft') && (
+                        <Button size="sm" variant="outline" onClick={() => { setEditQuote(quote); setEditOpen(true); }}>
+                          <Pencil className="mr-2 h-4 w-4" />Edit
+                        </Button>
+                      )}
                       {quote.status === 'pending' && (
                         <>
                           <Button size="sm" variant="default" onClick={() => handleStatusChange(quote.id, 'approved')}>Approve & Create Invoice</Button>
