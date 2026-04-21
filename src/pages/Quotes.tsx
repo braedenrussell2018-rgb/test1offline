@@ -37,6 +37,8 @@ function QuotesSkeleton() {
 function QuotesContent() {
   const [previewQuote, setPreviewQuote] = useState<Quote | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [editQuote, setEditQuote] = useState<Quote | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { searchQuery, debouncedQuery, setSearchQuery } = useDebouncedSearch("", 300);
