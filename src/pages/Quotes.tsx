@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateQuoteDialog } from "@/components/CreateQuoteDialog";
 import { QuotePDFPreview } from "@/components/QuotePDFPreview";
+import { EditQuoteDialog } from "@/components/EditQuoteDialog";
 import { inventoryStorage, Quote } from "@/lib/inventory-storage";
-import { Home, FileText, Calendar, DollarSign, Eye, Search } from "lucide-react";
+import { Home, FileText, Calendar, DollarSign, Eye, Search, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -36,6 +37,8 @@ function QuotesSkeleton() {
 function QuotesContent() {
   const [previewQuote, setPreviewQuote] = useState<Quote | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [editQuote, setEditQuote] = useState<Quote | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { searchQuery, debouncedQuery, setSearchQuery } = useDebouncedSearch("", 300);
@@ -179,6 +182,11 @@ function QuotesContent() {
                       <Button size="sm" variant="outline" onClick={() => { setPreviewQuote(quote); setPreviewOpen(true); }}>
                         <Eye className="mr-2 h-4 w-4" />Preview PDF
                       </Button>
+                      {(quote.status === 'pending' || quote.status === 'draft') && (
+                        <Button size="sm" variant="outline" onClick={() => { setEditQuote(quote); setEditOpen(true); }}>
+                          <Pencil className="mr-2 h-4 w-4" />Edit
+                        </Button>
+                      )}
                       {quote.status === 'pending' && (
                         <>
                           <Button size="sm" variant="default" onClick={() => handleStatusChange(quote.id, 'approved')}>Approve & Create Invoice</Button>
@@ -205,6 +213,7 @@ function QuotesContent() {
         </div>
       </div>
       <QuotePDFPreview quote={previewQuote} open={previewOpen} onOpenChange={setPreviewOpen} />
+      <EditQuoteDialog quote={editQuote} open={editOpen} onOpenChange={setEditOpen} onSaved={refresh} />
     </div>
   );
 }
