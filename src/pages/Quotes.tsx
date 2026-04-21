@@ -213,6 +213,7 @@ function QuotesContent() {
         </div>
       </div>
       <QuotePDFPreview quote={previewQuote} open={previewOpen} onOpenChange={setPreviewOpen} />
+      <EditQuoteDialog quote={editQuote} open={editOpen} onOpenChange={setEditOpen} onSaved={refresh} />
     </div>
   );
 }
