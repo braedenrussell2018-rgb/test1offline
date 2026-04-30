@@ -63,6 +63,26 @@ export const EditQuoteDialog = ({ quote, open, onOpenChange, onSaved }: EditQuot
     }
   };
 
+  const handleAutoSave = async (data: EditorSaveData) => {
+    if (!quote) return;
+    await inventoryStorage.updateQuote(quote.id, {
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      shipToAddress: data.shipToAddress,
+      salesmanName: data.salesmanName,
+      items: data.lineItems,
+      subtotal: data.subtotal,
+      discount: data.discount,
+      shippingCost: data.shippingCost,
+      tax: data.tax,
+      notes: data.notes,
+      total: data.total,
+      // Auto-save keeps as draft to avoid changing approval state
+      status: 'draft',
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -93,6 +113,7 @@ export const EditQuoteDialog = ({ quote, open, onOpenChange, onSaved }: EditQuot
             showDraftButton={quote.status === "draft" || quote.status === "pending"}
             draftActionLabel="Save as Draft"
             primaryActionLabel="Save Changes"
+            onAutoSaveDraft={quote.status === "draft" ? handleAutoSave : undefined}
           />
         </div>
       </DialogContent>
