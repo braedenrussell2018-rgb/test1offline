@@ -740,6 +740,13 @@ function AccountingContent() {
         onOpenChange={setInvoicePreviewOpen}
         onInvoiceUpdated={handleInvoiceUpdated}
       />
+
+      <EditInvoiceDialog
+        invoice={editingInvoice}
+        open={editInvoiceOpen}
+        onOpenChange={setEditInvoiceOpen}
+        onSaved={() => { setEditInvoiceOpen(false); setEditingInvoice(null); refresh(); }}
+      />
     </div>
   );
 }
