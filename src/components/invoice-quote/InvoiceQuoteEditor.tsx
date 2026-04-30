@@ -59,6 +59,12 @@ interface InvoiceQuoteEditorProps {
   /** Custom labels */
   primaryActionLabel?: string;
   draftActionLabel?: string;
+  /**
+   * Optional callback for periodic background draft saves (every 30s) while
+   * the editor is open and dirty. Should silently persist without closing.
+   * Only invoked for documents that already exist (drafts/edits).
+   */
+  onAutoSaveDraft?: (data: EditorSaveData) => Promise<void> | void;
 }
 
 export const InvoiceQuoteEditor = ({
