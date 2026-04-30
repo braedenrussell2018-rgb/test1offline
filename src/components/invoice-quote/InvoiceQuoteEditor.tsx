@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Printer, Save, AlertTriangle, FileCheck } from "lucide-react";
+import { ArrowLeft, Printer, Save, AlertTriangle, FileCheck, CheckCircle2 } from "lucide-react";
 import { DocLineItem, InventoryItem } from "@/lib/inventory-storage-adapter";
 import { LineItemRow } from "./LineItemRow";
 import { AddItemPicker } from "./AddItemPicker";
@@ -59,6 +59,12 @@ interface InvoiceQuoteEditorProps {
   /** Custom labels */
   primaryActionLabel?: string;
   draftActionLabel?: string;
+  /**
+   * Optional callback for periodic background draft saves (every 30s) while
+   * the editor is open and dirty. Should silently persist without closing.
+   * Only invoked for documents that already exist (drafts/edits).
+   */
+  onAutoSaveDraft?: (data: EditorSaveData) => Promise<void> | void;
 }
 
 export const InvoiceQuoteEditor = ({
@@ -74,6 +80,7 @@ export const InvoiceQuoteEditor = ({
   warningMessage,
   primaryActionLabel,
   draftActionLabel = "Save as Draft",
+  onAutoSaveDraft,
 }: InvoiceQuoteEditorProps) => {
   const isInvoice = documentType === "invoice";
 
@@ -130,26 +137,28 @@ export const InvoiceQuoteEditor = ({
     ]);
   };
 
-  const handleSave = (isDraft = false) => {
-    onSave({
-      customerName,
-      customerEmail: customerEmail || undefined,
-      customerPhone: customerPhone || undefined,
-      shipToAddress: shipToAddress || undefined,
-      salesmanName: salesmanName || undefined,
-      lineItems,
-      discount: discountAmount,
-      discountType,
-      shippingCost,
-      tax,
-      notes: notes || undefined,
-      isDraft,
-      subtotal,
-      total,
-    });
-  };
+  const buildSaveData = useCallback((isDraft: boolean): EditorSaveData => ({
+    customerName,
+    customerEmail: customerEmail || undefined,
+    customerPhone: customerPhone || undefined,
+    shipToAddress: shipToAddress || undefined,
+    salesmanName: salesmanName || undefined,
+    lineItems,
+    discount: discountAmount,
+    discountType,
+    shippingCost,
+    tax,
+    notes: notes || undefined,
+    isDraft,
+    subtotal,
+    total,
+  }), [customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, discountAmount, discountType, shippingCost, tax, notes, subtotal, total]);
 
-  const handlePrint = () => {
+  const handleSave = useCallback((isDraft = false) => {
+    onSave(buildSaveData(isDraft));
+  }, [onSave, buildSaveData]);
+
+  const handlePrint = useCallback(() => {
     printDocument({
       type: documentType,
       number: documentNumber,
@@ -167,7 +176,73 @@ export const InvoiceQuoteEditor = ({
       total,
       notes,
     });
-  };
+  }, [documentType, documentNumber, customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, subtotal, discountAmount, shippingCost, tax, total, notes]);
+
+  // ---- Auto-save drafts every 30s ----
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
+  const dirtyRef = useRef(false);
+  const initialSnapshotRef = useRef<string>("");
+
+  const stateSignature = useMemo(() => JSON.stringify({
+    customerName, customerEmail, customerPhone, shipToAddress, salesmanName,
+    lineItems, discount, discountType, shippingCost, tax, notes,
+  }), [customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, discount, discountType, shippingCost, tax, notes]);
+
+  useEffect(() => {
+    if (!initialSnapshotRef.current) {
+      initialSnapshotRef.current = stateSignature;
+      return;
+    }
+    if (stateSignature !== initialSnapshotRef.current) {
+      dirtyRef.current = true;
+    }
+  }, [stateSignature]);
+
+  useEffect(() => {
+    if (!onAutoSaveDraft) return;
+    if (lineItems.length === 0 || !customerName.trim()) return;
+
+    const interval = setInterval(async () => {
+      if (!dirtyRef.current || isSubmitting) return;
+      try {
+        await onAutoSaveDraft(buildSaveData(true));
+        dirtyRef.current = false;
+        initialSnapshotRef.current = stateSignature;
+        setLastAutoSavedAt(new Date());
+      } catch (err) {
+        console.warn("Auto-save failed:", err);
+      }
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [onAutoSaveDraft, buildSaveData, isSubmitting, lineItems.length, customerName, stateSignature]);
+
+  // ---- Keyboard shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+P print, Esc close ----
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (meta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (lineItems.length > 0 && customerName.trim() && !isSubmitting) {
+          handleSave(false);
+        }
+      } else if (meta && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        handlePrint();
+      } else if (e.key === "Escape") {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        if (!target || tag === "body" || tag === "input" || tag === "textarea") {
+          if (onBack) {
+            e.preventDefault();
+            onBack();
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleSave, handlePrint, onBack, lineItems.length, customerName, isSubmitting]);
 
   const docTitle = isInvoice ? "INVOICE" : "QUOTE";
   const defaultPrimaryLabel = isInvoice
@@ -191,6 +266,12 @@ export const InvoiceQuoteEditor = ({
           <h2 className="text-lg font-semibold">
             {mode === "edit" ? `Edit ${docTitle}` : `${docTitle} Preview`}
           </h2>
+          {onAutoSaveDraft && lastAutoSavedAt && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-green-600" />
+              Auto-saved {lastAutoSavedAt.toLocaleTimeString()}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           {availableInventory.length > 0 && (
