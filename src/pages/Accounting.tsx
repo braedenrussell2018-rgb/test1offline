@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard, Scale, Search } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard, Scale, Search, Pencil } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
+import { EditInvoiceDialog } from "@/components/EditInvoiceDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
@@ -21,6 +22,7 @@ import { useDebouncedSearch } from "@/hooks/useDebounce";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/inventory/PaginationControls";
 import { EmptyState } from "@/components/EmptyState";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface AccountingData {
   items: InventoryItem[];
@@ -59,12 +61,15 @@ function AccountingSkeleton() {
 function AccountingContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editInvoiceOpen, setEditInvoiceOpen] = useState(false);
   const [pendingQuotesOpen, setPendingQuotesOpen] = useState(false);
   const [approvedQuotesOpen, setApprovedQuotesOpen] = useState(false);
   const [paidInvoicesOpen, setPaidInvoicesOpen] = useState(false);
   const [unpaidInvoicesOpen, setUnpaidInvoicesOpen] = useState(false);
   const [vendorPOsOpen, setVendorPOsOpen] = useState<Record<string, boolean>>({});
   const { searchQuery, debouncedQuery, setSearchQuery } = useDebouncedSearch("", 300);
+  const { hasOwnerAccess } = useUserRole();
 
   const fetchData = useCallback(async (): Promise<AccountingData> => {
     const [items, invoices, quotes, vendors, purchaseOrders, expenses] = await Promise.all([
@@ -339,16 +344,22 @@ function AccountingContent() {
                     <CollapsibleContent className="mt-2">
                       <div className="space-y-2 pl-4 max-h-48 overflow-y-auto">
                         {paginatedPaidInvoices.map((invoice) => (
-                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm cursor-pointer hover:bg-muted/50"
-                            onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
-                            <div>
+                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm hover:bg-muted/50">
+                            <div className="flex-1 cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-medium">{invoice.invoiceNumber}</div>
                               <div className="text-xs text-muted-foreground">{invoice.customerName}</div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-semibold">${invoice.total.toFixed(2)}</div>
                               <div className="text-xs text-muted-foreground">{invoice.items.length} items</div>
                             </div>
+                            {hasOwnerAccess() && (
+                              <Button size="sm" variant="ghost" className="ml-2 h-8 w-8 p-0"
+                                onClick={(e) => { e.stopPropagation(); setEditingInvoice(invoice); setEditInvoiceOpen(true); }}
+                                title="Edit invoice (admin)">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -371,16 +382,22 @@ function AccountingContent() {
                     <CollapsibleContent className="mt-2">
                       <div className="space-y-2 pl-4 max-h-48 overflow-y-auto">
                         {paginatedUnpaidInvoices.map((invoice) => (
-                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm cursor-pointer hover:bg-muted/50"
-                            onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
-                            <div>
+                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm hover:bg-muted/50">
+                            <div className="flex-1 cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-medium">{invoice.invoiceNumber}</div>
                               <div className="text-xs text-muted-foreground">{invoice.customerName}</div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-semibold">${invoice.total.toFixed(2)}</div>
                               <div className="text-xs text-muted-foreground">{invoice.items.length} items</div>
                             </div>
+                            {hasOwnerAccess() && (
+                              <Button size="sm" variant="ghost" className="ml-2 h-8 w-8 p-0"
+                                onClick={(e) => { e.stopPropagation(); setEditingInvoice(invoice); setEditInvoiceOpen(true); }}
+                                title="Edit invoice (admin)">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -722,6 +739,13 @@ function AccountingContent() {
         open={invoicePreviewOpen}
         onOpenChange={setInvoicePreviewOpen}
         onInvoiceUpdated={handleInvoiceUpdated}
+      />
+
+      <EditInvoiceDialog
+        invoice={editingInvoice}
+        open={editInvoiceOpen}
+        onOpenChange={setEditInvoiceOpen}
+        onSaved={() => { setEditInvoiceOpen(false); setEditingInvoice(null); refresh(); }}
       />
     </div>
   );
