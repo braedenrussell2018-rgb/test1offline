@@ -137,26 +137,28 @@ export const InvoiceQuoteEditor = ({
     ]);
   };
 
-  const handleSave = (isDraft = false) => {
-    onSave({
-      customerName,
-      customerEmail: customerEmail || undefined,
-      customerPhone: customerPhone || undefined,
-      shipToAddress: shipToAddress || undefined,
-      salesmanName: salesmanName || undefined,
-      lineItems,
-      discount: discountAmount,
-      discountType,
-      shippingCost,
-      tax,
-      notes: notes || undefined,
-      isDraft,
-      subtotal,
-      total,
-    });
-  };
+  const buildSaveData = useCallback((isDraft: boolean): EditorSaveData => ({
+    customerName,
+    customerEmail: customerEmail || undefined,
+    customerPhone: customerPhone || undefined,
+    shipToAddress: shipToAddress || undefined,
+    salesmanName: salesmanName || undefined,
+    lineItems,
+    discount: discountAmount,
+    discountType,
+    shippingCost,
+    tax,
+    notes: notes || undefined,
+    isDraft,
+    subtotal,
+    total,
+  }), [customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, discountAmount, discountType, shippingCost, tax, notes, subtotal, total]);
 
-  const handlePrint = () => {
+  const handleSave = useCallback((isDraft = false) => {
+    onSave(buildSaveData(isDraft));
+  }, [onSave, buildSaveData]);
+
+  const handlePrint = useCallback(() => {
     printDocument({
       type: documentType,
       number: documentNumber,
@@ -174,7 +176,73 @@ export const InvoiceQuoteEditor = ({
       total,
       notes,
     });
-  };
+  }, [documentType, documentNumber, customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, subtotal, discountAmount, shippingCost, tax, total, notes]);
+
+  // ---- Auto-save drafts every 30s ----
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
+  const dirtyRef = useRef(false);
+  const initialSnapshotRef = useRef<string>("");
+
+  const stateSignature = useMemo(() => JSON.stringify({
+    customerName, customerEmail, customerPhone, shipToAddress, salesmanName,
+    lineItems, discount, discountType, shippingCost, tax, notes,
+  }), [customerName, customerEmail, customerPhone, shipToAddress, salesmanName, lineItems, discount, discountType, shippingCost, tax, notes]);
+
+  useEffect(() => {
+    if (!initialSnapshotRef.current) {
+      initialSnapshotRef.current = stateSignature;
+      return;
+    }
+    if (stateSignature !== initialSnapshotRef.current) {
+      dirtyRef.current = true;
+    }
+  }, [stateSignature]);
+
+  useEffect(() => {
+    if (!onAutoSaveDraft) return;
+    if (lineItems.length === 0 || !customerName.trim()) return;
+
+    const interval = setInterval(async () => {
+      if (!dirtyRef.current || isSubmitting) return;
+      try {
+        await onAutoSaveDraft(buildSaveData(true));
+        dirtyRef.current = false;
+        initialSnapshotRef.current = stateSignature;
+        setLastAutoSavedAt(new Date());
+      } catch (err) {
+        console.warn("Auto-save failed:", err);
+      }
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [onAutoSaveDraft, buildSaveData, isSubmitting, lineItems.length, customerName, stateSignature]);
+
+  // ---- Keyboard shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+P print, Esc close ----
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (meta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (lineItems.length > 0 && customerName.trim() && !isSubmitting) {
+          handleSave(false);
+        }
+      } else if (meta && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        handlePrint();
+      } else if (e.key === "Escape") {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        if (!target || tag === "body" || tag === "input" || tag === "textarea") {
+          if (onBack) {
+            e.preventDefault();
+            onBack();
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleSave, handlePrint, onBack, lineItems.length, customerName, isSubmitting]);
 
   const docTitle = isInvoice ? "INVOICE" : "QUOTE";
   const defaultPrimaryLabel = isInvoice
