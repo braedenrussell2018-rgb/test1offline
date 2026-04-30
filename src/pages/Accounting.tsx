@@ -61,12 +61,15 @@ function AccountingSkeleton() {
 function AccountingContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editInvoiceOpen, setEditInvoiceOpen] = useState(false);
   const [pendingQuotesOpen, setPendingQuotesOpen] = useState(false);
   const [approvedQuotesOpen, setApprovedQuotesOpen] = useState(false);
   const [paidInvoicesOpen, setPaidInvoicesOpen] = useState(false);
   const [unpaidInvoicesOpen, setUnpaidInvoicesOpen] = useState(false);
   const [vendorPOsOpen, setVendorPOsOpen] = useState<Record<string, boolean>>({});
   const { searchQuery, debouncedQuery, setSearchQuery } = useDebouncedSearch("", 300);
+  const { hasOwnerAccess } = useUserRole();
 
   const fetchData = useCallback(async (): Promise<AccountingData> => {
     const [items, invoices, quotes, vendors, purchaseOrders, expenses] = await Promise.all([
