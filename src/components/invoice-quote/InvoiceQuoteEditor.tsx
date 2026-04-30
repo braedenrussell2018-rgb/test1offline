@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Printer, Save, AlertTriangle, FileCheck } from "lucide-react";
+import { ArrowLeft, Printer, Save, AlertTriangle, FileCheck, CheckCircle2 } from "lucide-react";
 import { DocLineItem, InventoryItem } from "@/lib/inventory-storage-adapter";
 import { LineItemRow } from "./LineItemRow";
 import { AddItemPicker } from "./AddItemPicker";
