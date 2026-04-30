@@ -266,6 +266,12 @@ export const InvoiceQuoteEditor = ({
           <h2 className="text-lg font-semibold">
             {mode === "edit" ? `Edit ${docTitle}` : `${docTitle} Preview`}
           </h2>
+          {onAutoSaveDraft && lastAutoSavedAt && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-green-600" />
+              Auto-saved {lastAutoSavedAt.toLocaleTimeString()}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           {availableInventory.length > 0 && (
