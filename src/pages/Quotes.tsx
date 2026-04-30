@@ -144,9 +144,8 @@ function QuotesContent() {
         subtotal: quote.subtotal,
         total: quote.total,
         salesmanName: quote.salesmanName,
-        status: 'draft',
         sourceQuoteId: quote.id,
-      } as any);
+      }, 'draft');
       setConvertingQuote(quote);
       setPendingInvoice(draft);
       setConvertOpen(true);
