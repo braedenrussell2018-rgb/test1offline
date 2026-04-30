@@ -143,6 +143,26 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange, onSaved }: Edit
   // Block editing finalized invoices unless admin
   const canEdit = wasDraft || hasOwnerAccess();
 
+  const handleAutoSave = async (data: EditorSaveData) => {
+    // Only auto-save while still a draft to avoid silently rewriting finalized invoices
+    if (!wasDraft) return;
+    await inventoryStorage.updateInvoice(invoice.id, {
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      shipToAddress: data.shipToAddress,
+      salesmanName: data.salesmanName,
+      items: data.lineItems,
+      subtotal: data.subtotal,
+      discount: data.discount,
+      shippingCost: data.shippingCost,
+      tax: data.tax,
+      notes: data.notes,
+      total: data.total,
+      status: "draft",
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -185,6 +205,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange, onSaved }: Edit
                   : undefined
               }
               primaryActionLabel={wasDraft ? "Finalize Invoice" : "Save Changes"}
+              onAutoSaveDraft={wasDraft ? handleAutoSave : undefined}
             />
           )}
         </div>
