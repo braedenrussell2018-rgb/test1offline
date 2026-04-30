@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard, Scale, Search } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Package, FileText, Calculator, ChevronDown, ChevronRight, Truck, Receipt, CreditCard, Scale, Search, Pencil } from "lucide-react";
 import { inventoryStorage, InventoryItem, Invoice, Quote } from "@/lib/inventory-storage";
 import { InvoicePDFPreview } from "@/components/InvoicePDFPreview";
+import { EditInvoiceDialog } from "@/components/EditInvoiceDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { getPurchaseOrders, getVendors, type PurchaseOrder, type Vendor } from "@/lib/po-storage";
@@ -21,6 +22,7 @@ import { useDebouncedSearch } from "@/hooks/useDebounce";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/inventory/PaginationControls";
 import { EmptyState } from "@/components/EmptyState";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface AccountingData {
   items: InventoryItem[];
