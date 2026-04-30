@@ -80,6 +80,7 @@ export const InvoiceQuoteEditor = ({
   warningMessage,
   primaryActionLabel,
   draftActionLabel = "Save as Draft",
+  onAutoSaveDraft,
 }: InvoiceQuoteEditorProps) => {
   const isInvoice = documentType === "invoice";
 
