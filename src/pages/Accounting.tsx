@@ -382,16 +382,22 @@ function AccountingContent() {
                     <CollapsibleContent className="mt-2">
                       <div className="space-y-2 pl-4 max-h-48 overflow-y-auto">
                         {paginatedUnpaidInvoices.map((invoice) => (
-                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm cursor-pointer hover:bg-muted/50"
-                            onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
-                            <div>
+                          <div key={invoice.id} className="flex justify-between items-center p-2 border rounded bg-background/50 text-sm hover:bg-muted/50">
+                            <div className="flex-1 cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-medium">{invoice.invoiceNumber}</div>
                               <div className="text-xs text-muted-foreground">{invoice.customerName}</div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setInvoicePreviewOpen(true); }}>
                               <div className="font-semibold">${invoice.total.toFixed(2)}</div>
                               <div className="text-xs text-muted-foreground">{invoice.items.length} items</div>
                             </div>
+                            {hasOwnerAccess() && (
+                              <Button size="sm" variant="ghost" className="ml-2 h-8 w-8 p-0"
+                                onClick={(e) => { e.stopPropagation(); setEditingInvoice(invoice); setEditInvoiceOpen(true); }}
+                                title="Edit invoice (admin)">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
