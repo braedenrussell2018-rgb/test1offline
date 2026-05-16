@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -212,7 +213,7 @@ export default function SpiffAdmin() {
     } else {
       const { error } = await supabase
         .from("spiff_prizes")
-        .insert(prizeData);
+        .insert({ ...prizeData, tenant_id: requireTenantId() });
 
       if (error) {
         toast({ title: "Error", description: "Failed to create prize", variant: "destructive" });
@@ -296,6 +297,7 @@ export default function SpiffAdmin() {
     const { error: warrantyError } = await supabase
       .from("spiff_warranties")
       .insert({
+        tenant_id: requireTenantId(),
         spiff_sale_id: selectedRecord.id,
         serial_number: selectedRecord.serial_number || '',
         sale_description: selectedRecord.sale_description,
@@ -366,6 +368,7 @@ export default function SpiffAdmin() {
     await supabase
       .from("spiff_warranties")
       .insert({
+        tenant_id: requireTenantId(),
         spiff_sale_id: record.id,
         serial_number: record.serial_number || '',
         sale_description: record.sale_description,

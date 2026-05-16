@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { requireTenantId } from "@/lib/tenant-context";
 
 export interface Note {
   id?: string;
@@ -124,6 +125,7 @@ export async function addVendor(vendor: Omit<Vendor, "id" | "createdAt" | "updat
   const { data, error } = await supabase
     .from('vendors')
     .insert({
+      tenant_id: requireTenantId(),
       name: vendor.name,
       contact_name: vendor.contactName,
       email: vendor.email,
@@ -181,6 +183,7 @@ export async function addPurchaseOrder(po: Omit<PurchaseOrder, "id" | "createdAt
   const { data, error } = await supabase
     .from('purchase_orders')
     .insert({
+      tenant_id: requireTenantId(),
       po_number: po.poNumber,
       vendor_id: po.vendorId,
       vendor_name: po.vendorName,
@@ -270,6 +273,7 @@ export async function addPOItems(items: Omit<POItem, "id" | "createdAt">[]): Pro
   const { error } = await supabase
     .from('purchase_order_items')
     .insert(items.map(item => ({
+      tenant_id: requireTenantId(),
       po_id: item.poId,
       part_number: item.partNumber,
       serial_number: item.serialNumber,

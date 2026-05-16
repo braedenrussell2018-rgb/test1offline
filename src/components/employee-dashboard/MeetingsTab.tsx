@@ -91,7 +91,7 @@ export function MeetingsTab({
         if (error) throw error;
         toast.success("Meeting updated");
       } else {
-        const { error } = await supabase.from("company_meetings").insert({ ...meetingData, created_by: userId });
+        const { error } = await supabase.from("company_meetings").insert({ ...meetingData, created_by: userId, tenant_id: requireTenantId() });
         if (error) throw error;
         toast.success("Meeting created");
       }

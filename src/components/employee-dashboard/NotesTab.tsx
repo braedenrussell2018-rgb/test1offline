@@ -57,7 +57,7 @@ export function NotesTab({ notes, searchQuery, userId, onRefresh }: NotesTabProp
       } else {
         const { error } = await supabase
           .from("internal_notes")
-          .insert({ user_id: userId, title: noteForm.title, content: noteForm.content, category: noteForm.category });
+          .insert({ user_id: userId, title: noteForm.title, content: noteForm.content, category: noteForm.category, tenant_id: requireTenantId() });
         if (error) throw error;
         toast.success("Note created");
       }

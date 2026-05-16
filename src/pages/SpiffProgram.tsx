@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,6 +115,7 @@ function SpiffProgramContent() {
     const amount = parseFloat(saleAmount);
     const creditsEarned = Math.floor(amount / 100);
     const { error } = await supabase.from("spiff_program").insert({
+      tenant_id: requireTenantId(),
       salesman_id: user.id, sale_description: saleDescription, serial_number: serialNumber.trim(),
       sale_amount: amount, credits_earned: creditsEarned, status: 'pending',
     });
