@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { setCurrentTenantId } from "@/lib/tenant-context";
 
 export type AppRole = "employee" | "owner" | "customer" | "salesman" | "developer" | null;
 
@@ -10,8 +11,10 @@ interface AuthContextType {
   loading: boolean;
   role: AppRole;
   roleLoading: boolean;
+  tenantId: string | null;
   signOut: () => Promise<void>;
   refetchRole: () => Promise<void>;
+  refetchTenant: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
