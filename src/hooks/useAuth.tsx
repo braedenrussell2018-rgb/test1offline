@@ -23,8 +23,10 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   role: null,
   roleLoading: true,
+  tenantId: null,
   signOut: async () => {},
   refetchRole: async () => {},
+  refetchTenant: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
