@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 
 export interface Item {
   id: string;
