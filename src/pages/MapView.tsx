@@ -11,8 +11,6 @@ import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, A
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Company, Person } from "@/lib/inventory-storage";
-import { PersonDetailDialog } from "@/components/PersonDetailDialog";
-import { CompanyDetailDialog } from "@/components/CompanyDetailDialog";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -169,19 +167,17 @@ function MapViewContent() {
                     <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Building2 className="h-3 w-3" /> Companies ({selectedData.companies.length})</h4>
                     <div className="space-y-2">
                       {selectedData.companies.map(company => (
-                        <CompanyDetailDialog key={company.id} company={company} persons={persons.filter(p => p.companyId === company.id)} onPersonClick={() => {}} onUpdate={onRefresh}>
-                          <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
-                            <CardContent className="p-3">
-                              <div className="flex items-center gap-2">
-                                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="font-medium text-sm truncate">{company.name}</p>
-                                  <p className="text-xs text-muted-foreground">{persons.filter(p => p.companyId === company.id).length} contacts</p>
-                                </div>
+                        <Card key={company.id} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => window.open(`/crm?company=${company.id}`, '_blank')}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{company.name}</p>
+                                <p className="text-xs text-muted-foreground">{persons.filter(p => p.companyId === company.id).length} contacts • Opens in new tab</p>
                               </div>
-                            </CardContent>
-                          </Card>
-                        </CompanyDetailDialog>
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -191,20 +187,18 @@ function MapViewContent() {
                     <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><User className="h-3 w-3" /> Contacts ({selectedData.persons.length})</h4>
                     <div className="space-y-2">
                       {selectedData.persons.map(person => (
-                        <PersonDetailDialog key={person.id} person={person} companyName={getCompanyName(person.companyId)} onUpdate={onRefresh}>
-                          <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
-                            <CardContent className="p-3">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="font-medium text-sm truncate">{person.name}</p>
-                                  {person.companyId && <Badge variant="secondary" className="text-xs truncate max-w-full">{getCompanyName(person.companyId)}</Badge>}
-                                  {person.jobTitle && <p className="text-xs text-muted-foreground truncate">{person.jobTitle}</p>}
-                                </div>
+                        <Card key={person.id} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => window.open(`/crm?person=${person.id}`, '_blank')}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{person.name}</p>
+                                {person.companyId && <Badge variant="secondary" className="text-xs truncate max-w-full">{getCompanyName(person.companyId)}</Badge>}
+                                {person.jobTitle && <p className="text-xs text-muted-foreground truncate">{person.jobTitle}</p>}
                               </div>
-                            </CardContent>
-                          </Card>
-                        </PersonDetailDialog>
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -239,18 +233,14 @@ function MapViewContent() {
                     <p className="font-medium text-sm text-destructive mb-1">{fail.address}</p>
                     <div className="text-xs text-muted-foreground space-y-1">
                       {fail.companies.map(c => (
-                        <CompanyDetailDialog key={c.id} company={c} persons={persons.filter(p => p.companyId === c.id)} onPersonClick={() => {}} onUpdate={onRefresh}>
-                          <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
-                            <Building2 className="h-3 w-3" /><span className="underline decoration-dotted">{c.name}</span>
-                          </div>
-                        </CompanyDetailDialog>
+                        <div key={c.id} onClick={() => window.open(`/crm?company=${c.id}`, '_blank')} className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
+                          <Building2 className="h-3 w-3" /><span className="underline decoration-dotted">{c.name}</span>
+                        </div>
                       ))}
                       {fail.persons.map(p => (
-                        <PersonDetailDialog key={p.id} person={p} companyName={getCompanyName(p.companyId)} onUpdate={onRefresh}>
-                          <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
-                            <User className="h-3 w-3" /><span className="underline decoration-dotted">{p.name}</span>
-                          </div>
-                        </PersonDetailDialog>
+                        <div key={p.id} onClick={() => window.open(`/crm?person=${p.id}`, '_blank')} className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors p-1 rounded hover:bg-background/50">
+                          <User className="h-3 w-3" /><span className="underline decoration-dotted">{p.name}</span>
+                        </div>
                       ))}
                     </div>
                   </CardContent>
