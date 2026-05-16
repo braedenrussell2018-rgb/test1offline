@@ -58,31 +58,21 @@ Deno.serve(async (req) => {
         const maxAttempts = 5;
         const isBlocked = failedCount >= maxAttempts;
 
-        // Check if account is locked
-        const { data: allUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const matchedUser = allUsers?.users.find(u => u.email === emailToCheck);
-        
-        let userData = null;
-        if (matchedUser) {
-          const { data } = await supabaseAdmin
-            .from("user_security_settings")
-            .select("account_locked, user_id")
-            .eq("user_id", matchedUser.id)
-            .single();
-          userData = data;
-        }
-
+        // NOTE: Intentionally do NOT look up the user or expose
+        // account_locked / existence here — that would let unauthenticated
+        // callers enumerate accounts. Rate-limiting is based solely on
+        // failed login attempts recorded in `login_attempts`.
         const lockoutMinutesRemaining = isBlocked && attempts && attempts.length > 0
           ? Math.max(0, 15 - Math.floor((Date.now() - new Date(attempts[0].attempted_at).getTime()) / 60000))
           : 0;
 
         return new Response(
           JSON.stringify({
-            allowed: !isBlocked && !userData?.account_locked,
+            allowed: !isBlocked,
             failed_attempts: failedCount,
             max_attempts: maxAttempts,
             remaining: Math.max(0, maxAttempts - failedCount),
-            account_locked: userData?.account_locked || false,
+            account_locked: false,
             lockout_minutes_remaining: lockoutMinutesRemaining
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
