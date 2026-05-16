@@ -118,7 +118,9 @@ export function QuickBooksConnection({ onSyncComplete }: QuickBooksConnectionPro
 
       const data = await response.json();
       
-      if (data.authUrl) {
+      if (data.authUrl && data.state) {
+        // Store state in sessionStorage for CSRF verification on callback
+        sessionStorage.setItem('qb_oauth_state', data.state);
         window.location.href = data.authUrl;
       } else {
         throw new Error('Failed to get authorization URL');
