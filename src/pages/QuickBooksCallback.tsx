@@ -12,10 +12,20 @@ export default function QuickBooksCallback() {
     const handleCallback = async () => {
       const code = searchParams.get('code');
       const realmId = searchParams.get('realmId');
+      const state = searchParams.get('state');
       const error = searchParams.get('error');
 
       if (error) {
         toast.error(`QuickBooks authorization failed: ${error}`);
+        navigate('/accounting');
+        return;
+      }
+
+      // CSRF protection: verify state matches what we stored before redirect
+      const expectedState = sessionStorage.getItem('qb_oauth_state');
+      sessionStorage.removeItem('qb_oauth_state');
+      if (!state || !expectedState || state !== expectedState) {
+        toast.error('Invalid OAuth state — possible CSRF attempt. Please retry.');
         navigate('/accounting');
         return;
       }
