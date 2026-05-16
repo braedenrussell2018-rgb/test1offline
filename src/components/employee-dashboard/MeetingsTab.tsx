@@ -15,6 +15,7 @@ import { CreateMeetingDropdown } from "@/components/video/CreateMeetingDropdown"
 import { LiveMeetingsBanner } from "@/components/video/LiveMeetingsBanner";
 import { MeetingRecordingPlayer } from "@/components/video/MeetingRecordingPlayer";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
@@ -91,7 +92,7 @@ export function MeetingsTab({
         if (error) throw error;
         toast.success("Meeting updated");
       } else {
-        const { error } = await supabase.from("company_meetings").insert({ ...meetingData, created_by: userId });
+        const { error } = await supabase.from("company_meetings").insert({ ...meetingData, created_by: userId, tenant_id: requireTenantId() });
         if (error) throw error;
         toast.success("Meeting created");
       }

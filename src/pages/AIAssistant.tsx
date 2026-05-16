@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import ReactMarkdown from "react-markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
@@ -478,7 +479,7 @@ export default function AIAssistant() {
         } else {
           const { data: newCompany } = await supabase
             .from("companies")
-            .insert({ name: company })
+            .insert({ name: company, tenant_id: requireTenantId() })
             .select()
             .single();
           
@@ -492,6 +493,7 @@ export default function AIAssistant() {
       const { data: newContact, error } = await supabase
         .from("people")
         .insert({
+          tenant_id: requireTenantId(),
           name,
           company_id: companyId,
           email,
@@ -512,6 +514,7 @@ export default function AIAssistant() {
     const { error } = await supabase
       .from("ai_conversations")
       .insert({
+        tenant_id: requireTenantId(),
         user_id: user?.id,
         contact_id: finalContactId,
         transcript: transcriptText,
@@ -566,6 +569,7 @@ export default function AIAssistant() {
     const { error } = await supabase
       .from("company_meetings")
       .insert({
+        tenant_id: requireTenantId(),
         created_by: user?.id,
         title: meetingTitle,
         description: pendingAnalysis?.summary || null,
@@ -624,6 +628,7 @@ export default function AIAssistant() {
       const { error } = await supabase
         .from("company_meetings")
         .insert({
+          tenant_id: requireTenantId(),
           created_by: user?.id,
           title: directMeetingTitle,
           meeting_date: new Date().toISOString(),
@@ -644,6 +649,7 @@ export default function AIAssistant() {
       const { error } = await supabase
         .from("ai_conversations")
         .insert({
+          tenant_id: requireTenantId(),
           user_id: user?.id,
           contact_id: directSelectedContact || null,
           transcript: transcriptText || "No transcript",

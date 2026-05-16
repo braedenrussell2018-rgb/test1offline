@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 
 export interface Item {
   id: string;
@@ -127,7 +128,7 @@ export const getCompanies = async (): Promise<Company[]> => {
 export const addCompany = async (name: string, address?: string): Promise<Company> => {
   const { data, error } = await supabase
     .from("companies")
-    .insert({ name, address, notes: [] })
+    .insert({ name, address, notes: [], tenant_id: requireTenantId() })
     .select()
     .single();
 
@@ -201,6 +202,7 @@ export const addBranch = async (branch: Omit<Branch, "id">): Promise<Branch> => 
       company_id: branch.companyId,
       name: branch.name,
       address: branch.address,
+      tenant_id: requireTenantId(),
     })
     .select()
     .single();
@@ -289,6 +291,7 @@ export const addPerson = async (person: Omit<Person, "id">): Promise<Person> => 
     .from("people")
     .insert({
       name: person.name,
+      tenant_id: requireTenantId(),
       company_id: person.companyId || null, // Convert empty string to null
       branch_id: person.branchId || null, // Convert empty string to null
       user_id: user?.id,
@@ -417,6 +420,7 @@ export const addItem = async (item: Omit<Item, "id">): Promise<Item> => {
   const { data, error } = await supabase
     .from("items")
     .insert({
+      tenant_id: requireTenantId(),
       part_number: item.partNumber,
       description: item.description,
       status: item.status,
@@ -540,6 +544,7 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">, status: 'draft' |
   const { data, error } = await supabase
     .from("invoices")
     .insert([{
+      tenant_id: requireTenantId(),
       invoice_number: invoice.invoiceNumber,
       customer_name: invoice.customerName,
       customer_email: invoice.customerEmail,
@@ -692,6 +697,7 @@ export const addQuote = async (
   const { data, error } = await supabase
     .from("quotes")
     .insert([{
+      tenant_id: requireTenantId(),
       quote_number: quote.quoteNumber,
       customer_name: quote.customerName,
       customer_email: quote.customerEmail,

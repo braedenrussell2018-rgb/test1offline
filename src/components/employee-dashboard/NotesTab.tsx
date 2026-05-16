@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StickyNote, Plus, Trash2, Edit, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
@@ -57,7 +58,7 @@ export function NotesTab({ notes, searchQuery, userId, onRefresh }: NotesTabProp
       } else {
         const { error } = await supabase
           .from("internal_notes")
-          .insert({ user_id: userId, title: noteForm.title, content: noteForm.content, category: noteForm.category });
+          .insert({ user_id: userId, title: noteForm.title, content: noteForm.content, category: noteForm.category, tenant_id: requireTenantId() });
         if (error) throw error;
         toast.success("Note created");
       }
