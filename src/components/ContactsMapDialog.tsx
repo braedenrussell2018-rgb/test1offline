@@ -30,6 +30,21 @@ interface ContactsMapDialogProps {
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPrewarming, setIsPrewarming] = useState(false);
+
+  const handlePrewarm = useCallback(async () => {
+    setIsPrewarming(true);
+    toast.info("Pre-warming map locations...");
+    try {
+      const { data, error } = await supabase.functions.invoke("prewarm-geocodes", { body: { limit: 500 } });
+      if (error) throw error;
+      toast.success(`Cached ${data?.geocoded ?? 0} new locations (${data?.remaining ?? 0} remaining)`);
+    } catch (err) {
+      toast.error(`Pre-warm failed: ${(err as Error).message}`);
+    } finally {
+      setIsPrewarming(false);
+    }
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoutePlanner, setShowRoutePlanner] = useState(false);
   const routePlannerRef = useRef<RoutePlannerHandle | null>(null);
