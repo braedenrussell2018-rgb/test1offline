@@ -151,10 +151,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fetch role when user signs in
         if (session?.user) {
           fetchRole(session.user.id);
+          fetchTenant(session.user.id);
         } else {
           // Clear role on sign out
           setRole(null);
           setRoleLoading(false);
+          setTenantId(null);
+          setCurrentTenantId(null);
           roleCacheRef.current = null;
           lastFetchedUserIdRef.current = null;
         }
@@ -169,22 +172,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (session?.user) {
         fetchRole(session.user.id);
+        fetchTenant(session.user.id);
       } else {
         setRoleLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchRole]);
+  }, [fetchRole, fetchTenant]);
 
   const signOut = async () => {
     roleCacheRef.current = null;
     lastFetchedUserIdRef.current = null;
+    setCurrentTenantId(null);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, role, roleLoading, signOut, refetchRole }}>
+    <AuthContext.Provider value={{ user, session, loading, role, roleLoading, tenantId, signOut, refetchRole, refetchTenant }}>
       {children}
     </AuthContext.Provider>
   );
