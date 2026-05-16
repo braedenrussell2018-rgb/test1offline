@@ -560,6 +560,36 @@ export type Database = {
           },
         ]
       }
+      geocode_cache: {
+        Row: {
+          address_key: string
+          created_at: string
+          display_address: string | null
+          lat: number
+          lng: number
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          address_key: string
+          created_at?: string
+          display_address?: string | null
+          lat: number
+          lng: number
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          address_key?: string
+          created_at?: string
+          display_address?: string | null
+          lat?: number
+          lng?: number
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       internal_notes: {
         Row: {
           category: string | null

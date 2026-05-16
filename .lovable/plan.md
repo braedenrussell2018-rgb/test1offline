@@ -1,53 +1,71 @@
-# Fix Map Bugs
+## Goal
 
-Two issues to resolve in both the CRM map dialog (`ContactsMapDialog`) and the full-page map (`/map` / `MapView`):
+Make the map open with locations already plotted instead of geocoding addresses one by one each time. Today the cache is in each user's browser (`localStorage`) — every device, every fresh login, every cleared cache starts from zero and re-hits OpenStreetMap at 1 req/sec.
 
-1. **Clicking a contact/company in the side panel doesn't open them** — the side-panel cards wrap each result in a nested `PersonDetailDialog` / `CompanyDetailDialog`. Those dialogs render inside the outer map dialog and get swallowed by its overlay/focus trap, so the screen just dims.
-2. **Map can't be click-dragged** — only the +/− and arrow controls move it. Leaflet's default drag isn't engaging because the container's `touch-action` / `cursor` aren't being set and the map is being mounted before its container has its final size in some cases.
+The fix: store geocoded coordinates on the server (Lovable Cloud), shared by all employees, and pre-warm them in the background so addresses are already resolved by the time anyone opens the map.
 
-## What we'll change
-
-### 1. Open contact in a new tab (per your choice)
-
-Replace the nested dialog triggers in the map side panel and the Failed-Addresses list with plain buttons that call `window.open(...)` to a deep-link URL.
-
-- New URL params on the CRM page:
-  - `/crm?person=<id>` → auto-opens that person's `PersonDetailDialog`
-  - `/crm?company=<id>` → auto-opens that company's `CompanyDetailDialog`
-- `src/pages/CRM.tsx` will read those params on mount, find the matching record, and open the appropriate dialog. The map and route planner stay untouched in the other tab.
-- Same change applies to the search-result dropdown (currently only flies the map — will now also offer "Open" via a small icon, while clicking the row still flies the map and opens the side panel).
-
-Files touched:
-- `src/components/ContactsMapDialog.tsx`
-- `src/pages/MapView.tsx`
-- `src/pages/CRM.tsx` (read deep-link params, open the right dialog)
-
-### 2. Restore click-and-drag panning
-
-Make sure Leaflet's drag handler actually attaches and the container accepts pointer drags:
-
-- Initialize the map with explicit interaction options: `dragging: true`, `tap: true`, `scrollWheelZoom: true`, `touchZoom: true`, `inertia: true`.
-- Add a small CSS rule so the Leaflet container uses the grab cursor and disables browser pan gestures that steal the drag:
+## How it works
 
 ```text
-.leaflet-container { cursor: grab; touch-action: none; }
-.leaflet-container:active { cursor: grabbing; }
-.leaflet-dragging .leaflet-container,
-.leaflet-dragging .leaflet-container .leaflet-interactive { cursor: grabbing !important; }
+   New / updated contact address
+              │
+              ▼
+   ┌──────────────────────┐         ┌──────────────────────┐
+   │  geocode-proxy fn    │ ───────▶│  geocode_cache table │
+   │  (writes on success) │         │  (shared, server)    │
+   └──────────────────────┘         └──────────────────────┘
+              ▲                                │
+              │ miss                           │ bulk read on open
+              │                                ▼
+   ┌──────────────────────────────────────────────────┐
+   │  Map page / dialog                                │
+   │  1. Load all rows from geocode_cache (1 query)    │
+   │  2. Plot instantly                                │
+   │  3. Only call geocode-proxy for addresses missing │
+   └──────────────────────────────────────────────────┘
+              ▲
+              │ nightly
+   ┌──────────────────────┐
+   │  prewarm-geocodes    │  scans contacts/companies,
+   │  cron edge function  │  geocodes any address not yet cached
+   └──────────────────────┘
 ```
 
-- Call `map.dragging.enable()` after init as a safety net, and re-`invalidateSize()` once on first paint and on dialog open / fullscreen change (the dialog already wires fullscreen, we'll also fire it when the side panel toggles so the map width change doesn't desync the drag origin).
+## Plan
 
-Files touched:
-- `src/hooks/useContactsMap.ts` (init options + post-init enable + invalidate triggers)
-- `src/index.css` (cursor + touch-action rules, scoped to `.leaflet-container`)
+**1. New table `geocode_cache`**
+- Columns: `address_key` (text, primary key — lowercased trimmed address), `display_address` (text), `lat` (numeric), `lng` (numeric), `source` (text, e.g. `nominatim`), `created_at`, `updated_at`.
+- RLS: internal users (owner / employee / developer) can read and insert; only owner/developer can delete. No PII — just addresses and coords.
 
-## Out of scope (tell me if you want these too)
+**2. Edge function `geocode-proxy` — write-through cache**
+- Before calling Nominatim, look up `address_key` in `geocode_cache`. If found, return it (skip the network call entirely).
+- After a successful Nominatim lookup, upsert into `geocode_cache`. This is the single place writes happen, so every user benefits from every other user's lookups.
 
-- Route Planner click hijack behavior, fullscreen sizing edge cases, H3 selection, refresh button, geocoding accuracy. You said the two above are the priority — happy to file follow-ups.
+**3. Client `useContactsMap` — read shared cache first**
+- On `startGeocoding`, run one `select address_key, lat, lng from geocode_cache` query and merge results into the existing in-memory map.
+- Then proceed with the current loop — but the "uncached" list will usually be empty, so the map paints immediately.
+- Keep the localStorage cache as a fast path for offline / repeat opens, but server is the source of truth.
 
-## Technical notes
+**4. New edge function `prewarm-geocodes` (scheduled)**
+- Pulls every distinct non-empty address from `companies` and `people`.
+- Diffs against `geocode_cache`.
+- Geocodes the missing ones at 1 req/sec (Nominatim's limit) and stores them.
+- Scheduled via `pg_cron` to run nightly (e.g. 3 AM). Also runnable on demand from the map's Refresh button.
 
-- Deep-link param handling in `CRM.tsx` uses `useSearchParams`; after opening the dialog we clear the param with `setSearchParams({}, { replace: true })` so reloading doesn't reopen it unexpectedly.
-- We keep the existing `<CompanyDetailDialog>` / `<PersonDetailDialog>` usages everywhere else in the app — only the map's two side panels and the Failed-Addresses list switch to `window.open`.
-- `touch-action: none` on `.leaflet-container` is the documented Leaflet recommendation and is safe because Leaflet handles its own touch gestures.
+**5. Manual "Pre-warm now" button (optional, small)**
+- On `/map` and the CRM map dialog, add a small action that invokes `prewarm-geocodes` so an admin can warm the cache after a big import without waiting for the cron.
+
+## Files touched
+
+- `supabase/migrations/*` — create `geocode_cache` + RLS + indexes; enable `pg_cron` / `pg_net` if not already; schedule cron.
+- `supabase/functions/geocode-proxy/index.ts` — read-then-write against `geocode_cache`.
+- `supabase/functions/prewarm-geocodes/index.ts` — new function.
+- `supabase/config.toml` — register the new function.
+- `src/hooks/useContactsMap.ts` — fetch shared cache at the top of `startGeocoding`, merge before the loop.
+- `src/components/ContactsMapDialog.tsx` and `src/pages/MapView.tsx` — optional "Pre-warm" button wired to the new function.
+
+## Out of scope
+
+- Switching geocoder providers (Mapbox/Google) — staying on Nominatim.
+- Background geocoding triggered automatically on every contact insert (would need a DB trigger calling an edge function; the nightly cron + on-demand button covers it without that complexity).
+- Forward-geocoding addresses entered through `AddressAutocomplete` (those already include lat/lon from the search — separate optimization).

@@ -13,11 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search, Route } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search, Route, Flame } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Company, Person } from "@/lib/inventory-storage";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
 import { RoutePlanner, RoutePlannerHandle } from "./map/RoutePlanner";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ContactsMapDialogProps {
   companies: Company[];
@@ -28,6 +30,21 @@ interface ContactsMapDialogProps {
 export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMapDialogProps) {
   const [open, setOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPrewarming, setIsPrewarming] = useState(false);
+
+  const handlePrewarm = useCallback(async () => {
+    setIsPrewarming(true);
+    toast.info("Pre-warming map locations...");
+    try {
+      const { data, error } = await supabase.functions.invoke("prewarm-geocodes", { body: { limit: 500 } });
+      if (error) throw error;
+      toast.success(`Cached ${data?.geocoded ?? 0} new locations (${data?.remaining ?? 0} remaining)`);
+    } catch (err) {
+      toast.error(`Pre-warm failed: ${(err as Error).message}`);
+    } finally {
+      setIsPrewarming(false);
+    }
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoutePlanner, setShowRoutePlanner] = useState(false);
   const routePlannerRef = useRef<RoutePlannerHandle | null>(null);
@@ -95,6 +112,10 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
               <Button variant="ghost" size="sm" onClick={startGeocoding} disabled={isLoading}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handlePrewarm} disabled={isPrewarming} title="Geocode every address server-side so the map loads instantly for everyone">
+                <Flame className={`h-4 w-4 mr-1 ${isPrewarming ? 'animate-pulse' : ''}`} />
+                Pre-warm
               </Button>
               <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}

@@ -7,7 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, ArrowLeft, Maximize2, Minimize2, Flame } from "lucide-react";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Company, Person } from "@/lib/inventory-storage";
@@ -21,6 +22,21 @@ function MapViewContent() {
   const [persons, setPersons] = useState<Person[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPrewarming, setIsPrewarming] = useState(false);
+
+  const handlePrewarm = useCallback(async () => {
+    setIsPrewarming(true);
+    toast.info("Pre-warming map locations...");
+    try {
+      const { data, error } = await supabase.functions.invoke("prewarm-geocodes", { body: { limit: 500 } });
+      if (error) throw error;
+      toast.success(`Cached ${data?.geocoded ?? 0} new locations (${data?.remaining ?? 0} remaining)`);
+    } catch (err) {
+      toast.error(`Pre-warm failed: ${(err as Error).message}`);
+    } finally {
+      setIsPrewarming(false);
+    }
+  }, []);
 
   const mapCompanies = (data: any[]) => data.map((c: any) => ({
     id: c.id, name: c.name, address: c.address || "", notes: c.notes || [],
@@ -91,6 +107,9 @@ function MapViewContent() {
           </Button>
           <Button variant="ghost" size="sm" onClick={startGeocoding} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handlePrewarm} disabled={isPrewarming} title="Geocode all addresses server-side so the map loads instantly for everyone">
+            <Flame className={`h-4 w-4 mr-1 ${isPrewarming ? 'animate-pulse' : ''}`} /> Pre-warm
           </Button>
           {failedLocations.length > 0 && (
             <Button variant="destructive" size="sm" onClick={() => setShowFailedDialog(true)}>
