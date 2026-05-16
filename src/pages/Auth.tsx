@@ -95,7 +95,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("employee");
+  const [role, setRole] = useState<UserRole>("customer");
   const [loading, setLoading] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{
     blocked: boolean;
