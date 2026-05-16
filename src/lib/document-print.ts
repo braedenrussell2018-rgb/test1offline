@@ -27,7 +27,7 @@ export interface PrintDocumentData {
   notes?: string;
 }
 
-const escapeHtml = (s: string | undefined): string => {
+export const escapeHtml = (s: string | undefined): string => {
   if (!s) return '';
   return String(s)
     .replace(/&/g, '&amp;')
