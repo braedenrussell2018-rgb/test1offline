@@ -1,125 +1,53 @@
+# Fix Map Bugs
 
+Two issues to resolve in both the CRM map dialog (`ContactsMapDialog`) and the full-page map (`/map` / `MapView`):
 
-## Invoice & Quote System Improvements Plan
+1. **Clicking a contact/company in the side panel doesn't open them** — the side-panel cards wrap each result in a nested `PersonDetailDialog` / `CompanyDetailDialog`. Those dialogs render inside the outer map dialog and get swallowed by its overlay/focus trap, so the screen just dims.
+2. **Map can't be click-dragged** — only the +/− and arrow controls move it. Leaflet's default drag isn't engaging because the container's `touch-action` / `cursor` aren't being set and the map is being mounted before its container has its final size in some cases.
 
-### Current Problems
-1. **Quotes can't be edited** — once created, no way to change items, prices, customer info, or notes. Only approve/reject buttons.
-2. **Draft invoices use a separate dialog** (`EditDraftInvoiceDialog`) that duplicates ~80% of `InvoicePreviewEditor` logic, with inconsistent UI between create and edit flows.
-3. **Finalized invoices are immutable** — typos or pricing fixes require deletion + recreation.
-4. **No quote draft state** — every quote is "pending" the moment it's saved.
-5. **Quote → Invoice approval is one-shot** — can't review/adjust before generating the invoice.
-6. **Print HTML duplicated** in 3 files (`QuotePreviewEditor`, `InvoicePreviewEditor`, `EditDraftInvoiceDialog`) — drift risk.
-7. **Missing fields** — no quantity per line, no notes/terms field, no tax field, no internal/private notes.
-8. **No audit of edits** — finalized invoice changes need logging since this is sensitive financial data.
+## What we'll change
 
----
+### 1. Open contact in a new tab (per your choice)
 
-### 1. Unified Editor Component (`InvoiceQuoteEditor`)
-Replace `QuotePreviewEditor`, `InvoicePreviewEditor`, and `EditDraftInvoiceDialog` content with a single shared editor that:
-- Accepts `mode: 'create' | 'edit'` and `documentType: 'quote' | 'invoice'`
-- Edits **all** fields: customer name/email/phone/address, ship-to, salesman, line items (description, serial, price, **quantity**), discount, shipping, **tax**, **notes/terms**
-- Supports **adding items** from inventory (currently only edit-draft has this)
-- Supports **removing items**, **reordering** via drag handle
-- Has a single "Save" button with contextual label ("Create Quote" / "Save Draft" / "Finalize Invoice" / "Update")
+Replace the nested dialog triggers in the map side panel and the Failed-Addresses list with plain buttons that call `window.open(...)` to a deep-link URL.
 
-### 2. Edit Existing Quotes
-- Add an "Edit" button to each quote card on `Quotes.tsx`
-- Opens `InvoiceQuoteEditor` in edit mode
-- Editable while status is `pending` or new `draft`
-- Once `approved`/`rejected`, becomes read-only (admins can override)
+- New URL params on the CRM page:
+  - `/crm?person=<id>` → auto-opens that person's `PersonDetailDialog`
+  - `/crm?company=<id>` → auto-opens that company's `CompanyDetailDialog`
+- `src/pages/CRM.tsx` will read those params on mount, find the matching record, and open the appropriate dialog. The map and route planner stay untouched in the other tab.
+- Same change applies to the search-result dropdown (currently only flies the map — will now also offer "Open" via a small icon, while clicking the row still flies the map and opens the side panel).
 
-### 3. Add Quote Draft Status
-- Extend quote status enum: `draft | pending | approved | rejected | expired`
-- "Save as Draft" button in editor (parallel to invoice drafts)
-- Add **"Quote Drafts"** dialog on Quotes page mirroring `DraftInvoicesDialog`
-- Auto-expire pending quotes after 30 days → `expired` status (visual badge only)
+Files touched:
+- `src/components/ContactsMapDialog.tsx`
+- `src/pages/MapView.tsx`
+- `src/pages/CRM.tsx` (read deep-link params, open the right dialog)
 
-### 4. Edit Finalized Invoices (Admin Only)
-- Add "Edit" button on finalized invoices in `Accounting → InvoicesSection` for owners/developers
-- Opens unified editor with **warning banner**: "Editing a finalized invoice — change will be logged"
-- On save, write entry to `audit_logs` table (action: `invoice_edited`, risk_level: `medium`, capture before/after diff in metadata)
-- If items change, re-sync inventory item statuses (release removed items back to `available`, mark added ones `sold`)
+### 2. Restore click-and-drag panning
 
-### 5. Quote → Invoice Conversion with Review Step
-- Replace one-click "Approve & Create Invoice" with two steps:
-  1. Click "Convert to Invoice" → opens unified editor pre-filled from quote, document type = invoice
-  2. User can adjust pricing, items, or customer info → click "Finalize Invoice"
-- Quote stays linked via new `source_quote_id` column on invoices
+Make sure Leaflet's drag handler actually attaches and the container accepts pointer drags:
 
-### 6. Schema Additions (migration)
-- `quotes` table: add `status` value `draft`, add `notes text`, add `expires_at timestamptz`, add `tax numeric default 0`
-- `invoices` table: add `notes text`, add `tax numeric default 0`, add `source_quote_id uuid`, add `last_edited_at`, `last_edited_by`
-- Items in `items` jsonb gain `quantity int default 1` (handled in code, no schema change since jsonb)
+- Initialize the map with explicit interaction options: `dragging: true`, `tap: true`, `scrollWheelZoom: true`, `touchZoom: true`, `inertia: true`.
+- Add a small CSS rule so the Leaflet container uses the grab cursor and disables browser pan gestures that steal the drag:
 
-### 7. Shared Print/PDF Renderer
-- Extract print HTML into single helper `src/lib/document-print.ts` exporting `printDocument({ type, number, data })`
-- Used by quote editor, invoice editor, edit-draft dialog, and accounting sections
-- Add company letterhead (logo, address) at top — sourced from a new `company_settings` row or constants file
-
-### 8. UX Polish
-- **Line-item quantity**: separate qty + unit price columns; line total = qty × price
-- **Auto-save draft** every 30s while editing (toast on save)
-- **Keyboard shortcuts**: Ctrl+S save, Ctrl+P print, Esc to close
-- **Duplicate document**: "Duplicate" button on any quote/invoice creates an editable copy
-- **Send via email**: button that opens default mail client with PDF attachment summary (mailto with subject + body, PDF download triggered)
-- **Status filter chips** on Quotes page: All / Draft / Pending / Approved / Rejected / Expired
-
-### 9. Inventory Sync Safety
-- When editing a finalized invoice and an item is removed → confirm dialog "Release [Part #] back to inventory?"
-- When adding an item to a finalized invoice → mark it sold immediately
-- Prevent finalizing an invoice if any item is no longer `available` (was sold elsewhere) — show conflict resolver
-
----
-
-### Files Created
-- `src/components/invoice-quote/InvoiceQuoteEditor.tsx` — unified editor (replaces 3 components' UI)
-- `src/components/invoice-quote/LineItemRow.tsx` — single line item row with qty/price/serial/description
-- `src/components/invoice-quote/AddItemPicker.tsx` — searchable inventory picker (extracted from edit-draft)
-- `src/components/QuoteDraftsDialog.tsx` — draft quotes manager
-- `src/components/EditQuoteDialog.tsx` — wrapper using unified editor
-- `src/components/EditInvoiceDialog.tsx` — wrapper using unified editor (replaces EditDraftInvoiceDialog)
-- `src/lib/document-print.ts` — shared print HTML generator
-
-### Files Modified
-- `src/pages/Quotes.tsx` — Edit button per quote, status filter chips, drafts dialog, two-step convert
-- `src/components/CreateQuoteDialog.tsx` — use unified editor, add "Save as Draft"
-- `src/components/CreateInvoiceDialog.tsx` — use unified editor
-- `src/components/DraftInvoicesDialog.tsx` — open unified editor instead of EditDraftInvoiceDialog
-- `src/components/accounting/InvoicesSection.tsx` — Edit button on finalized invoices (admin only)
-- `src/lib/inventory-storage.ts` — add `updateQuote`, `duplicateInvoice`, `duplicateQuote`, `convertQuoteToInvoice` helpers; quantity & tax in totals
-- `src/hooks/useUserRole.tsx` (read-only check) — gate finalized-edit by role
-
-### Files Deleted (after migration)
-- `src/components/EditDraftInvoiceDialog.tsx` — superseded by `EditInvoiceDialog`
-- `src/components/quote/QuotePreviewEditor.tsx` — superseded by `InvoiceQuoteEditor`
-- `src/components/invoice/InvoicePreviewEditor.tsx` — superseded by `InvoiceQuoteEditor`
-
-### Database Migration
-```sql
-ALTER TABLE quotes
-  ADD COLUMN status text DEFAULT 'pending',
-  ADD COLUMN notes text,
-  ADD COLUMN tax numeric DEFAULT 0,
-  ADD COLUMN expires_at timestamptz;
-
-ALTER TABLE invoices
-  ADD COLUMN notes text,
-  ADD COLUMN tax numeric DEFAULT 0,
-  ADD COLUMN source_quote_id uuid,
-  ADD COLUMN last_edited_at timestamptz,
-  ADD COLUMN last_edited_by uuid;
+```text
+.leaflet-container { cursor: grab; touch-action: none; }
+.leaflet-container:active { cursor: grabbing; }
+.leaflet-dragging .leaflet-container,
+.leaflet-dragging .leaflet-container .leaflet-interactive { cursor: grabbing !important; }
 ```
-RLS policies for new columns inherit existing table policies (no changes needed). Salesman edit policy already restricts to own records.
 
-### Implementation Order
-1. Database migration (add columns)
-2. Build unified `InvoiceQuoteEditor` + `LineItemRow` + `AddItemPicker` components
-3. Shared `document-print.ts` helper
-4. Wire Create dialogs (quote + invoice) to unified editor
-5. Build `EditQuoteDialog` + `EditInvoiceDialog` wrappers
-6. Update `Quotes.tsx` (edit, status filter, drafts dialog, two-step convert)
-7. Update `DraftInvoicesDialog` and add admin edit on finalized invoices in Accounting
-8. Add audit logging for finalized-invoice edits
-9. Auto-save, keyboard shortcuts, duplicate, status auto-expiry
-10. Delete obsolete components
+- Call `map.dragging.enable()` after init as a safety net, and re-`invalidateSize()` once on first paint and on dialog open / fullscreen change (the dialog already wires fullscreen, we'll also fire it when the side panel toggles so the map width change doesn't desync the drag origin).
 
+Files touched:
+- `src/hooks/useContactsMap.ts` (init options + post-init enable + invalidate triggers)
+- `src/index.css` (cursor + touch-action rules, scoped to `.leaflet-container`)
+
+## Out of scope (tell me if you want these too)
+
+- Route Planner click hijack behavior, fullscreen sizing edge cases, H3 selection, refresh button, geocoding accuracy. You said the two above are the priority — happy to file follow-ups.
+
+## Technical notes
+
+- Deep-link param handling in `CRM.tsx` uses `useSearchParams`; after opening the dialog we clear the param with `setSearchParams({}, { replace: true })` so reloading doesn't reopen it unexpectedly.
+- We keep the existing `<CompanyDetailDialog>` / `<PersonDetailDialog>` usages everywhere else in the app — only the map's two side panels and the Failed-Addresses list switch to `window.open`.
+- `touch-action: none` on `.leaflet-container` is the documented Leaflet recommendation and is safe because Leaflet handles its own touch gestures.
