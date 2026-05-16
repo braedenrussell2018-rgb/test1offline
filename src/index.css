@@ -148,3 +148,17 @@ All colors MUST be HSL.
 .animate-float-up {
   animation: float-up 2.5s ease-out forwards;
 }
+
+/* Leaflet drag/pan interactivity */
+.leaflet-container {
+  cursor: grab;
+  touch-action: none;
+}
+.leaflet-container:active,
+.leaflet-dragging .leaflet-container {
+  cursor: grabbing;
+}
+.leaflet-grab { cursor: grab; }
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-interactive { cursor: grabbing !important; }
+

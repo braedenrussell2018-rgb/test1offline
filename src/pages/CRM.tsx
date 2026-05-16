@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +27,7 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
 const CRMContent = () => {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const saved = sessionStorage.getItem('crm_active_tab');
     return saved === 'invoices' ? 'notes' : saved || 'companies';
@@ -139,6 +140,32 @@ const CRMContent = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, loading, persons, companies]);
+
+  // Handle deep-link query params (e.g. from the map opening in a new tab)
+  useEffect(() => {
+    if (loading) return;
+    const personId = searchParams.get("person");
+    const companyId = searchParams.get("company");
+    if (personId) {
+      const person = persons.find(p => p.id === personId);
+      if (person) {
+        setSelectedPerson(person);
+        setActiveTab("contacts");
+        const next = new URLSearchParams(searchParams);
+        next.delete("person");
+        setSearchParams(next, { replace: true });
+      }
+    } else if (companyId) {
+      const company = companies.find(c => c.id === companyId);
+      if (company) {
+        setSelectedCompany(company);
+        setActiveTab("companies");
+        const next = new URLSearchParams(searchParams);
+        next.delete("company");
+        setSearchParams(next, { replace: true });
+      }
+    }
+  }, [searchParams, loading, persons, companies, setSearchParams]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
