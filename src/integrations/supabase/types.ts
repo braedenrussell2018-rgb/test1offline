@@ -901,6 +901,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          current_tenant_id: string | null
           full_name: string
           id: string
           updated_at: string
@@ -908,6 +909,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_tenant_id?: string | null
           full_name: string
           id?: string
           updated_at?: string
@@ -915,12 +917,21 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_tenant_id?: string | null
           full_name?: string
           id?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_current_tenant_id_fkey"
+            columns: ["current_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_order_items: {
         Row: {
@@ -1333,6 +1344,124 @@ export type Database = {
           },
         ]
       }
+      tenant_invites: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          email: string | null
+          expires_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          status: Database["public"]["Enums"]["tenant_member_status"]
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          status?: Database["public"]["Enums"]["tenant_member_status"]
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: Database["public"]["Enums"]["tenant_member_status"]
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_locked: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_locked?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_locked?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_ai_settings: {
         Row: {
           created_at: string
@@ -1691,7 +1820,9 @@ export type Database = {
         Args: { p_note_text: string; p_person_id: string }
         Returns: undefined
       }
+      can_access_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       check_account_status: { Args: { p_email: string }; Returns: Json }
+      current_tenant_id: { Args: { _user_id: string }; Returns: string }
       dearmor: { Args: { "": string }; Returns: string }
       decrypt_email: { Args: { encrypted_email: string }; Returns: string }
       decrypt_token: {
@@ -1741,6 +1872,19 @@ export type Database = {
             }
             Returns: boolean
           }
+      has_tenant_role: {
+        Args: {
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_global_developer: { Args: { _user_id: string }; Returns: boolean }
+      is_tenant_member: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
       permanently_delete_person: {
         Args: { person_id: string }
         Returns: undefined
@@ -1775,6 +1919,7 @@ export type Database = {
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
       app_role: "employee" | "owner" | "customer" | "salesman" | "developer"
+      tenant_member_status: "active" | "pending" | "invited" | "revoked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1904,6 +2049,7 @@ export const Constants = {
     Enums: {
       account_type: ["asset", "liability", "equity", "revenue", "expense"],
       app_role: ["employee", "owner", "customer", "salesman", "developer"],
+      tenant_member_status: ["active", "pending", "invited", "revoked"],
     },
   },
 } as const
