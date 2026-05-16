@@ -67,8 +67,16 @@ export function QuickBooksConnection({ onSyncComplete }: QuickBooksConnectionPro
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const realmId = urlParams.get('realmId');
+    const state = urlParams.get('state');
     
     if (code && realmId) {
+      const expectedState = sessionStorage.getItem('qb_oauth_state');
+      sessionStorage.removeItem('qb_oauth_state');
+      if (!state || !expectedState || state !== expectedState) {
+        toast.error('Invalid OAuth state — possible CSRF attempt. Please retry.');
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
       handleCallback(code, realmId);
     }
   }, []);
