@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { setCurrentTenantId } from "@/lib/tenant-context";
 
 export type AppRole = "employee" | "owner" | "customer" | "salesman" | "developer" | null;
 
@@ -10,8 +11,10 @@ interface AuthContextType {
   loading: boolean;
   role: AppRole;
   roleLoading: boolean;
+  tenantId: string | null;
   signOut: () => Promise<void>;
   refetchRole: () => Promise<void>;
+  refetchTenant: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,8 +23,10 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   role: null,
   roleLoading: true,
+  tenantId: null,
   signOut: async () => {},
   refetchRole: async () => {},
+  refetchTenant: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -30,6 +35,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<AppRole>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
+  const fetchTenant = useCallback(async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("current_tenant_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      let id = (data as any)?.current_tenant_id as string | null;
+      if (!id) {
+        // Fall back to first active membership
+        const { data: m } = await supabase
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
+        id = (m as any)?.tenant_id ?? null;
+        if (id) {
+          await supabase.from("profiles").update({ current_tenant_id: id } as any).eq("user_id", userId);
+        }
+      }
+      setTenantId(id);
+      setCurrentTenantId(id);
+    } catch (e) {
+      console.error("Failed to fetch tenant:", e);
+      setTenantId(null);
+      setCurrentTenantId(null);
+    }
+  }, []);
+
+  const refetchTenant = useCallback(async () => {
+    if (user) await fetchTenant(user.id);
+  }, [user, fetchTenant]);
   
   // Use refs to prevent duplicate fetches and track current user
   const fetchingRoleRef = useRef(false);
@@ -110,10 +151,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fetch role when user signs in
         if (session?.user) {
           fetchRole(session.user.id);
+          fetchTenant(session.user.id);
         } else {
           // Clear role on sign out
           setRole(null);
           setRoleLoading(false);
+          setTenantId(null);
+          setCurrentTenantId(null);
           roleCacheRef.current = null;
           lastFetchedUserIdRef.current = null;
         }
@@ -128,22 +172,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (session?.user) {
         fetchRole(session.user.id);
+        fetchTenant(session.user.id);
       } else {
         setRoleLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchRole]);
+  }, [fetchRole, fetchTenant]);
 
   const signOut = async () => {
     roleCacheRef.current = null;
     lastFetchedUserIdRef.current = null;
+    setCurrentTenantId(null);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, role, roleLoading, signOut, refetchRole }}>
+    <AuthContext.Provider value={{ user, session, loading, role, roleLoading, tenantId, signOut, refetchRole, refetchTenant }}>
       {children}
     </AuthContext.Provider>
   );
