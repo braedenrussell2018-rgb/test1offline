@@ -14,12 +14,12 @@ import { checkRateLimit, recordLoginAttempt } from "@/hooks/useSecuritySettings"
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
 import { AppRole } from "@/hooks/useUserRole";
 
-// Allow all roles during registration
-type UserRole = "customer" | "salesman" | "employee" | "owner";
+// Self-signup is restricted to non-privileged roles only.
+// Owner / employee / developer accounts must be provisioned by an admin
+// via the admin-user-management edge function.
+type UserRole = "customer" | "salesman";
 
 const ALL_ROLES: { value: UserRole; label: string; description: string }[] = [
-  { value: "owner", label: "Owner", description: "Full administrative access" },
-  { value: "employee", label: "Employee", description: "Internal staff member" },
   { value: "customer", label: "Customer", description: "View your orders and quotes" },
   { value: "salesman", label: "Salesman", description: "Create quotes and track commissions" },
 ];
@@ -95,7 +95,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("employee");
+  const [role, setRole] = useState<UserRole>("customer");
   const [loading, setLoading] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{
     blocked: boolean;
@@ -219,7 +219,7 @@ export default function Auth() {
     setEmail("");
     setPassword("");
     setFullName("");
-    setRole("owner");
+    setRole("customer");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
