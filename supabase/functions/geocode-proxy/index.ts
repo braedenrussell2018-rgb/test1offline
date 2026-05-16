@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -43,8 +42,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    const trimmed = address.trim();
+    const key = trimmed.toLowerCase();
+
+    // Read-through shared cache
+    const { data: cached } = await supabaseClient
+      .from("geocode_cache")
+      .select("lat,lng")
+      .eq("address_key", key)
+      .maybeSingle();
+
+    if (cached && cached.lat != null && cached.lng != null) {
+      return new Response(
+        JSON.stringify({ lat: Number(cached.lat), lng: Number(cached.lng), cached: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address.trim())}&limit=1`,
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed)}&limit=1`,
       {
         headers: {
           Accept: "application/json",
@@ -62,8 +78,20 @@ Deno.serve(async (req) => {
 
     const results = await response.json();
     if (results && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+
+      // Write-through: store for everyone else
+      await supabaseClient.from("geocode_cache").upsert({
+        address_key: key,
+        display_address: trimmed,
+        lat,
+        lng,
+        source: "nominatim",
+      }, { onConflict: "address_key" });
+
       return new Response(
-        JSON.stringify({ lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) }),
+        JSON.stringify({ lat, lng, cached: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -72,7 +100,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
