@@ -13,11 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search, Route } from "lucide-react";
+import { MapPin, Building2, User, X, Loader2, AlertCircle, Hexagon, RefreshCw, Maximize2, Minimize2, ExternalLink, Search, Route, Flame } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Company, Person } from "@/lib/inventory-storage";
 import { useContactsMap, getHexColor } from "@/hooks/useContactsMap";
 import { RoutePlanner, RoutePlannerHandle } from "./map/RoutePlanner";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ContactsMapDialogProps {
   companies: Company[];
