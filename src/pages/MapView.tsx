@@ -108,6 +108,9 @@ function MapViewContent() {
           <Button variant="ghost" size="sm" onClick={startGeocoding} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
           </Button>
+          <Button variant="ghost" size="sm" onClick={handlePrewarm} disabled={isPrewarming} title="Geocode all addresses server-side so the map loads instantly for everyone">
+            <Flame className={`h-4 w-4 mr-1 ${isPrewarming ? 'animate-pulse' : ''}`} /> Pre-warm
+          </Button>
           {failedLocations.length > 0 && (
             <Button variant="destructive" size="sm" onClick={() => setShowFailedDialog(true)}>
               <AlertCircle className="h-4 w-4 mr-1" /> Failed ({failedLocations.length})
