@@ -312,7 +312,6 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
       if (!map.current) {
         map.current = L.map(mapContainer.current, {
           dragging: true,
-          tap: true,
           touchZoom: true,
           scrollWheelZoom: true,
           doubleClickZoom: true,
