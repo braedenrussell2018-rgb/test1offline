@@ -99,11 +99,15 @@ export const InvoicePreviewEditor = ({
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    const esc = (s: string | undefined | null): string => {
+      if (s === null || s === undefined) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    };
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Invoice ${invoiceNumber}</title>
+          <title>Invoice ${esc(invoiceNumber)}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
@@ -128,25 +132,25 @@ export const InvoicePreviewEditor = ({
           <div class="invoice-header">
             <div>
               <div class="invoice-title">INVOICE</div>
-              <div class="invoice-meta">#${invoiceNumber}</div>
+              <div class="invoice-meta">#${esc(invoiceNumber)}</div>
               <div class="invoice-meta">Date: ${new Date().toLocaleDateString()}</div>
             </div>
-            ${salesmanName ? `<div class="invoice-meta">Salesman: ${salesmanName}</div>` : ''}
+            ${salesmanName ? `<div class="invoice-meta">Salesman: ${esc(salesmanName)}</div>` : ''}
           </div>
           
           <div class="customer-grid section">
             <div>
               <div class="section-title">Bill To</div>
               <div class="customer-info">
-                <p><strong>${customerName || '—'}</strong></p>
-                ${customerEmail ? `<p>${customerEmail}</p>` : ''}
-                ${customerPhone ? `<p>${customerPhone}</p>` : ''}
+                <p><strong>${esc(customerName) || '—'}</strong></p>
+                ${customerEmail ? `<p>${esc(customerEmail)}</p>` : ''}
+                ${customerPhone ? `<p>${esc(customerPhone)}</p>` : ''}
               </div>
             </div>
             <div>
               <div class="section-title">Ship To</div>
               <div class="customer-info">
-                <p>${shipToAddress || '—'}</p>
+                <p>${esc(shipToAddress) || '—'}</p>
               </div>
             </div>
           </div>
@@ -165,9 +169,9 @@ export const InvoicePreviewEditor = ({
               <tbody>
                 ${lineItems.map(item => `
                   <tr>
-                    <td>${item.partNumber}</td>
-                    <td>${item.description}</td>
-                    <td>${item.serialNumber || '—'}</td>
+                    <td>${esc(item.partNumber)}</td>
+                    <td>${esc(item.description)}</td>
+                    <td>${esc(item.serialNumber) || '—'}</td>
                     <td class="price">$${item.price.toFixed(2)}</td>
                   </tr>
                 `).join('')}
