@@ -70,10 +70,21 @@ Deno.serve(async (req) => {
     );
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: "Geocoding failed", status: response.status }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Rate-limit (429) or upstream 5xx → degrade gracefully so client doesn't crash
+      const fallbackable = response.status === 429 || response.status >= 500;
+      return new Response(
+        JSON.stringify({
+          lat: null,
+          lng: null,
+          error: "Geocoding unavailable",
+          status: response.status,
+          fallback: fallbackable,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const results = await response.json();
