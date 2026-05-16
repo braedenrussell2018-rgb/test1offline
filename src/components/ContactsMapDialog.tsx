@@ -113,6 +113,10 @@ export function ContactsMapDialog({ companies, persons, onRefresh }: ContactsMap
                 <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
+              <Button variant="ghost" size="sm" onClick={handlePrewarm} disabled={isPrewarming} title="Geocode every address server-side so the map loads instantly for everyone">
+                <Flame className={`h-4 w-4 mr-1 ${isPrewarming ? 'animate-pulse' : ''}`} />
+                Pre-warm
+              </Button>
               <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
                 {isFullscreen ? "Exit" : "Fullscreen"}
