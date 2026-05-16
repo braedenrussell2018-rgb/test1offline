@@ -219,7 +219,7 @@ export default function Auth() {
     setEmail("");
     setPassword("");
     setFullName("");
-    setRole("owner");
+    setRole("customer");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
