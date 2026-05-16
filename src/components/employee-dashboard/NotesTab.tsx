@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StickyNote, Plus, Trash2, Edit, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/tenant-context";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
