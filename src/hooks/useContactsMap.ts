@@ -310,7 +310,19 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
     const timer = setTimeout(() => {
       if (!mapContainer.current) return;
       if (!map.current) {
-        map.current = L.map(mapContainer.current);
+        map.current = L.map(mapContainer.current, {
+          dragging: true,
+          tap: true,
+          touchZoom: true,
+          scrollWheelZoom: true,
+          doubleClickZoom: true,
+          boxZoom: true,
+          keyboard: true,
+          inertia: true,
+          zoomControl: true,
+        });
+        // Safety net in case a previous instance disabled it
+        map.current.dragging.enable();
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
