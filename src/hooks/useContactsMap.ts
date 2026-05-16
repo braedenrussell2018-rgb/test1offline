@@ -212,6 +212,27 @@ export function useContactsMap({ companies, persons, active }: UseContactsMapOpt
     let processed = 0;
     let failed = 0;
 
+    // 1) Pull shared server-side cache in one query and merge into local cache
+    setGeocodeStatus("Loading shared location cache...");
+    try {
+      const keys = Array.from(addressMap.keys());
+      const serverHits = new Map<string, { lat: number; lng: number }>();
+      for (let i = 0; i < keys.length; i += 200) {
+        const chunk = keys.slice(i, i + 200);
+        const { data } = await supabase
+          .from("geocode_cache")
+          .select("address_key,lat,lng")
+          .in("address_key", chunk);
+        (data ?? []).forEach((r: { address_key: string; lat: number; lng: number }) => {
+          serverHits.set(r.address_key, { lat: Number(r.lat), lng: Number(r.lng) });
+          geocodeCache.set(r.address_key, { lat: Number(r.lat), lng: Number(r.lng), timestamp: Date.now() });
+        });
+      }
+      if (serverHits.size > 0) saveGeocodeCache(geocodeCache);
+    } catch (err) {
+      console.error("Failed to load shared geocode cache", err);
+    }
+
     for (const [address, data] of addressMap) {
       const cacheKey = address.trim().toLowerCase();
       const cached = geocodeCache.get(cacheKey);
