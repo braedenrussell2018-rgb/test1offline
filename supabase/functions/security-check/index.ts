@@ -99,79 +99,26 @@ Deno.serve(async (req) => {
             user_agent: userAgent,
           });
 
-        // If failed, update user security settings
+        // SECURITY: Do NOT toggle account_locked from this unauthenticated
+        // path or look up users via the admin API — that would let any
+        // anonymous caller lock arbitrary accounts and enumerate emails.
+        // Rate-limiting is handled in check_rate_limit by counting rows
+        // in login_attempts. Admin-driven locks go through lock_account,
+        // which requires a valid owner JWT.
         if (!body.success) {
-          const { data: users } = await supabaseAdmin.auth.admin.listUsers();
-          const user = users?.users.find(u => u.email === recordEmail);
-          
-          if (user) {
-            // Check current failed attempts
-            const { data: settings } = await supabaseAdmin
-              .from("user_security_settings")
-              .select("*")
-              .eq("user_id", user.id)
-              .single();
-
-            const newCount = (settings?.failed_login_attempts || 0) + 1;
-            const shouldLock = newCount >= 5;
-
-            await supabaseAdmin
-              .from("user_security_settings")
-              .upsert({
-                user_id: user.id,
-                failed_login_attempts: newCount,
-                last_failed_login: new Date().toISOString(),
-                account_locked: shouldLock,
-                account_locked_at: shouldLock ? new Date().toISOString() : settings?.account_locked_at,
-                account_locked_reason: shouldLock ? 'Too many failed login attempts' : settings?.account_locked_reason,
-              }, { onConflict: 'user_id' });
-
-            // Log security event
-            await supabaseAdmin
-              .from("audit_logs")
-              .insert({
-                action: shouldLock ? 'account_locked' : 'login_failed',
-                action_category: 'auth',
-                target_type: 'user',
-                target_id: user.id,
-                target_name: user.email,
-                result: 'failure',
-                failure_reason: shouldLock ? 'Account locked due to too many failed attempts' : 'Invalid credentials',
-                ip_address: ipAddress,
-                user_agent: userAgent,
-                risk_level: shouldLock ? 'high' : 'medium',
-              });
-          }
-        } else {
-          // Successful login - reset failed attempts
-          const { data: users } = await supabaseAdmin.auth.admin.listUsers();
-          const user = users?.users.find(u => u.email === recordEmail);
-          
-          if (user) {
-            await supabaseAdmin
-              .from("user_security_settings")
-              .upsert({
-                user_id: user.id,
-                failed_login_attempts: 0,
-                last_activity: new Date().toISOString(),
-              }, { onConflict: 'user_id' });
-
-            // Log successful login
-            await supabaseAdmin
-              .from("audit_logs")
-              .insert({
-                actor_id: user.id,
-                actor_email: user.email,
-                action: 'login_success',
-                action_category: 'auth',
-                target_type: 'user',
-                target_id: user.id,
-                result: 'success',
-                ip_address: ipAddress,
-                user_agent: userAgent,
-                risk_level: 'low',
-              });
-          }
+          await supabaseAdmin
+            .from("audit_logs")
+            .insert({
+              action: 'login_failed',
+              action_category: 'auth',
+              target_type: 'user',
+              target_name: recordEmail,
+              result: 'failure',
+              failure_reason: 'Invalid credentials',
+              ip_address: ipAddress,
+              user_agent: userAgent,
+              risk_level: 'low',
+            });
         }
 
         return new Response(
