@@ -28,32 +28,37 @@ Deno.serve(async (req) => {
     // Create admin client for inserting logs (bypasses RLS)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user info from auth header if present
+    // Require authentication — derive identity from the verified session only.
     const authHeader = req.headers.get("authorization");
-    let userId: string | null = null;
-    let userEmail: string | null = null;
-    let userRole: string | null = null;
-
-    if (authHeader) {
-      const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } }
-      });
-      
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (user) {
-        userId = user.id;
-        userEmail = user.email || null;
-        
-        // Get user role (use maybeSingle to handle no role case)
-        const { data: roleData } = await supabaseAdmin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        userRole = roleData?.role || null;
-      }
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId: string = user.id;
+    const userEmail: string | null = user.email || null;
+
+    const { data: roleData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const userRole: string | null = roleData?.role || null;
 
     // Parse request body
     const body: AuditLogEntry = await req.json();
