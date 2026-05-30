@@ -22,11 +22,29 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Generate authorization URL
+    // Generate authorization URL (requires authenticated user)
     if (action === 'authorize') {
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const authClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+      const { data: { user }, error: authErr } = await authClient.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      );
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       const redirectUri = url.searchParams.get('redirect_uri');
       const state = crypto.randomUUID();
-      
+
       const authUrl = new URL(QB_AUTH_URL);
       authUrl.searchParams.set('client_id', QUICKBOOKS_CLIENT_ID!);
       authUrl.searchParams.set('response_type', 'code');
@@ -34,11 +52,11 @@ serve(async (req) => {
       authUrl.searchParams.set('redirect_uri', redirectUri!);
       authUrl.searchParams.set('state', state);
 
-      console.log('Generated QuickBooks auth URL');
-      
-      return new Response(JSON.stringify({ 
+      console.log('Generated QuickBooks auth URL for user:', user.id);
+
+      return new Response(JSON.stringify({
         authUrl: authUrl.toString(),
-        state 
+        state
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
