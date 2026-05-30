@@ -52,33 +52,51 @@ serve(async (req) => {
 
     console.log("User authenticated:", user.id);
 
-    // Verify user has owner role (budget forecasts are owner-only per RLS)
-    const { data: roleData, error: roleError } = await userClient
-      .from('user_roles')
-      .select('role')
+    // Verify user has owner role in their active tenant
+    const { data: profile, error: profileError } = await userClient
+      .from('profiles')
+      .select('current_tenant_id')
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || !roleData || roleData.role !== 'owner') {
-      console.error('Unauthorized: User', user.id, 'attempted forecast without owner role');
+    if (profileError || !profile?.current_tenant_id) {
+      console.error('No active tenant for user', user.id);
       return new Response(
-        JSON.stringify({ error: 'Only owners can generate budget forecasts' }),
+        JSON.stringify({ error: 'No active tenant selected' }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Owner role verified for user:", user.id);
+    const tenantId = profile.current_tenant_id;
 
-    // Use service role for data operations (needed for cross-user data aggregation)
+    const { data: membership, error: memberError } = await userClient
+      .from('tenant_members')
+      .select('role,status')
+      .eq('user_id', user.id)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'active')
+      .single();
+
+    if (memberError || !membership || membership.role !== 'owner') {
+      console.error('Unauthorized: User', user.id, 'is not owner of tenant', tenantId);
+      return new Response(
+        JSON.stringify({ error: 'Only tenant owners can generate budget forecasts' }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Owner role verified for user:", user.id, 'tenant:', tenantId);
+
+    // Use service role for data operations, scoped to the user's tenant
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
 
     const { month } = await req.json();
 
-    // Get historical data: invoices, expenses, and transactions
+    // Get historical data scoped to the user's tenant only
     const [invoicesRes, expensesRes, accountsRes] = await Promise.all([
-      supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(100),
-      supabase.from('accounts').select('*').eq('is_active', true),
+      supabase.from('invoices').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(100),
+      supabase.from('expenses').select('*').eq('tenant_id', tenantId).order('expense_date', { ascending: false }).limit(100),
+      supabase.from('accounts').select('*').eq('tenant_id', tenantId).eq('is_active', true),
     ]);
 
     if (invoicesRes.error) throw invoicesRes.error;
