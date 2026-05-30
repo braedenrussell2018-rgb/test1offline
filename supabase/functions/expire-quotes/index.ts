@@ -16,6 +16,18 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Authentication: caller must present the service role key as a bearer token.
+    // pg_cron is configured to send this; any other caller is rejected.
+    const authHeader = req.headers.get("authorization") ?? "";
+    const presented = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!presented || presented !== serviceKey) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 },
+      );
+    }
+
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false },
     });
