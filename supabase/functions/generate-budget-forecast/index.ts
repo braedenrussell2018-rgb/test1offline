@@ -173,6 +173,7 @@ Consider growth trends, seasonal variations, and business cycles.`;
     const forecastRecords = forecasts.map((f) => ({
       month,
       account_id: f.account_id,
+      tenant_id: tenantId,
       forecasted_amount: f.forecasted_amount,
       actual_amount: 0,
       generated_by_ai: true,
