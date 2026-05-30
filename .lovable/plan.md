@@ -1,82 +1,43 @@
-# Multi-Tenant Refactor: `tenant_id` + RLS in `public`
+## Root cause
 
-You picked option 1. Same UX (companies, signup, "TRUE" migration, global developer super-admin), simpler isolation model that works with dynamic signup out of the box.
+Every table in the `public` schema currently has **zero** privileges granted to `authenticated`, `anon`, or `service_role`, and every RLS helper function (`has_role`, `is_tenant_member`, `has_tenant_role`, `is_global_developer`, `can_access_tenant`, `current_tenant_id`, `get_user_role`) has had `EXECUTE` revoked from `authenticated`.
 
-## Architecture
+Effect:
+- The auth login itself succeeds (that hits `auth.users`, not `public`).
+- Immediately after sign-in, `useAuth` runs `supabase.from("user_roles").select("role")`. The Data API rejects it because `authenticated` has no `SELECT` on `public.user_roles`. The client treats this as "no role assigned" and `RoleProtectedRoute` bounces back to `/auth` in a loop — exactly what the console log `"No role assigned, redirecting to auth"` shows repeatedly.
+- Even if a row were returned, every other table query in the app would fail the same way, and every RLS policy that calls `has_role(...)` / `is_tenant_member(...)` would fail because `authenticated` cannot execute those helpers.
 
-```text
-public.companies            (id, slug, name, created_by, created_at)
-public.company_members      (company_id, user_id, role, status)   -- per-company role
-public.company_invites      (company_id, email, token, role, expires_at, used_at)
+This regression came from the over-aggressive "security hardening" migration that revoked EXECUTE on SECURITY DEFINER helpers in response to Supabase linter findings `SUPA_anon_security_definer_function_executable` and `SUPA_authenticated_security_definer_function_executable`. Those findings are false positives for helpers that are required inside RLS policies.
 
-profiles.current_company_id  -- which company the user is "in" right now
+## Fix
 
-every existing CRM table gets a NOT NULL company_id column
-RLS on every table: company_id = current_company_id(auth.uid())
-                    OR is_global_developer(auth.uid())
-```
+One migration that:
 
-`user_roles` is kept only for the global `developer` super-admin. All `owner`/`employee`/`salesman`/`customer` roles move to `company_members.role` and are scoped to one company.
+1. **Restore table grants** on every `public` table, scoped to what the RLS policies actually allow.
+   - User-facing tables: `GRANT SELECT, INSERT, UPDATE, DELETE TO authenticated; GRANT ALL TO service_role;`
+   - Auth-only / no-anon tables (`user_roles`, `user_security_settings`, `tenant_members`, `tenants`, `audit_logs`, `login_attempts`, `signup_notifications`, `data_export_logs`, `quickbooks_connections`, `quickbooks_sync_log`, `profiles`, `accounts`, `account_transactions`, `branches`, `budget_forecasts`, `calendar_events`, `calendar_event_invitees`, `companies`, `company_meetings`, `expenses`, `internal_notes`, `invoices`, `items`, `meeting_chat_messages`, `people`, `purchase_orders`, `purchase_order_items`, `quotes`, `spiff_prizes`, `spiff_program`, `spiff_warranties`, `tenant_invites`, `user_ai_settings`, `vendors`, `video_meetings`, `video_meeting_participants`, `ai_conversations`, `geocode_cache`): no `anon` grant.
+   - `login_attempts`, `audit_logs`, `signup_notifications`: keep client INSERT blocked by the existing RESTRICTIVE policies; service role handles writes.
 
-## Build steps
+2. **Re-GRANT EXECUTE** on the RLS-evaluation helpers to `authenticated` (and `anon` only where policies allow anonymous access):
+   ```
+   GRANT EXECUTE ON FUNCTION public.has_role(uuid, app_role),
+                              public.is_tenant_member(uuid, uuid),
+                              public.has_tenant_role(uuid, uuid, app_role[]),
+                              public.is_global_developer(uuid),
+                              public.can_access_tenant(uuid),
+                              public.current_tenant_id(uuid),
+                              public.get_user_role(uuid)
+     TO authenticated;
+   ```
+   These must remain callable because every RLS policy on every tenant-scoped table invokes them. Without this, all reads/writes fail even when a grant exists.
 
-### 1. Registry migration
-- `public.companies`, `company_members`, `company_invites`.
-- Helpers (SECURITY DEFINER): `current_company_id(uuid)`, `is_company_member(company_id, user_id, roles[])`, `is_global_developer(uuid)`, `has_company_role(company_id, user_id, role)`.
-- Add `current_company_id` column to `profiles`.
+3. **Leave revoked** the helpers that are only meant for triggers / RPCs already accessed through wrappers: `encrypt_token`, `decrypt_token`, `encrypt_email`, `decrypt_email`, `store_qb_tokens`, `update_qb_tokens`, `get_qb_tokens` (clients call `get_qb_tokens` only — re-grant just that one), `handle_new_user*`, `assign_default_employee_role`, `soft_delete_people`, `generate_meeting_code`, `protect_user_security_settings`, `update_updated_at_column`.
 
-### 2. Add `company_id` to every CRM table + rewrite RLS
-Tables touched: `people`, `companies` (CRM, renamed to `crm_companies` to avoid clash — or kept and the tenant table named `tenants`; I'll go with **`public.tenants` for tenants, keep `companies` as CRM**), `branches`, `items`, `invoices`, `quotes`, `purchase_orders`, `purchase_order_items`, `expenses`, `accounts`, `account_transactions`, `budget_forecasts`, `ai_conversations`, `calendar_events`, `calendar_event_invitees`, `internal_notes`, `geocode_cache`, `company_meetings`, `meeting_chat_messages`, `video_meetings`, `video_meeting_participants`, etc.
-- Add `company_id uuid` (nullable initially, backfilled in step 3, then NOT NULL).
-- Replace existing `has_role(...)` RLS policies with `is_company_member(company_id, auth.uid(), ARRAY[...]) OR is_global_developer(auth.uid())`.
-- Salesman-scoped policies become per-tenant + salesman-name match.
+4. **Mark the two Supabase linter findings as ignored** (`SUPA_anon_security_definer_function_executable`, `SUPA_authenticated_security_definer_function_executable`) with an explanation that the listed helpers must be executable by `authenticated` because they are referenced inside RLS policy expressions, and update `@security-memory` so the scanner does not flag them again.
 
-### 3. "TRUE" backfill (data-only)
-- Insert one `tenants` row: `slug='true'`, `name='TRUE'`.
-- For every row in every CRM table: `UPDATE ... SET company_id = <TRUE>`.
-- For every row in `user_roles`: insert `company_members(<TRUE>, user_id, role, 'active')`.
-- Set every profile's `current_company_id = <TRUE>`.
-- Then `ALTER ... SET NOT NULL` on `company_id`.
+## Verification
 
-### 4. Signup flow (`src/pages/Auth.tsx`)
-- Remove role selector from signup.
-- Two-step: email/password/name → **Create company** (enter name → becomes `owner`, tenant row created) **OR Join existing** (paste invite code → pending member, owner approves).
-- Rewrite `handle_new_user_role()` trigger so it does NOT auto-assign global `owner`/`employee`. Self-signup users get no global role; their role lives in `company_members` after they create or join a company.
-- New edge function `provision-company` (creates tenant + owner member).
-- New edge function `accept-invite` (validates token, creates pending member).
-
-### 5. Active-company resolution
-- `useAuth` reads `profiles.current_company_id` on login. If null and user has memberships, pick first.
-- New `useCurrentCompany()` hook + `<CompanySwitcher />` in the top bar.
-- Global developer's switcher lists ALL tenants (uses `is_global_developer`).
-- All existing `has_role(...)` client checks → `useCompanyRole()` (reads `company_members` for current company; developer always passes).
-
-### 6. Edge function updates
-- All edge functions that write CRM data now read `company_id` from the caller's JWT/profile and stamp it on inserts.
-- `prewarm-geocodes` gets the missing auth check.
-- `admin-user-management` becomes per-company (invites, role changes) for owners; global for developer.
-
-### 7. UI pages
-- `/company-settings` (owner): rename tenant, manage invites, approve pending, change member roles.
-- `/admin/tenants` (developer only): list/switch/lock tenants, see per-tenant stats.
-
-### 8. QA
-- After migration, log in as existing user → all data still visible under TRUE.
-- Create a second tenant from a fresh signup → confirm zero TRUE data leaks.
-- Log in as developer → switcher lists both, can switch between.
-
-## Files
-
-- 3 migrations: registry, add-company-id-and-rls, set-not-null.
-- 2 new edge functions: `provision-company`, `accept-invite`.
-- New: `src/hooks/useCurrentCompany.ts`, `src/components/CompanySwitcher.tsx`, `src/components/auth/CreateOrJoinCompany.tsx`, `src/pages/CompanySettings.tsx`, `src/pages/TenantAdmin.tsx`.
-- Edits: `src/pages/Auth.tsx`, `src/hooks/useAuth.tsx`, `src/hooks/useUserRole.tsx`, ~20–30 components/pages that insert CRM rows (stamp `company_id` on insert).
-- Updates to ~10 edge functions to scope by `company_id`.
-
-## Out of scope
-
-Per-company billing, custom domains, moving meetings/video into tenant scope (they'll still get a `company_id` + RLS, just like the rest), unrelated security findings.
-
-## Risk / rollout
-
-One reversible migration sequence. I'll run them in order; if the backfill fails, the NOT NULL step is held back so nothing breaks.
+After applying the migration:
+- `SELECT role FROM public.user_roles WHERE user_id = auth.uid()` returns a row for the signed-in user.
+- Sign-in lands on the correct role-based route instead of looping back to `/auth`.
+- Spot-check `companies`, `people`, `invoices` queries from the client.
