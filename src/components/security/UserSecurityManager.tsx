@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Shield, Lock, Unlock, UserPlus, UserMinus, AlertTriangle, Search } from "lucide-react";
+import { Users, Shield, Lock, Unlock, UserPlus, UserMinus, AlertTriangle, Search, KeyRound, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 import { lockAccount, unlockAccount } from "@/hooks/useSecuritySettings";
 import { logAuditEvent, AuditEvents } from "@/hooks/useAuditLog";
@@ -45,10 +45,51 @@ export function UserSecurityManager() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserSecurityInfo | null>(null);
-  const [actionDialog, setActionDialog] = useState<"lock" | "unlock" | "role" | null>(null);
+  const [actionDialog, setActionDialog] = useState<"lock" | "unlock" | "role" | "password" | null>(null);
   const [lockReason, setLockReason] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("employee");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*";
+    let pw = "";
+    const arr = new Uint32Array(16);
+    crypto.getRandomValues(arr);
+    for (let i = 0; i < 16; i++) pw += chars[arr[i] % chars.length];
+    setNewPassword(pw);
+    setConfirmPassword(pw);
+    setShowPassword(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    if (newPassword.length < 8) {
+      toast({ title: "Weak password", description: "Must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    setProcessing(true);
+    const { data, error } = await supabase.functions.invoke("admin-user-management", {
+      body: { action: "update_password", userId: selectedUser.user_id, newPassword },
+    });
+    setProcessing(false);
+    if (error || (data as any)?.error) {
+      toast({ title: "Error", description: error?.message || (data as any)?.error || "Failed to reset password", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Password reset", description: `${selectedUser.full_name}'s password has been updated. Share the new password securely.` });
+    setActionDialog(null);
+    setSelectedUser(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+  };
 
   useEffect(() => {
     if (hasOwnerAccess()) {
@@ -359,8 +400,23 @@ export function UserSecurityManager() {
                             setNewRole(user.role);
                             setActionDialog("role");
                           }}
+                          title="Change role"
                         >
                           <Users className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewPassword("");
+                            setConfirmPassword("");
+                            setShowPassword(false);
+                            setActionDialog("password");
+                          }}
+                          title="Reset password"
+                        >
+                          <KeyRound className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -456,6 +512,69 @@ export function UserSecurityManager() {
             <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
             <Button onClick={handleRoleChange} disabled={processing || newRole === selectedUser?.role}>
               {processing ? "Updating..." : "Update Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={actionDialog === "password"} onOpenChange={() => setActionDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset User Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {selectedUser?.full_name}. They should change it after signing in. Share the new password through a secure channel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                This immediately replaces the user's password. All active sessions remain valid until they expire.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New password</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword((s) => !s)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Confirm password</label>
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+              />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={generatePassword}>
+              Generate secure password
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+            <Button
+              onClick={handleResetPassword}
+              disabled={processing || newPassword.length < 8 || newPassword !== confirmPassword}
+            >
+              {processing ? "Resetting..." : "Reset Password"}
             </Button>
           </DialogFooter>
         </DialogContent>
